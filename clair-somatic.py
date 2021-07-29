@@ -11,7 +11,7 @@ deep_learning_folder = [
     "Train",
 ]
 
-REPO_NAME = "RU"
+REPO_NAME = "clair-somatic"
 data_preprocess_folder = [
     "cal_phase_set",
     "ExtractCandidates"
