@@ -14,7 +14,9 @@ deep_learning_folder = [
 REPO_NAME = "clair-somatic"
 data_preprocess_folder = [
     "cal_phase_set",
-    "ExtractCandidates"
+    "ExtractCandidates",
+    "CreateTensorFullAlignment",
+    "Tensor2Bin"
 ]
 
 post_process_scripts_folder = [
