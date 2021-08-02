@@ -2,7 +2,7 @@ import sys
 from importlib import import_module
 
 DATA_PREP_SCRIPTS_FOLDER="src"
-DEEP_LEARNING_FOLDER="ru"
+DEEP_LEARNING_FOLDER="clair3"
 POST_PROCESS_SCRIPTS_FOLDER="clair3.metrics"
 
 deep_learning_folder = [
