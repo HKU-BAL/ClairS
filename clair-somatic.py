@@ -16,7 +16,9 @@ data_preprocess_folder = [
     "cal_phase_set",
     "ExtractCandidates",
     "CreateTensorFullAlignment",
-    "Tensor2Bin"
+    "Tensor2Bin",
+    "SplitBam",
+    "PlotAlignment"
 ]
 
 post_process_scripts_folder = [
