@@ -221,13 +221,20 @@ def decode_pileup_bases(pileup_bases, reference_base, minimum_af_for_candidate, 
 
     denominator = depth if depth > 0 else 1
     pileup_list = sorted(list(pileup_dict.items()), key=lambda x: x[1], reverse=True)
-    # reference_first_place = pileup_list[0][0] == reference_base
     af = (float(pileup_list[1][1]) / denominator) if len(pileup_list) > 1 else 0.0
     pass_af = len(pileup_list) and (pileup_list[0][0] != reference_base or af >= minimum_af_for_candidate)
+    pass_af = len(pileup_list) and (af >= minimum_af_for_candidate)
     af = (float(pileup_list[0][1]) / denominator) if len(pileup_list) >= 1 and pileup_list[0][
         0] != reference_base else af
 
-    return base_list, depth, pass_af, af
+    if has_pileup_candidates or not pass_af:
+        return base_list, depth, pass_af, af, "", ""
+
+    pileup_list = [[item[0], str(round(item[1]/denominator,3))] for item in pileup_list]
+    af_infos = ','.join([item[1] for item in pileup_list if item[0] != reference_base])
+    pileup_infos = ' '.join([item[0] + ':' + item[1] for item in pileup_list])
+
+    return base_list, depth, pass_af, af, af_infos, pileup_infos
 
 
 def get_alt_info(center_pos, pileup_dict, ref_seq, reference_sequence, reference_start, hap_dict):
@@ -446,6 +453,8 @@ def CreateTensorFullAlignment(args):
     ctg_name = args.ctgName
     need_phasing = args.need_phasing
     samtools_execute_command = args.samtools
+    output_depth = args.output_depth
+    output_alt_info = args.output_alt_info
     bam_file_path = args.bam_fn
     chunk_id = args.chunk_id - 1 if args.chunk_id else None  # 1-base to 0-base
     chunk_num = args.chunk_num
@@ -594,23 +603,24 @@ def CreateTensorFullAlignment(args):
         # read_name_list = columns[6].split(',')
         # raw_mapping_quality = columns[7]
         reference_base = evc_base_from(reference_sequence[pos - reference_start].upper())  # ev
-        base_list, depth, pass_af, af = decode_pileup_bases(pileup_bases=pileup_bases,
+        base_list, depth, pass_af, af, af_infos, pileup_infos = decode_pileup_bases(pileup_bases=pileup_bases,
                                                             reference_base=reference_base,
                                                             minimum_af_for_candidate=minimum_af_for_candidate,
                                                             has_pileup_candidates=has_pileup_candidates)
 
-        if alt_fn and pos in need_phasing_pos_set:
+        if len(need_phasing_pos_set):
+            if alt_fn and pos in need_phasing_pos_set:
                 alt_fp.write('\t'.join([ctg_name + '\t' + str(pos), str(af)]) + '\n')
-
+        elif pass_af:
+            depth_list = [str(depth)] if output_depth else []
+            alt_info_list = [af_infos, pileup_infos] if output_alt_info else []
+            alt_fp.write('\t'.join([ctg_name, str(pos), reference_base] + depth_list + alt_info_list) + '\n')
     samtools_mpileup_process.stdout.close()
     samtools_mpileup_process.wait()
 
 
     if alt_fn:
         alt_fp.close()
-    #
-    # if unify_repre_fn:
-    #     label_fp.close()
 
 
 def main():
@@ -670,6 +680,12 @@ def main():
 
     # options for debug purpose
     parser.add_argument('--phasing_info_in_bam', action='store_true',
+                        help="DEBUG: Skip phasing and use the phasing info provided in the input BAM (HP tag), default: False")
+
+    parser.add_argument('--output_depth', action='store_true',
+                        help="DEBUG: Skip phasing and use the phasing info provided in the input BAM (HP tag), default: False")
+
+    parser.add_argument('--output_alt_info', action='store_true',
                         help="DEBUG: Skip phasing and use the phasing info provided in the input BAM (HP tag), default: False")
 
     parser.add_argument('--phasing_window_size', type=int, default=param.phasing_window_size,
