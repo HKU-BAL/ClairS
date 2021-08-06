@@ -13,12 +13,17 @@ deep_learning_folder = [
 
 REPO_NAME = "clair-somatic"
 data_preprocess_folder = [
-    "cal_phase_set",
+    "GetCandidates",
     "ExtractCandidates",
     "CreateTensorFullAlignment",
     "Tensor2Bin",
     "SplitBam",
-    "PlotAlignment"
+    "PlotAlignment",
+    "MixBin",
+    "ExtractAF",
+    "Vcf2Bed",
+    "PlotAF",
+    "FilterRef"
 ]
 
 post_process_scripts_folder = [
