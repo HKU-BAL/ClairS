@@ -9,6 +9,7 @@ deep_learning_folder = [
     "CallVarBam",
     "CallVariants",
     "Train",
+    "Predict"
 ]
 
 REPO_NAME = "clair-somatic"
