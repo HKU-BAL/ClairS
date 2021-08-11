@@ -29,12 +29,15 @@ class VcfReader(object):
         if self.vcf_fn is None:
             return
 
+        header_last_column = []
         vcf_fp = subprocess_popen(shlex.split("gzip -fdc %s" % (self.vcf_fn)))
         for row in vcf_fp.stdout:
             columns = row.strip().split()
             if columns[0][0] == "#":
+                header_last_column = columns
                 continue
 
+            tumor_first = header_last_column[-1].rstrip().lower() != "tumor" if len(header_last_column) else True
             # position in vcf is 1-based
             chromosome, position = columns[0], columns[1]
             if chromosome != self.ctg_name:
@@ -48,27 +51,32 @@ class VcfReader(object):
             else:
                 reference, alternate, last_column = columns[3], columns[4], columns[-1]
             # normal GetTruth
+                last_column = last_column if not tumor_first else columns[-2]
                 if self.is_happy_format and self.is_fp:
                     last_column = columns[10]
                 if self.is_happy_format and not self.is_fp:
                     last_column = columns[9]
                 genotype = last_column.split(":")[0].replace("/", "|").replace(".", "0").split("|")
-                genotype_1, genotype_2 = genotype
+                try:
+                    genotype_1, genotype_2 = genotype
 
-                # 1000 Genome GetTruth (format problem) (no genotype is given)
-                if int(genotype_1) > int(genotype_2):
-                    genotype_1, genotype_2 = genotype_2, genotype_1
+                    # 1000 Genome GetTruth (format problem) (no genotype is given)
+                    if int(genotype_1) > int(genotype_2):
+                        genotype_1, genotype_2 = genotype_2, genotype_1
 
-                #remove * to guarentee vcf match
-                if '*' in alternate:
-                    alternate = alternate.split(',')
-                    if int(genotype_1) + int(genotype_2) != 3 or len(alternate) != 2:
-                        print ('error with variant representation')
-                        continue
-                    alternate = ''.join([alt_base for alt_base in alternate if alt_base != '*'])
-                    # * always have a genotype 1/2
+                    #remove * to guarentee vcf match
+                    if '*' in alternate:
+                        alternate = alternate.split(',')
+                        if int(genotype_1) + int(genotype_2) != 3 or len(alternate) != 2:
+                            print ('error with variant representation')
+                            continue
+                        alternate = ''.join([alt_base for alt_base in alternate if alt_base != '*'])
+                        # * always have a genotype 1/2
 
-                    genotype_1, genotype_2 = '0', '1'
+                        genotype_1, genotype_2 = '0', '1'
+                except:
+                    genotype_1 = -1
+                    genotype_2 = -1
             position = int(position)
             self.variant_dict[position] = Position(pos=position,
                                                     ref_base=reference,
