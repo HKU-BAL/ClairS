@@ -24,7 +24,8 @@ data_preprocess_folder = [
     "ExtractAF",
     "Vcf2Bed",
     "PlotAF",
-    "FilterRef"
+    "FilterRef",
+    "CreateTensorFullAdjacent"
 ]
 
 post_process_scripts_folder = [
