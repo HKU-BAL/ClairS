@@ -143,6 +143,12 @@ def train_model(args):
 
     TensorDtype = ((tf.int32,tf.int32), tuple(tf.float32 for _ in range(task_num)))
 
+    Val_TensorShape = (tuple(tf.TensorShape([None] + tensor_shape) for _ in range(2)),
+        tuple(tf.TensorShape([None, label_shape[task]]) for task in range(task_num)), tf.TensorShape([None] + [1]), tf.TensorShape([None] + [1]))
+
+    Val_TensorDtype = ((tf.int32,tf.int32), tuple(tf.float32 for _ in range(task_num)), tf.string, tf.string)
+
+
     bin_list = os.listdir(args.bin_fn)
     # default we exclude sample hg003 and all chr20 for training
     # bin_list = [f for f in bin_list if '_20_' not in f and not exist_file_prefix(exclude_training_samples, f)]
@@ -181,6 +187,8 @@ def train_model(args):
         normal_matrix = np.empty([batch_size] + tensor_shape, np.int32)
         tumor_matrix = np.empty([batch_size] + tensor_shape, np.int32)
         label = np.empty((batch_size, param.label_size), np.float32)
+        positions = np.empty((batch_size, 1), 'S2000')
+        alt_infos = np.empty((batch_size, 1), 'S2000')
 
         random_start_position = np.random.randint(0, batch_size) if train_flag else 0
         if train_flag:
@@ -198,8 +206,16 @@ def train_model(args):
                 label[chunk_idx * chunk_size:(chunk_idx + 1) * chunk_size] = x[bin_id].root.label[
                         random_start_position + chunk_id * chunk_size:random_start_position + (chunk_id + 1) * chunk_size]
 
-            # if add_indel_length:
-            yield (normal_matrix, tumor_matrix), (label[:,:label_shape_cum[0]],)
+                if not train_flag:
+                    positions[chunk_idx * chunk_size:(chunk_idx + 1) * chunk_size] = x[bin_id].root.position[
+                            random_start_position + chunk_id * chunk_size:random_start_position + (chunk_id + 1) * chunk_size]
+                    alt_infos[chunk_idx * chunk_size:(chunk_idx + 1) * chunk_size] = x[bin_id].root.alt_info[
+                            random_start_position + chunk_id * chunk_size:random_start_position + (chunk_id + 1) * chunk_size]
+
+            if train_flag:
+                yield (normal_matrix, tumor_matrix), (label[:,:label_shape_cum[0]],)
+            else:
+                yield (normal_matrix, tumor_matrix), (label[:, :label_shape_cum[0]],), positions, alt_infos
             # else:
             #     yield (normal_matrix, tumor_matrix), (label[:,:label_shape_cum[0]])
 
@@ -208,8 +224,8 @@ def train_model(args):
         lambda: DataGenerator(table_dataset_list, train_data_size, train_shuffle_chunk_list, True), TensorDtype,
         TensorShape).prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
     validate_dataset = tf.data.Dataset.from_generator(
-        lambda: DataGenerator(validate_table_dataset_list, validate_data_size, validate_shuffle_chunk_list, False), TensorDtype,
-        TensorShape).prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+        lambda: DataGenerator(validate_table_dataset_list, validate_data_size, validate_shuffle_chunk_list, False), Val_TensorDtype,
+        Val_TensorShape).prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
 
     total_steps = max_epoch * train_data_size // batch_size
 
@@ -254,23 +270,76 @@ def train_model(args):
     normal_logits = np.empty(shape=(0, 64))
     tumor_logits = np.empty(shape=(0, 64))
     labels = np.empty(shape=(0, label_size))
-    for val_data, val_label in validate_dataset:
-        prediction = model.predict_on_batch(val_data)
-        predictions = np.concatenate([predictions, prediction[0]], axis = 0)
-        if output_logits:
-            prediction_pro, normal_logit, tumor_logit = prediction
-            normal_logits = np.concatenate([normal_logits, normal_logit], axis=0)
-            tumor_logits = np.concatenate([tumor_logits, tumor_logit], axis=0)
-        labels = np.concatenate([labels, val_label[0]], axis = 0)
-        val_total += len(prediction[0])
-        if val_total > 100000:
-            break
 
-    if output_dir and os.path.exists(output_dir):
-        np.save(os.path.join(output_dir, 'normal'), normal_logits)
-        np.save(os.path.join(output_dir, 'tumor'), tumor_logits)
-        np.save(os.path.join(output_dir, 'label'), labels)
+    fp_vcf = open(os.path.join(output_dir, 'fp.vcf'), 'w')
+    fn_vcf = open(os.path.join(output_dir, 'fn.vcf'), 'w')
+
+    for val_data, val_label, val_positions, val_alt_infos in validate_dataset:
+        prediction = model.predict_on_batch(val_data)
+        prediction = tf.nn.sigmoid(prediction[0]).numpy()
+        predictions = np.concatenate([predictions, prediction], axis = 0)
+        y_pred = np.argmax(prediction, axis=1)
+        y_truth = np.argmax(val_label[0], axis=1)
+        #np where to get index
+        fp = y_truth < y_pred
+        fn = y_truth > y_pred
+        fp_pos_array = [item[0].numpy().decode().split(':') for item in val_positions[fp]]
+        fp_pos_array = [(item[0],item[-1]) for item in fp_pos_array]
+
+        fn_pos_array = [item[0].numpy().decode().split(':') for item in val_positions[fn]]
+        fn_pos_array = [(item[0],item[-1]) for item in fn_pos_array]
+
+        for pos, variant_type in fp_pos_array:
+            vcf_format = "%s\t%d\t.\t%s\t%s\t%d\t%s\t%s\tGT:GQ:DP:AF:VT\t%s:%d:%d:%.4f:%s" % (
+                'chr1',
+                int(pos),
+                "A",
+                "A",
+                10,
+                'PASS',
+                '.',
+                "0/0",
+                10,
+                10,
+                0.5,
+                variant_type)
+            fp_vcf.write(vcf_format + '\n')
+
+        for pos, variant_type in fn_pos_array:
+            vcf_format = "%s\t%d\t.\t%s\t%s\t%d\t%s\t%s\tGT:GQ:DP:AF:VT\t%s:%d:%d:%.4f:%s" % (
+                'chr1',
+                int(pos),
+                "A",
+                "A",
+                10,
+                'PASS',
+                '.',
+                "0/0",
+                10,
+                10,
+                0.5,
+                variant_type)
+            fn_vcf.write(vcf_format + '\n')
+
+
+        # if output_logits:
+        #     prediction_pro, normal_logit, tumor_logit = prediction
+        #     normal_logits = np.concatenate([normal_logits, normal_logit], axis=0)
+        #     tumor_logits = np.concatenate([tumor_logits, tumor_logit], axis=0)
+        # labels = np.concatenate([labels, val_label[0]], axis = 0)
+        val_total += len(prediction[0])
+        # if val_total > 100000:
+        #     break
+
+    # if output_dir and os.path.exists(output_dir):
+    #     if output_logits:
+    #         np.save(os.path.join(output_dir, 'normal'), normal_logits)
+    #         np.save(os.path.join(output_dir, 'tumor'), tumor_logits)
+    #     np.save(os.path.join(output_dir, 'label'), labels)
+    #     np.save(os.path.join(output_dir, 'prediction'), predictions)
     logging.info("[INFO] Total val data size/predictions size:{}/{}".format(val_total, len(predictions)))
+    fp_vcf.close()
+    fn_vcf.close()
     # validate_dataset = validate_dataset if add_validation_dataset else None
     # if args.chkpnt_fn is not None:
     #     model.load_weights(args.chkpnt_fn)
