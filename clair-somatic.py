@@ -2,13 +2,13 @@ import sys
 from importlib import import_module
 
 DATA_PREP_SCRIPTS_FOLDER="src"
-DEEP_LEARNING_FOLDER="clair3-somatic"
-POST_PROCESS_SCRIPTS_FOLDER="clair3-somatic.metrics"
+DEEP_LEARNING_FOLDER="clair-somatic"
+POST_PROCESS_SCRIPTS_FOLDER="clair-somatic.metrics"
 
 deep_learning_folder = [
     "CallVarBam",
     "CallVariants",
-    "Train",
+    "Train"
     "Predict",
     "Predict_with_logits"
 ]
@@ -26,7 +26,8 @@ data_preprocess_folder = [
     "Vcf2Bed",
     "PlotAF",
     "FilterRef",
-    "CreateTensorFullAdjacent"
+    "CreateTensorFullAdjacent",
+    'find_tumor_truth_in_normal'
 ]
 
 post_process_scripts_folder = [

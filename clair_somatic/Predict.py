@@ -9,7 +9,7 @@ import os
 import sys
 from itertools import accumulate
 
-import clair3.model as model_path
+import clair_somatic.model as model_path
 from shared.utils import str2bool
 
 logging.basicConfig(format='%(message)s', level=logging.INFO)
