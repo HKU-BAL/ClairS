@@ -56,8 +56,11 @@ def SplitBin(args):
                 for subprocess in subprocess_list:
                     subprocess.stdin.write(row)
                 continue
-            bin_id = int(random.random() * 100) % bin_num
-            subprocess_list[bin_id].stdin.write(row)
+            # replace random shuffle to partition for reproducibility
+            # bin_id = int(random.random() * 100) % bin_num
+            bin_id = row_id % bin_num
+            # add prefix  for each normal and tumor reads
+            subprocess_list[bin_id].stdin.write(prefix[0]+row)
 
         samtools_view_process.stdout.close()
         samtools_view_process.wait()
