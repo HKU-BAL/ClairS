@@ -2,13 +2,13 @@ import sys
 from importlib import import_module
 
 DATA_PREP_SCRIPTS_FOLDER="src"
-DEEP_LEARNING_FOLDER="clair-somatic"
-POST_PROCESS_SCRIPTS_FOLDER="clair-somatic.metrics"
+DEEP_LEARNING_FOLDER="clair_somatic"
+POST_PROCESS_SCRIPTS_FOLDER="clair_somatic.metrics"
 
 deep_learning_folder = [
     "CallVarBam",
     "CallVariants",
-    "Train"
+    "Train",
     "Predict",
     "Predict_with_logits"
 ]
