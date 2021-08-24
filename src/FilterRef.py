@@ -51,8 +51,8 @@ split_bed_size = 2000
 
 
 def decode_af(input_dir, file_list, output_depth=False, output_alt=False, bed_tree=None, contig_name=None):
-    af_list = []
     af_dict = defaultdict(float)
+    alt_info_dict = defaultdict()
     pos_set = set()
     for f in file_list:
         f = os.path.join(input_dir, f)
@@ -60,17 +60,20 @@ def decode_af(input_dir, file_list, output_depth=False, output_alt=False, bed_tr
             print('{} not exist'.format(f))
         for row in open(f):
             if output_alt:
-                row = row.rstrip().split('\t')
-                if len(row) < 5:
+                columns = row.rstrip().split('\t')
+                if len(columns) < 5:
                     continue
-                pos = row[1]
+                pos = columns[1]
 
-                af = row[4].split(',')[0]
-                af_dict[pos] = float(af)
+                af = columns[4].split(',')[0]
+                # alt_infos = dict([item.split(':') for item in row[5].split(' ')])
+                # alt_infos = columns[5]
+                alt_info_dict[int(pos)] = row
+                af_dict[int(pos)] = float(af)
             else:
-                row = row.rstrip().split()
-                pos = row[1]
-                depth = row[3]
+                columns = row.rstrip().split()
+                pos = columns[1]
+                depth = columns[3]
                 if bed_tree and not is_region_in(bed_tree, contig_name, int(pos)):
                     continue
                 min_depth = 4
@@ -78,18 +81,19 @@ def decode_af(input_dir, file_list, output_depth=False, output_alt=False, bed_tr
                     continue
                 pos_set.add(int(pos))
     if output_alt:
-        return af_dict
+        return alt_info_dict
     return pos_set
 
-def cal_homo(args):
+def filter_ref(args):
 
     contig_name =args.ctgName
     #tumor bed fn
     bed_fn = args.bed_fn
     normal_sample = args.normal_sample
     tumor_sample = args.tumor_sample
-    reference_cans = args.reference_cans
-    input_dir = args.input_dir
+    reference_cans_dir = args.reference_cans_dir
+    normal_alt_dir = args.normal_alt_dir
+    tumor_alt_dir = args.tumor_alt_dir
     unified_vcf_fn = args.unified_vcf_fn
     add_truths = args.add_truths
     from shared.vcf import VcfReader
@@ -102,21 +106,23 @@ def cal_homo(args):
     normal_unified_vcf_reader.read_vcf()
     normal_unified_variant_dict = normal_unified_vcf_reader.variant_dict
 
-    file_list = os.listdir(input_dir)
-    file_list = [f for f in file_list if "_" + contig_name + "_" in f]
-    normal_file_list = [f for f in file_list if f.startswith(normal_sample)]
-    tumor_file_list = [f for f in file_list if f.startswith(tumor_sample)]
-    bed_tree = bed_tree_from(bed_file_path=bed_fn, contig_name=contig_name)
+    # file_list = os.listdir(normal_alt_dir)
+    normal_file_list = [f for f in os.listdir(normal_alt_dir) if "_" + contig_name + "_" in f and f.startswith(normal_sample)]
+    tumor_file_list = [f for f in os.listdir(tumor_alt_dir) if "_" + contig_name + "_" in f and f.startswith(tumor_sample)]
 
-    normal_pos_set = decode_af(input_dir, normal_file_list, output_alt=False, bed_tree=bed_tree, contig_name=contig_name)
-    tumor_pos_set = decode_af(input_dir, tumor_file_list, output_alt=False, bed_tree=bed_tree, contig_name=contig_name)
+    bed_tree = bed_tree_from(bed_file_path=bed_fn, contig_name=contig_name)
+    normal_alt_info_dict = decode_af(normal_alt_dir, normal_file_list, output_alt=True, bed_tree=bed_tree, contig_name=contig_name)
+    tumor_alt_info_dict = decode_af(tumor_alt_dir, tumor_file_list, output_alt=True, bed_tree=bed_tree, contig_name=contig_name)
 
     match_count = 0
-    reference_cans_fp = open(reference_cans, 'w')
+    normal_reference_cans_fp = open(os.path.join(reference_cans_dir, normal_sample + '_' + contig_name), 'w')
+    tumor_reference_cans_fp = open(os.path.join(reference_cans_dir, tumor_sample + '_' + contig_name), 'w')
     pos_in_normal_truth = 0
     pos_in_tumor_truth = 0
     pos_in_normal_truth_and_tumor_truth = 0
-    for pos in sorted(list(tumor_pos_set)):
+    normal_reference_cans_fp.write("#{}\n".format(normal_sample))
+    tumor_reference_cans_fp.write("#{}\n".format(tumor_sample))
+    for pos, alt_infos in sorted(list(tumor_alt_info_dict.items()), key=lambda x: x[0]):
         if pos in normal_unified_variant_dict:
             pos_in_normal_truth += 1
             if pos in unified_variant_dict:
@@ -128,10 +134,15 @@ def cal_homo(args):
             pos_in_tumor_truth += 1
         if pos in unified_variant_dict and not add_truths:
             continue
-        reference_cans_fp.write('\t'.join([tumor_sample, contig_name, str(pos)]) + '\n')
+        tumor_reference_cans_fp.write(alt_infos)
+        # reference_cans_fp.write('\t'.join([tumor_sample, contig_name, str(pos), alt_infos]) + '\n')
         match_count += 1
-    print ('[INFO] {} normal pos/tumor pos/matched: {}/{}/{}, pos in normal truth/pos in tumor truth/pos in normal and truth:{}/{}/{}'.format(contig_name, len(normal_pos_set), len(tumor_pos_set), match_count, pos_in_normal_truth, pos_in_tumor_truth, pos_in_normal_truth_and_tumor_truth))
+    for pos, alt_infos in sorted(list(normal_alt_info_dict.items()), key=lambda x: x[0]):
+        normal_reference_cans_fp.write(alt_infos)
+    normal_reference_cans_fp.close()
+    tumor_reference_cans_fp.close()
 
+    print ('[INFO] {} normal pos/tumor pos/matched: {}/{}/{}, pos in normal truth/pos in tumor truth/pos in normal and truth:{}/{}/{}'.format(contig_name, len(normal_alt_info_dict), len(tumor_alt_info_dict), match_count, pos_in_normal_truth, pos_in_tumor_truth, pos_in_normal_truth_and_tumor_truth))
 
     # depth_set = set([f.split('_')[1] for f in file_list])
     # ctg_set = set([f.split('_')[2] for f in file_list])
@@ -187,7 +198,10 @@ def main():
     parser.add_argument('--ref_fn', type=str, default="ref.fa",  # required=True,
                         help="Reference fasta file input, required")
 
-    parser.add_argument('--input_dir', type=str, default="PIPE",
+    parser.add_argument('--normal_alt_dir', type=str, default="PIPE",
+                        help="Tensor output, stdout by default, default: %(default)s")
+
+    parser.add_argument('--tumor_alt_dir', type=str, default="PIPE",
                         help="Tensor output, stdout by default, default: %(default)s")
 
     parser.add_argument('--normal_sample', type=str, default=None,
@@ -208,7 +222,7 @@ def main():
     parser.add_argument('--ctgName', type=str, default=None,
                         help="The name of sequence to be processed, required if --bed_fn is not defined")
 
-    parser.add_argument('--reference_cans', type=str, default=None,
+    parser.add_argument('--reference_cans_dir', type=str, default=None,
                         help="The name of sequence to be processed, required if --bed_fn is not defined")
 
     parser.add_argument('--ctgStart', type=int, default=None,
@@ -279,7 +293,7 @@ def main():
 
     args = parser.parse_args()
 
-    cal_homo(args)
+    filter_ref(args)
 
 
 if __name__ == "__main__":
