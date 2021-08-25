@@ -1,5 +1,6 @@
 import sys
 import shlex
+import os
 
 from subprocess import PIPE
 from argparse import ArgumentParser
@@ -26,7 +27,7 @@ class VcfReader(object):
     def read_vcf(self):
         is_ctg_region_provided = self.ctg_start is not None and self.ctg_end is not None
 
-        if self.vcf_fn is None:
+        if self.vcf_fn is None or not os.path.exists(self.vcf_fn):
             return
 
         header_last_column = []
@@ -37,13 +38,14 @@ class VcfReader(object):
                 header_last_column = columns
                 continue
 
-            tumor_first = header_last_column[-1].rstrip().lower() != "tumor" if len(header_last_column) else True
+            tumor_in_last = True if len(header_last_column) and header_last_column[-1].rstrip().lower() == "tumor" else False
             # position in vcf is 1-based
             chromosome, position = columns[0], columns[1]
             if chromosome != self.ctg_name:
                 continue
             if is_ctg_region_provided and not (self.ctg_start <= int(position) <= self.ctg_end):
                 continue
+            self.is_var_format = True if columns[2][0] in 'ACGT' else False
             if self.is_var_format:
                 reference, alternate = columns[2], columns[3]
                 genotype_1 = int(columns[4])
@@ -51,7 +53,7 @@ class VcfReader(object):
             else:
                 reference, alternate, last_column = columns[3], columns[4], columns[-1]
             # normal GetTruth
-                last_column = last_column if not tumor_first else columns[-2]
+                last_column = last_column if not tumor_in_last else columns[-2]
                 if self.is_happy_format and self.is_fp:
                     last_column = columns[10]
                 if self.is_happy_format and not self.is_fp:
@@ -78,11 +80,15 @@ class VcfReader(object):
                     genotype_1 = -1
                     genotype_2 = -1
             position = int(position)
+            have_extra_infos = 'VT' in row
+
+            extra_infos = columns[-1].split(':')[-1] if have_extra_infos else ''
             self.variant_dict[position] = Position(pos=position,
                                                     ref_base=reference,
                                                    alt_base=alternate,
                                                    genotype1=int(genotype_1),
-                                                   genotype2=int(genotype_2))
+                                                   genotype2=int(genotype_2),
+                                                   extra_infos=extra_infos)
     def get_alt_info(self, pos, extra_info=""):
         pos = int(pos)
         if pos not in self.variant_dict:
@@ -90,4 +96,5 @@ class VcfReader(object):
         ref_base = self.variant_dict[pos].reference_bases
         alt_base = ','.join(self.variant_dict[pos].alternate_bases)
         gentoype_str = '/'.join([str(g) for g in self.variant_dict[pos].genotype])
+        extra_info = self.variant_dict[pos].extra_infos if self.variant_dict[pos].extra_infos != "" else extra_info
         return extra_info + '_' + ref_base + '_' + alt_base + '_' + gentoype_str
