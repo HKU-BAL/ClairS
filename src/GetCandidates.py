@@ -23,6 +23,7 @@ def subprocess_popen(args, stdin=None, stdout=PIPE, stderr=stderr, bufsize=83886
 def vcf_reader(vcf_fn, contig_name, bed_tree=None, add_hete_pos=False):
     homo_variant_set = set()
     variant_set = set()
+    variant_info = defaultdict()
     homo_variant_info = defaultdict()
     hete_variant_set = set()
     hete_variant_info = defaultdict()
@@ -53,7 +54,8 @@ def vcf_reader(vcf_fn, contig_name, bed_tree=None, add_hete_pos=False):
             hete_variant_set.add(pos)
             hete_variant_info[pos] = (ref_base, alt_base)
         variant_set.add(pos)
-    return homo_variant_set, homo_variant_info, hete_variant_set, hete_variant_info, variant_set
+        variant_info[pos] = (ref_base, alt_base)
+    return homo_variant_set, homo_variant_info, hete_variant_set, hete_variant_info, variant_set, variant_info
 
 split_bed_size = 10000
 
@@ -69,16 +71,93 @@ def get_ref_candidates(fn, contig_name = None, bed_tree=None):
             continue
         if not is_region_in(bed_tree, contig_name, pos):
             continue
-        ref_base, depth, af_infos, alt_infos = columns[2:5]
-        af_list = af_infos.split(',')
-        alt_dict = dict([item.split(':') for item in alt_infos.split(' ')])
 
+        ref_base, depth, af_infos, alt_infos = columns[2:6]
+
+        af_list = af_infos.split(',')
+        alt_dict = dict([[item.split(':')[0], float(item.split(':')[1])] for item in alt_infos.split(' ')])
         ref_cans_dict[pos] = AltInfos(pos=pos,
                                       ref_base=ref_base,
                                       depth=depth,
                                       af_list=af_list,
                                       alt_dict=alt_dict)
     return ref_cans_dict
+
+
+def find_candidate_match(alt_info_dict, ref_base, alt_base):
+    # alt_base = alt_base[0]
+    alt_list = sorted(list(alt_info_dict.items()), key=lambda x: x[1], reverse=True)
+    max_af = alt_list[0][1] if len(alt_info_dict) > 0 else None
+    #snp
+    if len(ref_base) == 1 and len(alt_base) == 1:
+        if alt_base in alt_info_dict:
+            return alt_info_dict[alt_base], 'snp', max_af
+    #
+    # insertion
+    if len(ref_base) == 1 and len(alt_base) > 1:
+        ab = alt_base[0] + '+' + alt_base[1:]
+        if ab in alt_info_dict:
+            return alt_info_dict[ab], 'ins', max_af
+    # deletion
+    if len(ref_base) > 1 and len(alt_base) == 1:
+        ab = ref_base[0] + '-' + 'N' * len(ref_base[1:])
+        if ab in alt_info_dict:
+            return alt_info_dict[ab], 'del', max_af
+
+    if len(alt_info_dict) > 0:
+        return None, 'signal', max_af
+    return None, "", None
+
+
+def filter_somatic_candidates(truths, variant_info, alt_dict, paired_alt_dict):
+    filtered_truths = []
+    count_dict = {'total': 0, 'snp': 0, 'ins': 0, 'del': 0, 'signal': 0}
+    truth_not_pass_af = 0
+    for pos, variant_type in truths:
+        if pos not in alt_dict:
+            truth_not_pass_af += 1
+
+            # vcf_format = "%s\t%d\t.\t%s\t%s\t%d\t%s\t%s\tGT:GQ:DP:AF:VT\t%s:%d:%d:%.4f:%s" % (
+            #     'chr1',
+            #     int(pos),
+            #     "A",
+            #     "A",
+            #     10,
+            #     'PASS',
+            #     '.',
+            #     "0/0",
+            #     10,
+            #     10,
+            #     0.5,
+            #     'truth_not_pass_af')
+            # print(vcf_format)
+
+            continue
+        if pos in paired_alt_dict:
+            ref_base, alt_base = variant_info[pos]
+            af, vt, max_af = find_candidate_match(alt_info_dict=paired_alt_dict[pos].alt_dict, ref_base=ref_base, alt_base=alt_base)
+            if af is not None:
+                count_dict[vt] += 1
+                continue
+            # if max_af > 0.2:
+            #     vcf_format = "%s\t%d\t.\t%s\t%s\t%d\t%s\t%s\tGT:GQ:DP:AF:VT\t%s:%d:%d:%.4f:%s" % (
+            #         'chr1',
+            #         int(pos),
+            #         "A",
+            #         "A",
+            #         10,
+            #         'PASS',
+            #         '.',
+            #         "0/0",
+            #         10,
+            #         10,
+            #         0.5,
+            #         'truth_not_pass_af')
+            #     print(vcf_format)
+        filtered_truths.append([pos, variant_type])
+    # print (count_dict, truth_not_pass_af)
+    return filtered_truths
+
 
 def get_candidates(args):
     contig_name = args.ctgName
@@ -93,12 +172,13 @@ def get_candidates(args):
     add_hete_pos = args.add_hete_pos
     flankingBaseNum = args.flankingBaseNum if args.flankingBaseNum else param.flankingBaseNum
     split_folder = args.split_folder
-    homo_variant_set_1, homo_variant_info_1, hete_variant_set_1, hete_variant_info_1, variant_set_1 = vcf_reader(vcf_fn=vcf_fn_1, contig_name=contig_name, bed_tree=bed_tree, add_hete_pos=add_hete_pos)
-    homo_variant_set_2, homo_variant_info_2, hete_variant_set_2, hete_variant_info_2, variant_set_2 = vcf_reader(vcf_fn=vcf_fn_2, contig_name=contig_name, bed_tree=bed_tree, add_hete_pos=add_hete_pos)
+    homo_variant_set_1, homo_variant_info_1, hete_variant_set_1, hete_variant_info_1, variant_set_1, variant_info_1 = vcf_reader(vcf_fn=vcf_fn_1, contig_name=contig_name, bed_tree=bed_tree, add_hete_pos=add_hete_pos)
+    homo_variant_set_2, homo_variant_info_2, hete_variant_set_2, hete_variant_info_2, variant_set_2, variant_info_2 = vcf_reader(vcf_fn=vcf_fn_2, contig_name=contig_name, bed_tree=bed_tree, add_hete_pos=add_hete_pos)
     normal_alt_dict = get_ref_candidates(fn=normal_reference_cans_fn, contig_name=contig_name, bed_tree=bed_tree)
     tumor_alt_dict = get_ref_candidates(fn=tumor_reference_cans_fn, contig_name=contig_name, bed_tree=bed_tree)
 
-    ref_cans_list = [pos for pos in tumor_alt_dict if pos not in variant_set_2 and pos not in variant_set_1]
+    normal_ref_cans_list = [pos for pos in normal_alt_dict if pos not in variant_set_2 and pos not in variant_set_1]
+    tumor_ref_cans_list = [pos for pos in tumor_alt_dict if pos not in variant_set_2 and pos not in variant_set_1]
     intersection_pos_set = homo_variant_set_1.intersection(homo_variant_set_2)
 
     same_alt_pos_set = set()
@@ -117,8 +197,9 @@ def get_candidates(args):
 
     homo_germline = [(item, 'homo') for item in list(same_alt_pos_set)]
     hete_germline = [(item, 'hete') for item in hete_list_with_same_repre]
-    references = [(item, 'ref') for item in ref_cans_list]
+    references = [(item, 'ref') for item in normal_ref_cans_list + tumor_ref_cans_list]
     fp_list = sorted(homo_germline + references + hete_germline, key=lambda x: x[0])
+
 
     somatic_set = sorted(list(homo_variant_set_2 - homo_variant_set_1))
     hete_somatic_set = sorted(list(hete_variant_set_2 - variant_set_1))
@@ -126,6 +207,8 @@ def get_candidates(args):
     # skip hete variant here
     hete_somatic = [(item, 'hete_somatic') for item in hete_somatic_set] if add_hete_pos else []
 
+    homo_somatic = filter_somatic_candidates(truths=homo_somatic, variant_info=variant_info_2, alt_dict=tumor_alt_dict, paired_alt_dict=normal_alt_dict)
+    hete_somatic = filter_somatic_candidates(truths=hete_somatic, variant_info=variant_info_2, alt_dict=tumor_alt_dict, paired_alt_dict=normal_alt_dict)
     tp_list = sorted(list(homo_somatic + hete_somatic), key=lambda x: x[0])
 
     # for pos, variant_type in fp_list + tp_list:
