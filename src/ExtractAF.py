@@ -210,18 +210,24 @@ def decode_pileup_bases(pileup_bases, reference_base, minimum_af_for_candidate, 
     pileup_dict = defaultdict(int)
     base_counter = Counter([''.join(item) for item in base_list])
     depth = 0
+    alt_dict = defaultdict(int)
     for key, count in base_counter.items():
         if key[0].upper() in 'ACGT':
             pileup_dict[key[0].upper()] += count
             depth += count
         if len(key) > 1 and key[1] == '+':
             pileup_dict['I'] += count
+            alt_dict[key.upper()] += count
         elif len(key) > 1 and key[1] == '-':
             pileup_dict['D'] += count
+            alt_dict[key.upper()] += count
+        elif len(key) == 1 and key.upper() != reference_base:
+            alt_dict[key.upper()] += count
+
 
     denominator = depth if depth > 0 else 1
     pileup_list = sorted(list(pileup_dict.items()), key=lambda x: x[1], reverse=True)
-    af = (float(pileup_list[1][1]) / denominator) if len(pileup_list) > 1 else 0.0
+    af = (float(pileup_list[1][1]) / denominator) if len(pileup_list) > 1 else ((float(pileup_list[0][1]) / denominator) if len(pileup_list) == 1 and pileup_list[0][0] != reference_base else 0.0)
     pass_af = len(pileup_list) and (pileup_list[0][0] != reference_base or af >= minimum_af_for_candidate)
     pass_af = len(pileup_list) and (af >= minimum_af_for_candidate)
     af = (float(pileup_list[0][1]) / denominator) if len(pileup_list) >= 1 and pileup_list[0][
@@ -232,7 +238,14 @@ def decode_pileup_bases(pileup_bases, reference_base, minimum_af_for_candidate, 
 
     pileup_list = [[item[0], str(round(item[1]/denominator,3))] for item in pileup_list]
     af_infos = ','.join([item[1] for item in pileup_list if item[0] != reference_base])
-    pileup_infos = ' '.join([item[0] + ':' + item[1] for item in pileup_list])
+
+    alt_list = sorted(list(alt_dict.items()), key=lambda x: x[1], reverse=True)
+    alt_list = [[item[0], str(round(item[1]/denominator,3))] for item in alt_list]
+    pileup_infos = ' '.join([item[0] + ':' + item[1] for item in alt_list])
+
+    # pileup_list = [[item[0], str(round(item[1]/denominator,3))] for item in pileup_list]
+    # af_infos = ','.join([item[1] for item in pileup_list if item[0] != reference_base])
+    # pileup_infos = ' '.join([item[0] + ':' + item[1] for item in pileup_list])
 
     return base_list, depth, pass_af, af, af_infos, pileup_infos
 
@@ -463,6 +476,7 @@ def CreateTensorFullAlignment(args):
     phasing_window_size = args.phasing_window_size
     extend_bp = param.extend_bp
     minimum_af_for_candidate = args.min_af
+    minimum_af_for_truth = args.min_truth_af
     platform = args.platform
 
     alt_fn = args.alt_fn
@@ -472,9 +486,15 @@ def CreateTensorFullAlignment(args):
     min_base_quality = args.minBQ
 
     vcf_fn = args.vcf_fn
+    is_truth_vcf_provided = vcf_fn is not None
+    truths_variant_dict = {}
+    if is_truth_vcf_provided:
+        from shared.vcf import VcfReader
+        unified_vcf_reader = VcfReader(vcf_fn=vcf_fn, ctg_name=ctg_name, is_var_format=False)
+        unified_vcf_reader.read_vcf()
+        truths_variant_dict = unified_vcf_reader.variant_dict
 
-    global test_pos
-    test_pos = None
+
     hete_snp_pos_dict = defaultdict()
     hete_snp_tree = IntervalTree()
     need_phasing_pos_set = set()
@@ -603,10 +623,13 @@ def CreateTensorFullAlignment(args):
         # read_name_list = columns[6].split(',')
         # raw_mapping_quality = columns[7]
         reference_base = evc_base_from(reference_sequence[pos - reference_start].upper())  # ev
+        is_truth_candidate = pos in truths_variant_dict
+        minimum_af = minimum_af_for_truth if is_truth_candidate and minimum_af_for_truth else minimum_af_for_candidate
         base_list, depth, pass_af, af, af_infos, pileup_infos = decode_pileup_bases(pileup_bases=pileup_bases,
                                                             reference_base=reference_base,
-                                                            minimum_af_for_candidate=minimum_af_for_candidate,
-                                                            has_pileup_candidates=has_pileup_candidates)
+                                                            minimum_af_for_candidate=minimum_af,
+                                                            has_pileup_candidates=has_pileup_candidates,
+                                                            )
 
         if len(need_phasing_pos_set):
             if alt_fn and pos in need_phasing_pos_set:
@@ -614,7 +637,8 @@ def CreateTensorFullAlignment(args):
         elif pass_af:
             depth_list = [str(depth)] if output_depth else []
             alt_info_list = [af_infos, pileup_infos] if output_alt_info else []
-            alt_fp.write('\t'.join([ctg_name, str(pos), reference_base] + depth_list + alt_info_list) + '\n')
+            if alt_fn:
+                alt_fp.write('\t'.join([ctg_name, str(pos), reference_base] + depth_list + alt_info_list) + '\n')
     samtools_mpileup_process.stdout.close()
     samtools_mpileup_process.wait()
 
@@ -629,10 +653,10 @@ def main():
     parser.add_argument('--platform', type=str, default='ont',
                         help="Sequencing platform of the input. Options: 'ont,hifi,ilmn', default: %(default)s")
 
-    parser.add_argument('--bam_fn', type=str, default="input.bam", required=True,
+    parser.add_argument('--bam_fn', type=str, default="input.bam",
                         help="Sorted BAM file input, required")
 
-    parser.add_argument('--ref_fn', type=str, default="ref.fa", required=True,
+    parser.add_argument('--ref_fn', type=str, default="ref.fa",
                         help="Reference fasta file input, required")
 
     parser.add_argument('--tensor_can_fn', type=str, default="PIPE",
@@ -642,6 +666,9 @@ def main():
                         help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file,  default: %(default)s")
 
     parser.add_argument('--min_af', type=float, default=0.00,
+                        help="Minimum allele frequency for both SNP and Indel for a site to be considered as a condidate site, default: %(default)f")
+
+    parser.add_argument('--min_truth_af', type=float, default=None,
                         help="Minimum allele frequency for both SNP and Indel for a site to be considered as a condidate site, default: %(default)f")
 
     parser.add_argument('--ctgName', type=str, default=None,
@@ -712,7 +739,7 @@ def main():
                         help=SUPPRESS)
 
     ## Test in specific candidate position. Only for testing
-    parser.add_argument('--test_pos', type=str2bool, default=0,
+    parser.add_argument('--test_pos', type=str2bool, default=1,
                         help=SUPPRESS)
 
     ## The number of chucks to be divided into for parallel processing
