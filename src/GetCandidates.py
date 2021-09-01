@@ -113,6 +113,7 @@ def filter_somatic_candidates(truths, variant_info, alt_dict, paired_alt_dict):
     filtered_truths = []
     count_dict = {'total': 0, 'snp': 0, 'ins': 0, 'del': 0, 'signal': 0}
     truth_not_pass_af = 0
+    truth_filter_in_normal = 0
     for pos, variant_type in truths:
         if pos not in alt_dict:
             truth_not_pass_af += 1
@@ -133,11 +134,13 @@ def filter_somatic_candidates(truths, variant_info, alt_dict, paired_alt_dict):
             # print(vcf_format)
 
             continue
+
         if pos in paired_alt_dict:
             ref_base, alt_base = variant_info[pos]
             af, vt, max_af = find_candidate_match(alt_info_dict=paired_alt_dict[pos].alt_dict, ref_base=ref_base, alt_base=alt_base)
             if af is not None:
                 count_dict[vt] += 1
+                truth_filter_in_normal += 1
                 continue
             # if max_af > 0.2:
             #     vcf_format = "%s\t%d\t.\t%s\t%s\t%d\t%s\t%s\tGT:GQ:DP:AF:VT\t%s:%d:%d:%.4f:%s" % (
@@ -154,8 +157,10 @@ def filter_somatic_candidates(truths, variant_info, alt_dict, paired_alt_dict):
             #         0.5,
             #         'truth_not_pass_af')
             #     print(vcf_format)
+
         filtered_truths.append([pos, variant_type])
     # print (count_dict, truth_not_pass_af)
+    print (truth_filter_in_normal)
     return filtered_truths
 
 
@@ -207,6 +212,9 @@ def get_candidates(args):
     # skip hete variant here
     hete_somatic = [(item, 'hete_somatic') for item in hete_somatic_set] if add_hete_pos else []
 
+    overall_somatic_truths = len(somatic_set)
+    overall_somatic_truths_not_in_pair_truth = len(homo_somatic)
+    print(len(homo_variant_set_2), overall_somatic_truths, overall_somatic_truths_not_in_pair_truth)
     homo_somatic = filter_somatic_candidates(truths=homo_somatic, variant_info=variant_info_2, alt_dict=tumor_alt_dict, paired_alt_dict=normal_alt_dict)
     hete_somatic = filter_somatic_candidates(truths=hete_somatic, variant_info=variant_info_2, alt_dict=tumor_alt_dict, paired_alt_dict=normal_alt_dict)
     tp_list = sorted(list(homo_somatic + hete_somatic), key=lambda x: x[0])
