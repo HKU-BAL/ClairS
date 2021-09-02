@@ -27,7 +27,8 @@ data_preprocess_folder = [
     "PlotAF",
     "FilterRef",
     "CreateTensorFullAdjacent",
-    'find_tumor_truth_in_normal'
+    'find_tumor_truth_in_normal',
+    "UpdateVar"
 ]
 
 post_process_scripts_folder = [
