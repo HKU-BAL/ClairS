@@ -12,7 +12,8 @@ from src.utils import subprocess_popen, file_path_from, IUPAC_base_to_num_dict a
 cov_suffix = ".depth.mosdepth.summary.txt"
 
 def get_coverage(depth_log):
-    last_row = open(depth_log).readlines()[-1]
+    with open(depth_log) as f:
+        last_row = f.readlines()[-1]
     depth = int(float(last_row.split()[3]))
     return depth
 
@@ -27,11 +28,11 @@ def MixBin(args):
     samtools_threads = args.samtools_threads
     min_coverage = args.minCoverage
     synthetic_proportion = args.synthetic_proportion
-    contaminative_proportion = args.contaminative_proportion
+    synthetic_depth = args.synthetic_depth
+    contaminative_proportions = args.contaminative_proportions
     platform = args.platform
     normal_bam_depth = args.normal_bam_depth
     tumor_bam_depth = args.tumor_bam_depth
-
     normal_depth_log = os.path.join(cov_dir, 'normal_' + ctg_name + cov_suffix)
     tumor_depth_log = os.path.join(cov_dir, 'tumor_' + ctg_name + cov_suffix)
     normal_bam_depth = get_coverage(normal_depth_log)
@@ -44,27 +45,57 @@ def MixBin(args):
     normal_bam_list = [bam for bam in bam_list if bam.startswith('normal_' + ctg_name + '_')]
     tumor_bam_list = [bam for bam in bam_list if bam.startswith('tumor_' + ctg_name  + '_')]
 
-    tumor_depth = (normal_bam_depth) * synthetic_proportion
-    normal_depth = normal_bam_depth - tumor_depth
+    synthetic_depth = min(normal_bam_depth, tumor_bam_depth) if synthetic_depth is None else synthetic_depth
+
+    tumor_depth = synthetic_depth * synthetic_proportion
+    normal_depth = synthetic_depth - tumor_depth
     sampled_normal_bin_num = int(normal_depth / min_coverage)
     sampled_tumor_bin_num = int(tumor_depth / min_coverage)
 
-    random.seed(0)
     sampled_normal_bam_list = [normal_bam_list[idx] for idx in random.sample(range(normal_bin_num), sampled_normal_bin_num)]
+    random.seed(0)
     sampled_tumor_bam_list = [tumor_bam_list[idx] for idx in random.sample(range(tumor_bin_num), sampled_tumor_bin_num)]
 
-    input_sampled_bam_list = [bam for bam in sampled_normal_bam_list + sampled_tumor_bam_list]
-    print (input_sampled_bam_list)
-    input_sampled_bam_list = ' '.join([os.path.join(input_dir, bam) for bam in input_sampled_bam_list])
+    # the rest sampled sample to generate normal bam
+    random.seed(0)
+    rest_normal_bam_list = [normal_bam_list[idx] for idx in range(normal_bin_num) if normal_bam_list[idx] not in sampled_normal_bam_list]
+    if sampled_normal_bin_num + sampled_tumor_bin_num < len(rest_normal_bam_list):
+        pair_normal_bam_list = [rest_normal_bam_list[idx] for idx in random.sample(range(len(rest_normal_bam_list)), sampled_normal_bin_num + sampled_tumor_bin_num)]
+    else:
+        pair_normal_bam_list = rest_normal_bam_list
 
-    subprocess_run(shlex.split("{} merge -f -@{} {} {}".format(samtools_execute_command, samtools_threads,output_fn, input_sampled_bam_list)))
+    tumor_sampled_bam_list = [bam for bam in sampled_normal_bam_list + sampled_tumor_bam_list]
+    print ("[INFO] Tumor sampled normal bam:{}:{}".format(len(sampled_normal_bam_list), ' '.join(sampled_normal_bam_list)))
+    print ("[INFO] Tumor sampled tumor bam:{}:{}".format(len(sampled_tumor_bam_list), ' '.join(sampled_tumor_bam_list)))
+    tumor_sampled_bam_list = ' '.join([os.path.join(input_dir, bam) for bam in tumor_sampled_bam_list])
+    print("[INFO] Normal sampled bam:{}:{}".format(len(pair_normal_bam_list), ' '.join(pair_normal_bam_list)))
+    print("[INFO] Normal sampled bam intersection:{}".format(set(pair_normal_bam_list).intersection(set(sampled_normal_bam_list + sampled_tumor_bam_list))))
+    normal_output_bam = output_fn.replace('tumor_', 'normal_')
+    normal_sampled_bam_list = ' '.join([os.path.join(input_dir, bam) for bam in pair_normal_bam_list])
+
+    subprocess_run(shlex.split("{} merge -f -@{} {} {}".format(samtools_execute_command, samtools_threads, output_fn, tumor_sampled_bam_list)))
     subprocess_run(shlex.split("{} index -@{} {}".format(samtools_execute_command, samtools_threads,output_fn)))
 
-    if contaminative_proportion is None:
-        normal_output_bam = output_fn.replace('tumor_', 'normal_')
-        subprocess_run(shlex.split("ln -sf {} {}".format(normal_bam_fn, normal_output_bam)))
-        subprocess_run(shlex.split("ln -sf {}.bai {}.bai".format(normal_bam_fn, normal_output_bam)))
+    subprocess_run(shlex.split(
+        "{} merge -f -@{} {} {}".format(samtools_execute_command, samtools_threads, normal_output_bam,
+                                        normal_sampled_bam_list)))
+    subprocess_run(shlex.split("{} index -@{} {}".format(samtools_execute_command, samtools_threads, normal_output_bam)))
 
+    if contaminative_proportions is not None:
+        # contam_tumor_num =
+        contaminative_proportion_list = contaminative_proportions.split(',')
+        normal_output_bam = output_fn.replace('tumor_', 'normal_')
+        normal_sampled_bam_list = ' '.join([os.path.join(input_dir, bam) for bam in pair_normal_bam_list])
+        subprocess_run(shlex.split(
+            "{} merge -f -@{} {} {}".format(samtools_execute_command, samtools_threads, normal_output_bam,
+                                            normal_sampled_bam_list)))
+        subprocess_run(
+            shlex.split("{} index -@{} {}".format(samtools_execute_command, samtools_threads, normal_output_bam)))
+
+
+
+        # subprocess_run(shlex.split("ln -sf {} {}".format(normal_bam_fn, normal_output_bam)))
+        # subprocess_run(shlex.split("ln -sf {}.bai {}.bai".format(normal_bam_fn, normal_output_bam)))
     #
     # for bam_fn, bin_num, prefix in zip((normal_bam_fn, tumor_bam_fn), (normal_bin_num, tumor_bin_num), ("normal", 'tumor')):
     #     subprocess_list = []
@@ -130,8 +161,11 @@ def main():
     parser.add_argument('--synthetic_proportion', type=float, default=0.25,
                         help="Reference fasta file input, required")
 
-    parser.add_argument('--contaminative_proportion', type=float, default=None,
+    parser.add_argument('--synthetic_depth', type=int, default=None,
                         help="Reference fasta file input, required")
+
+    parser.add_argument('--contaminative_proportions', type=str, default=None,
+                        help="contaminative_proportions, split by ','. ")
 
     parser.add_argument('--ctgName', type=str, default=None,
                         help="The name of sequence to be processed, required if --bed_fn is not defined")
