@@ -88,7 +88,6 @@ def get_ref_candidates(fn, contig_name = None, bed_tree=None, variant_info=None)
             ref_base, depth, af_infos, alt_infos = columns[2:6]
             tumor_infos = columns[6] if len(columns) > 6 else ""
 
-
             af_list = af_infos.split(',')
             alt_dict = dict([[item.split(':')[0], float(item.split(':')[1])] for item in alt_infos.split(' ')])
             tumor_alt_dict = dict([[item.split(':')[0], float(item.split(':')[1])] for item in tumor_infos.split(' ')]) if len(tumor_infos) else dict()
@@ -169,7 +168,7 @@ def filter_somatic_candidates(truths, variant_info, alt_dict, paired_alt_dict):
     truth_not_pass_af = 0
     truth_filter_in_normal = 0
     truth_filter_with_low_af = 0
-
+    min_af_for_tumor = 0.06
     for pos, variant_type in truths:
         if pos not in alt_dict:
             truth_not_pass_af += 1
@@ -187,7 +186,6 @@ def filter_somatic_candidates(truths, variant_info, alt_dict, paired_alt_dict):
         if len(alt_dict[pos].tumor_alt_dict):
             ref_base, alt_base = variant_info[pos]
             af, vt, max_af = find_candidate_match(alt_info_dict=alt_dict[pos].tumor_alt_dict, ref_base=ref_base, alt_base=alt_base)
-            min_af_for_tumor = 0.06
             if af is None or af < min_af_for_tumor:
                 truth_filter_with_low_af += 1
                 continue
@@ -240,7 +238,6 @@ def get_candidates(args):
     hete_germline = [(item, 'hete_germline') for item in hete_list_with_same_repre]
     references = [(item, 'ref') for item in normal_ref_cans_list + tumor_ref_cans_list]
     homo_germline = filter_germline_candidates(truths=homo_germline, variant_info=variant_info_2, alt_dict=tumor_alt_dict, paired_alt_dict=normal_alt_dict)
-
 
     if maximum_non_variant_ratio is not None:
         random.seed(0)
