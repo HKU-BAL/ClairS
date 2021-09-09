@@ -497,11 +497,11 @@ def get_read_name_intersec(center_pos, pileup_dict, left_pos_list, right_pos_lis
     center_pos_read_name_set = set(pileup_dict[center_pos].read_name_list)
     l_idx, r_idx = None, None
     for idx, pos in enumerate(left_pos_list):
-        if len(set(pileup_dict[pos].read_name_list).intersection(center_pos_read_name_set)) > 0:
+        if pos in pileup_dict and len(set(pileup_dict[pos].read_name_list).intersection(center_pos_read_name_set)) > 0:
             l_idx = idx
             break
     for idx, pos in enumerate(right_pos_list[::-1]):
-        if len(set(pileup_dict[pos].read_name_list).intersection(center_pos_read_name_set)) > 0:
+        if pos in pileup_dict and len(set(pileup_dict[pos].read_name_list).intersection(center_pos_read_name_set)) > 0:
             r_idx = len(right_pos_list) - idx
             break
     left_pos_list = left_pos_list[l_idx:] if l_idx is not None else left_pos_list
@@ -523,12 +523,21 @@ def get_adjacent_pos_list(center_pos, pos_list, pileup_dict):
     left_pos_list, right_pos_list = get_read_name_intersec(center_pos, pileup_dict, left_pos_list, right_pos_list)
     # print(a == len(left_pos_list), b == len(right_pos_list))
     if len(left_pos_list) < max_candidates:
-        left_pos_list = [pos for pos in left_pos_list if center_pos - pos > flanking_base_num]
-        left_pos_list =  left_pos_list + [0] * (max_candidates - len(left_pos_list))
+        left_pos_list = [pos for pos in left_pos_list if center_pos - pos > flanking_base_num * 2]
+        left_start = center_pos - flanking_base_num - (max_candidates - len(left_pos_list))
+        left_padding_list = list(range( left_start, center_pos - flanking_base_num))
+        # print (len(left_pos_list) + len(left_padding_list))
+        left_pos_list = left_pos_list + left_padding_list
     else:
         left_pos_list = left_pos_list[-max_candidates:]
     if len(right_pos_list) < max_candidates:
-        right_pos_list = right_pos_list + [0] * (max_candidates - len(right_pos_list))
+
+        right_pos_list = [pos for pos in left_pos_list if pos - center_pos > flanking_base_num * 2]
+        right_end = center_pos + flanking_base_num + (max_candidates - len(right_pos_list)) + 1
+        right_padding_list = list(range(center_pos + flanking_base_num+1, right_end))
+        # print (len(right_pos_list) + len(right_padding_list))
+
+        right_pos_list = right_padding_list + right_pos_list
     else:
         right_pos_list = right_pos_list[:max_candidates]
     return left_pos_list + [item for item in range(center_pos-flanking_base_num, center_pos + flanking_base_num + 1)] + right_pos_list
