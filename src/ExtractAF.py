@@ -169,7 +169,7 @@ def get_tensor_info(base_info, bq, ref_base, read_mq):
     return read_channel, ins_base, query_base
 
 
-def decode_pileup_bases(pileup_bases, reference_base, minimum_af_for_candidate, has_pileup_candidates):
+def decode_pileup_bases(pileup_bases, reference_base, minimum_af_for_candidate, has_pileup_candidates, read_name_list, is_tumor):
     """
     Decode mpileup input string.
     pileup_bases: pileup base string for each position, include all mapping information.
@@ -206,35 +206,32 @@ def decode_pileup_bases(pileup_bases, reference_base, minimum_af_for_candidate, 
         base_idx += 1
     # if has_pileup_candidates:
     #     return base_list, None, None, None
-
     pileup_dict = defaultdict(int)
     base_counter = Counter([''.join(item) for item in base_list])
+    alt_dict = dict(Counter([''.join(item).upper() for item in base_list]))
+
+    tumor_alt_dict = dict(Counter([''.join(item).upper() for item, read_name in zip(base_list, read_name_list) if read_name.startswith('t')])) if is_tumor else None
     depth = 0
-    alt_dict = defaultdict(int)
-    for key, count in base_counter.items():
+    for read_idx, (key, count) in enumerate(base_counter.items()):
         if key[0].upper() in 'ACGT':
             pileup_dict[key[0].upper()] += count
             depth += count
         if len(key) > 1 and key[1] == '+':
             pileup_dict['I'] += count
-            alt_dict[key.upper()] += count
         elif len(key) > 1 and key[1] == '-':
             pileup_dict['D'] += count
-            alt_dict[key.upper()] += count
-        elif len(key) == 1 and key.upper() != reference_base:
-            alt_dict[key.upper()] += count
-
+        # elif len(key) == 1 and key.upper() != reference_base:
 
     denominator = depth if depth > 0 else 1
     pileup_list = sorted(list(pileup_dict.items()), key=lambda x: x[1], reverse=True)
     af = (float(pileup_list[1][1]) / denominator) if len(pileup_list) > 1 else ((float(pileup_list[0][1]) / denominator) if len(pileup_list) == 1 and pileup_list[0][0] != reference_base else 0.0)
-    pass_af = len(pileup_list) and (pileup_list[0][0] != reference_base or af >= minimum_af_for_candidate)
+    # pass_af = len(pileup_list) and (pileup_list[0][0] != reference_base or af >= minimum_af_for_candidate)
     pass_af = len(pileup_list) and (af >= minimum_af_for_candidate)
     af = (float(pileup_list[0][1]) / denominator) if len(pileup_list) >= 1 and pileup_list[0][
         0] != reference_base else af
 
-    if has_pileup_candidates or not pass_af:
-        return base_list, depth, pass_af, af, "", ""
+    if not pass_af:
+        return base_list, depth, pass_af, af, "", "", ""
 
     pileup_list = [[item[0], str(round(item[1]/denominator,3))] for item in pileup_list]
     af_infos = ','.join([item[1] for item in pileup_list if item[0] != reference_base])
@@ -243,11 +240,17 @@ def decode_pileup_bases(pileup_bases, reference_base, minimum_af_for_candidate, 
     alt_list = [[item[0], str(round(item[1]/denominator,3))] for item in alt_list]
     pileup_infos = ' '.join([item[0] + ':' + item[1] for item in alt_list])
 
+    if tumor_alt_dict is not None:
+        tumor_alt_list = sorted(list(tumor_alt_dict.items()), key=lambda x: x[1], reverse=True)
+        tumor_alt_list = [[item[0], str(round(item[1]/denominator,3))] for item in tumor_alt_list]
+        tumor_pileup_infos = ' '.join([item[0] + ':' + item[1] for item in tumor_alt_list])
+    else:
+        tumor_pileup_infos = ""
     # pileup_list = [[item[0], str(round(item[1]/denominator,3))] for item in pileup_list]
     # af_infos = ','.join([item[1] for item in pileup_list if item[0] != reference_base])
     # pileup_infos = ' '.join([item[0] + ':' + item[1] for item in pileup_list])
 
-    return base_list, depth, pass_af, af, af_infos, pileup_infos
+    return base_list, depth, pass_af, af, af_infos, pileup_infos, tumor_pileup_infos
 
 
 def get_alt_info(center_pos, pileup_dict, ref_seq, reference_sequence, reference_start, hap_dict):
@@ -478,7 +481,7 @@ def CreateTensorFullAlignment(args):
     minimum_af_for_candidate = args.min_af
     minimum_af_for_truth = args.min_truth_af
     platform = args.platform
-
+    store_tumor_infos = args.store_tumor_infos
     alt_fn = args.alt_fn
     extend_bed = args.extend_bed
     is_extend_bed_file_given = extend_bed is not None
@@ -494,6 +497,32 @@ def CreateTensorFullAlignment(args):
         unified_vcf_reader.read_vcf()
         truths_variant_dict = unified_vcf_reader.variant_dict
 
+    global test_pos
+    test_pos = 7357230
+    if args.test_pos and test_pos:
+        platform ="hifi"
+        sample_name = 'hg002'
+        subsample_ratio = 1000
+        ctg_name="chr1"
+        ctg = ctg_name[3:]
+        minimum_af_for_candidate = 0.08
+        minimum_af_for_truth = 0.05
+        samtools_execute_command="/autofs/bal33/zxzheng/env/miniconda2/envs/clair2/bin/samtools"
+        bam_file_path="/autofs/bal33/zxzheng/data/bam/pb/hg004/HG004.GRCh38.consensusalignments.bam"
+        bam_file_path="/mnt/bal36/zxzheng/somatic/downsample/pair/tumor_chr1_0.1.bam"
+        fasta_file_path = "/mnt/bal36/zxzheng/testData/ont/data/GRCh38_no_alt_analysis_set.fasta"
+        chunk_num = 100
+        chunk_id = None
+        extend_bed = None
+        phasing_info_in_bam = True
+        output_alt_info=True
+        output_depth = True
+        alt_fn = None
+        # unify_repre_fn = "/autofs/bal33/zxzheng/TMP/tmp1"
+        ctg_start = test_pos - 1000
+        ctg_end = test_pos + 1000
+    else:
+        test_pos = None
 
     hete_snp_pos_dict = defaultdict()
     hete_snp_tree = IntervalTree()
@@ -588,6 +617,7 @@ def CreateTensorFullAlignment(args):
     mq_option = ' --min-MQ {}'.format(min_mapping_quality)
     bq_option = ' --min-BQ {}'.format(min_base_quality)
     # pileup bed first
+    read_name_option = ' --output-QNAME' if store_tumor_infos else ' '
     bed_option = ' -l {}'.format(
         extend_bed) if is_extend_bed_file_given and platform != 'ilmn' else ""
     bed_option = ' -l {}'.format(full_aln_regions) if is_full_aln_regions_given and platform != 'ilmn' else bed_option
@@ -599,7 +629,7 @@ def CreateTensorFullAlignment(args):
     bam_file_path = bam_file_path if bam_file_path != "PIPE" else "-"
     samtools_command = "{} mpileup  {} --reverse-del".format(samtools_execute_command,
                                                                                         bam_file_path) + \
-                       reads_regions_option + phasing_option + mq_option + bq_option + bed_option + flags_option + max_depth_option
+                       read_name_option + reads_regions_option + phasing_option + mq_option + bq_option + bed_option + flags_option + max_depth_option
     samtools_mpileup_process = subprocess_popen(
         shlex.split(samtools_command), stdin=stdin)
 
@@ -607,6 +637,7 @@ def CreateTensorFullAlignment(args):
         output_alt_fn = alt_fn
         alt_fp = open(output_alt_fn, 'w')
 
+    is_tumor = alt_fn.split('/')[-2].startswith('tumor')
     has_pileup_candidates = len(need_phasing_pos_set)
     for row in samtools_mpileup_process.stdout:  # chr position N depth seq BQ read_name mapping_quality phasing_info
         columns = row.strip().split('\t')
@@ -620,28 +651,28 @@ def CreateTensorFullAlignment(args):
         #     continue
         pileup_bases = columns[4]
         # raw_base_quality = columns[5]
-        # read_name_list = columns[6].split(',')
+        read_name_list = columns[6].split(',') if store_tumor_infos else []
         # raw_mapping_quality = columns[7]
         reference_base = evc_base_from(reference_sequence[pos - reference_start].upper())  # ev
         is_truth_candidate = pos in truths_variant_dict
         minimum_af = minimum_af_for_truth if is_truth_candidate and minimum_af_for_truth else minimum_af_for_candidate
-        base_list, depth, pass_af, af, af_infos, pileup_infos = decode_pileup_bases(pileup_bases=pileup_bases,
+        base_list, depth, pass_af, af, af_infos, pileup_infos, tumor_pileup_infos = decode_pileup_bases(pileup_bases=pileup_bases,
                                                             reference_base=reference_base,
                                                             minimum_af_for_candidate=minimum_af,
                                                             has_pileup_candidates=has_pileup_candidates,
+                                                            read_name_list=read_name_list,
+                                                            is_tumor=is_tumor
                                                             )
 
-        if len(need_phasing_pos_set):
-            if alt_fn and pos in need_phasing_pos_set:
-                alt_fp.write('\t'.join([ctg_name + '\t' + str(pos), str(af)]) + '\n')
-        elif pass_af:
+        # if len(need_phasing_pos_set):
+        #     if alt_fn and pos in need_phasing_pos_set:
+        #         alt_fp.write('\t'.join([ctg_name + '\t' + str(pos), str(af)]) + '\n')
+        if pass_af and alt_fn:
             depth_list = [str(depth)] if output_depth else []
-            alt_info_list = [af_infos, pileup_infos] if output_alt_info else []
-            if alt_fn:
-                alt_fp.write('\t'.join([ctg_name, str(pos), reference_base] + depth_list + alt_info_list) + '\n')
+            alt_info_list = [af_infos, pileup_infos, tumor_pileup_infos] if output_alt_info else []
+            alt_fp.write('\t'.join([ctg_name, str(pos), reference_base] + depth_list + alt_info_list) + '\n')
     samtools_mpileup_process.stdout.close()
     samtools_mpileup_process.wait()
-
 
     if alt_fn:
         alt_fp.close()
@@ -731,6 +762,9 @@ def main():
                         help='DEBUG: Default gq bin size for merge non-variant block in gvcf option, default: %(default)d')
 
     parser.add_argument('--bp_resolution', action='store_true',
+                        help="DEBUG: Enable bp resolution for GVCF, default: disabled")
+
+    parser.add_argument('--store_tumor_infos', action='store_true',
                         help="DEBUG: Enable bp resolution for GVCF, default: disabled")
 
     # options for internal process control
