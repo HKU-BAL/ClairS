@@ -17,6 +17,18 @@ def get_coverage(depth_log):
     depth = int(float(last_row.split()[3]))
     return depth
 
+def check_max_sampled_coverage(nor_cov, tum_cov, pro, pair_gamma=1.0, min_coverage=4):
+    nor_cov = int(nor_cov / min_coverage * min_coverage)
+    tum_cov = int(tum_cov / min_coverage * min_coverage)
+    synthetic_depth_1 = int(tum_cov / pro)
+    synthetic_depth_2 = int(nor_cov / (1 + pair_gamma - pro))
+
+    synthetic_depth = min(synthetic_depth_1, synthetic_depth_2)
+    synthetic_depth = int(synthetic_depth / min_coverage * min_coverage)
+
+    return synthetic_depth
+
+
 def MixBin(args):
     normal_bam_fn = args.normal_bam_fn
     # tumor_bam_fn = args.tumor_bam_fn
@@ -45,31 +57,44 @@ def MixBin(args):
     normal_bam_list = [bam for bam in bam_list if bam.startswith('normal_' + ctg_name + '_')]
     tumor_bam_list = [bam for bam in bam_list if bam.startswith('tumor_' + ctg_name  + '_')]
 
-    synthetic_depth = min(normal_bam_depth, tumor_bam_depth) if synthetic_depth is None else synthetic_depth
+    max_syn_depth = check_max_sampled_coverage(nor_cov=normal_bam_depth, tum_cov=tumor_bam_depth,
+                                               pro=synthetic_proportion, pair_gamma=1.0, min_coverage=4)
 
-    tumor_depth = synthetic_depth * synthetic_proportion
-    normal_depth = synthetic_depth - tumor_depth
+    if synthetic_depth is None:
+        synthetic_depth = max_syn_depth
+    elif synthetic_depth > max_syn_depth:
+        print('[WARNING] Synthetic depth is larger than maximum depth {} > {}'.format(synthetic_depth, max_syn_depth))
+
+    tumor_depth = int(synthetic_depth * synthetic_proportion)
+    normal_depth = int(synthetic_depth - tumor_depth)
     sampled_normal_bin_num = int(normal_depth / min_coverage)
     sampled_tumor_bin_num = int(tumor_depth / min_coverage)
 
+    print (tumor_depth, normal_depth, sampled_normal_bin_num, sampled_tumor_bin_num)
     sampled_normal_bam_list = [normal_bam_list[idx] for idx in random.sample(range(normal_bin_num), sampled_normal_bin_num)]
     random.seed(0)
     sampled_tumor_bam_list = [tumor_bam_list[idx] for idx in random.sample(range(tumor_bin_num), sampled_tumor_bin_num)]
 
     # the rest sampled sample to generate normal bam
     random.seed(0)
-    rest_normal_bam_list = [normal_bam_list[idx] for idx in range(normal_bin_num) if normal_bam_list[idx] not in sampled_normal_bam_list]
-    if sampled_normal_bin_num + sampled_tumor_bin_num < len(rest_normal_bam_list):
+    rest_normal_bam_list = [normal_bam_fn for normal_bam_fn in normal_bam_list if normal_bam_fn not in sampled_normal_bam_list]
+    if sampled_normal_bin_num + sampled_tumor_bin_num <= len(rest_normal_bam_list):
         pair_normal_bam_list = [rest_normal_bam_list[idx] for idx in random.sample(range(len(rest_normal_bam_list)), sampled_normal_bin_num + sampled_tumor_bin_num)]
     else:
-        pair_normal_bam_list = rest_normal_bam_list
+        print('[WARNING] Need to resample normal bams!')
+        # sample bin exhaust if pair normal coverage could not satisfy requirement
+        # avoid to resample bin for model robustness
+        resampled_bin_count = sampled_normal_bin_num + sampled_tumor_bin_num - len(rest_normal_bam_list)
+        random.seed(0)
+        resample_bin_list = [sampled_normal_bam_list[idx] for idx in random.sample(range(len(sampled_normal_bam_list)), resampled_bin_count)]
+        pair_normal_bam_list = resample_bin_list + rest_normal_bam_list
 
     tumor_sampled_bam_list = [bam for bam in sampled_normal_bam_list + sampled_tumor_bam_list]
     print ("[INFO] Tumor sampled normal bam:{}:{}".format(len(sampled_normal_bam_list), ' '.join(sampled_normal_bam_list)))
     print ("[INFO] Tumor sampled tumor bam:{}:{}".format(len(sampled_tumor_bam_list), ' '.join(sampled_tumor_bam_list)))
     tumor_sampled_bam_list = ' '.join([os.path.join(input_dir, bam) for bam in tumor_sampled_bam_list])
     print("[INFO] Normal sampled bam:{}:{}".format(len(pair_normal_bam_list), ' '.join(pair_normal_bam_list)))
-    print("[INFO] Normal sampled bam intersection:{}".format(set(pair_normal_bam_list).intersection(set(sampled_normal_bam_list + sampled_tumor_bam_list))))
+    print("[INFO] Synthetic depth: {}, Normal sampled bam intersection:{}".format(synthetic_depth, set(pair_normal_bam_list).intersection(set(sampled_normal_bam_list + sampled_tumor_bam_list))))
     normal_output_bam = output_fn.replace('tumor_', 'normal_')
     normal_sampled_bam_list = ' '.join([os.path.join(input_dir, bam) for bam in pair_normal_bam_list])
 
@@ -91,7 +116,6 @@ def MixBin(args):
                                             normal_sampled_bam_list)))
         subprocess_run(
             shlex.split("{} index -@{} {}".format(samtools_execute_command, samtools_threads, normal_output_bam)))
-
 
 
         # subprocess_run(shlex.split("ln -sf {} {}".format(normal_bam_fn, normal_output_bam)))
