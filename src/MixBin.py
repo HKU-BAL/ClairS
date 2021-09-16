@@ -38,13 +38,12 @@ def MixBin(args):
     ctg_name = args.ctgName
     samtools_execute_command = args.samtools
     samtools_threads = args.samtools_threads
+    tensor_sample_mode = args.tensor_sample_mode
     min_coverage = args.minCoverage
     synthetic_proportion = args.synthetic_proportion
     synthetic_depth = args.synthetic_depth
     contaminative_proportions = args.contaminative_proportions
     platform = args.platform
-    normal_bam_depth = args.normal_bam_depth
-    tumor_bam_depth = args.tumor_bam_depth
     normal_depth_log = os.path.join(cov_dir, 'normal_' + ctg_name + cov_suffix)
     tumor_depth_log = os.path.join(cov_dir, 'tumor_' + ctg_name + cov_suffix)
     normal_bam_depth = get_coverage(normal_depth_log)
@@ -88,6 +87,9 @@ def MixBin(args):
         random.seed(0)
         resample_bin_list = [sampled_normal_bam_list[idx] for idx in random.sample(range(len(sampled_normal_bam_list)), resampled_bin_count)]
         pair_normal_bam_list = resample_bin_list + rest_normal_bam_list
+
+    if tensor_sample_mode:
+        sampled_tumor_bam_list = tumor_bam_list
 
     tumor_sampled_bam_list = [bam for bam in sampled_normal_bam_list + sampled_tumor_bam_list]
     print ("[INFO] Tumor sampled normal bam:{}:{}".format(len(sampled_normal_bam_list), ' '.join(sampled_normal_bam_list)))
@@ -197,6 +199,8 @@ def main():
     parser.add_argument('--cov_dir', type=str, default=None,
                         help="Sorted BAM file input, required")
 
+    parser.add_argument('--tensor_sample_mode', type=str2bool, default=0,
+                        help="Add all tumor tensor and only sampling in tensor generation")
 
     args = parser.parse_args()
 
