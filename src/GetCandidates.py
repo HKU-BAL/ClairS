@@ -1,6 +1,7 @@
 import shlex
 import os
 import sys
+import math
 from os.path import isfile, abspath
 from sys import exit, stderr
 from subprocess import check_output, PIPE, Popen
@@ -169,6 +170,7 @@ def filter_somatic_candidates(truths, variant_info, alt_dict, paired_alt_dict):
     truth_filter_in_normal = 0
     truth_filter_with_low_af = 0
     min_af_for_tumor = 0.06
+    af_gap_for_errors = 0.15
     for pos, variant_type in truths:
         if pos not in alt_dict:
             truth_not_pass_af += 1
@@ -178,17 +180,21 @@ def filter_somatic_candidates(truths, variant_info, alt_dict, paired_alt_dict):
             print ('[INFO] Variant {} not existed in mixed bam'.format(pos))
         if pos in paired_alt_dict:
             ref_base, alt_base = variant_info[pos]
-            af, vt, max_af = find_candidate_match(alt_info_dict=alt_dict[pos].alt_dict, ref_base=ref_base, alt_base=alt_base)
-            if af is not None and af > 0.2:
+            normal_af, vt, max_af = find_candidate_match(alt_info_dict=alt_dict[pos].alt_dict, ref_base=ref_base, alt_base=alt_base)
+            if normal_af is not None and normal_af > 0.2:
                 truth_filter_in_normal += 1
                 continue
 
         if len(alt_dict[pos].tumor_alt_dict):
             ref_base, alt_base = variant_info[pos]
-            af, vt, max_af = find_candidate_match(alt_info_dict=alt_dict[pos].tumor_alt_dict, ref_base=ref_base, alt_base=alt_base)
-            if af is None or af < min_af_for_tumor:
+            # tumor_af, _, _ = find_candidate_match(alt_info_dict=alt_dict[pos].alt_dict, ref_base=ref_base,alt_base=alt_base)
+            tumor_af_from_tumor_reads, vt, max_af = find_candidate_match(alt_info_dict=alt_dict[pos].tumor_alt_dict, ref_base=ref_base, alt_base=alt_base)
+            if tumor_af_from_tumor_reads is None or tumor_af_from_tumor_reads < min_af_for_tumor:
                 truth_filter_with_low_af += 1
                 continue
+        # if math.fabs(tumor_af - tumor_af_from_tumor_reads - normal_af) > af_gap_for_errors:
+        #     continue
+
         filtered_truths.append([pos, variant_type])
 
     print ('[INFO] Truth filtered by high AF in normal BAM: {}, filtered by low AF {}:{}'.format(truth_filter_in_normal, min_af_for_tumor, truth_filter_with_low_af))
@@ -204,8 +210,6 @@ def get_candidates(args):
     maximum_non_variant_ratio = args.maximum_non_variant_ratio
     normal_reference_cans_fn = args.normal_reference_cans
     tumor_reference_cans_fn = args.tumor_reference_cans
-    fp_fn = args.fp_fn
-    tp_fn = args.tp_fn
     add_hete_pos = args.add_hete_pos
     flankingBaseNum = args.flankingBaseNum if args.flankingBaseNum else param.flankingBaseNum
     split_folder = args.split_folder
@@ -282,10 +286,10 @@ def get_candidates(args):
         output_file.write('\n'.join(all_full_aln_regions) + '\n')
 
     print_all = False
-    if print_all:
-        print ('[INFO] {} total homo reference pos: 1:{}, 2:{}, references:{} hete variants:{} homo truth with same pos intersection:{}, homo truth with_same_repre:{}'.format(contig_name, len(homo_variant_set_1), len(homo_variant_set_2), len(ref_cans_list), len(hete_list_with_same_repre), len(intersection_pos_set), len(same_alt_pos_set)))
-    else:
-        print ('[INFO] {} homo germline:{} hete germline:{} references:{} homo somatic:{} hete somatic:{}'.format(contig_name, len(homo_germline), len(hete_germline), len(references),len(homo_somatic),len(hete_somatic) ))
+    # if print_all:
+    #     print ('[INFO] {} total homo reference pos: 1:{}, 2:{}, references:{} hete variants:{} homo truth with same pos intersection:{}, homo truth with_same_repre:{}'.format(contig_name, len(homo_variant_set_1), len(homo_variant_set_2), len(ref_cans_list), len(hete_list_with_same_repre), len(intersection_pos_set), len(same_alt_pos_set)))
+    # else:
+    print ('[INFO] {} homo germline:{} hete germline:{} references:{} homo somatic:{} hete somatic:{}'.format(contig_name, len(homo_germline), len(hete_germline), len(references),len(homo_somatic),len(hete_somatic) ))
 
 
 def main():
@@ -339,11 +343,11 @@ def main():
     parser.add_argument('--samtools', type=str, default="samtools",
                         help="Path to the 'samtools', samtools version >= 1.10 is required. default: %(default)s")
 
-    parser.add_argument('--fp_fn', type=str, default="fp",
-                        help="Path to the 'samtools', samtools version >= 1.10 is required. default: %(default)s")
-
-    parser.add_argument('--tp_fn', type=str, default="tp",
-                        help="Path to the 'samtools', samtools version >= 1.10 is required. default: %(default)s")
+    # parser.add_argument('--fp_fn', type=str, default="fp",
+    #                     help="Path to the 'samtools', samtools version >= 1.10 is required. default: %(default)s")
+    #
+    # parser.add_argument('--tp_fn', type=str, default="tp",
+    #                     help="Path to the 'samtools', samtools version >= 1.10 is required. default: %(default)s")
 
     parser.add_argument('--output_dir', type=str, default="",
                         help="Path to the 'samtools', samtools version >= 1.10 is required. default: %(default)s")

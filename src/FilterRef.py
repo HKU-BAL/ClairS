@@ -127,7 +127,6 @@ def filter_ref(args):
             pos_in_normal_truth += 1
             if pos in unified_variant_dict:
                 pos_in_normal_truth_and_tumor_truth += 1
-                pos_in_tumor_truth += 1
             # continue
         # skip position in truth if not add truths
         if pos in unified_variant_dict:
