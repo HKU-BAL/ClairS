@@ -7,7 +7,8 @@ import numpy as np
 import heapq
 from random import random
 from collections import defaultdict
-
+import shared.param as param
+from itertools import product
 from clair_somatic.task.main import *
 from shared.interval_tree import bed_tree_from, is_region_in
 from shared.utils import subprocess_popen, IUPAC_base_to_ACGT_base_dict as BASE2BASE, IUPAC_base_to_num_dict as BASE2NUM
@@ -131,7 +132,7 @@ def variant_map_from(var_fn, tree, is_tree_empty):
     return Y, miss_variant_set
 
 
-def write_table_dict(table_dict, normal_string, tumor_string, label, pos, total, alt_info, tensor_shape, pileup):
+def write_table_dict(table_dict, normal_matrix, tumor_matrix, label, pos, total, alt_info, tensor_shape, pileup):
     """
     Write pileup or full alignment tensor into a dictionary.compressed bin file.
     table_dict: dictionary include all training information (tensor position, label, altnative bases).
@@ -142,20 +143,31 @@ def write_table_dict(table_dict, normal_string, tumor_string, label, pos, total,
 
     # if len(string) == 1:
     #     string = string[0]
-    normal_matrix = normal_string.split()
-    tumor_matrix = tumor_string.split()
+    # normal_matrix = normal_string.split()
+    # tumor_matrix = tumor_string.split()
 
     # if pileup:
     #     table_dict['position_matrix'].append(position_matrix)
     # else:
-    for matrix, append_list in zip([normal_matrix, tumor_matrix], [table_dict['normal_matrix'], table_dict['tumor_matrix']]):
-        tensor_depth = len(matrix) // tensor_shape[1] // tensor_shape[2]
-        padding_depth = tensor_shape[0] - tensor_depth
-        prefix_padding_depth = int(padding_depth / 2)
-        suffix_padding_depth = padding_depth - int(padding_depth / 2)
-        prefix_zero_padding = ['0'] * prefix_padding_depth * tensor_shape[1] * tensor_shape[2]
-        suffix_zero_padding = ['0'] * suffix_padding_depth * tensor_shape[1] * tensor_shape[2]
-        append_list.append(prefix_zero_padding + matrix + suffix_zero_padding)
+    normal_depth = len(normal_matrix) // tensor_shape[1] // tensor_shape[2]
+    tumor_depth = len(tumor_matrix) // tensor_shape[1] // tensor_shape[2]
+    tensor_depth = normal_depth + tumor_depth
+    center_padding_depth = param.center_padding_depth
+    padding_depth = tensor_shape[0] - tensor_depth - center_padding_depth
+    prefix_padding_depth = int(padding_depth / 2)
+    suffix_padding_depth = padding_depth - int(padding_depth / 2)
+    prefix_zero_padding = ['0'] * prefix_padding_depth * tensor_shape[1] * tensor_shape[2]
+    center_zero_padding = ['0'] * center_padding_depth * tensor_shape[1] * tensor_shape[2]
+    suffix_zero_padding = ['0'] * suffix_padding_depth * tensor_shape[1] * tensor_shape[2]
+    table_dict['input_matrix'].append(prefix_zero_padding + normal_matrix + center_zero_padding + tumor_matrix + suffix_zero_padding)
+    # for matrix, append_list in zip([normal_matrix, tumor_matrix], [table_dict['normal_matrix'], table_dict['tumor_matrix']]):
+    #     tensor_depth = len(matrix) // tensor_shape[1] // tensor_shape[2]
+    #     padding_depth = tensor_shape[0] - tensor_depth
+    #     prefix_padding_depth = int(padding_depth / 2)
+    #     suffix_padding_depth = padding_depth - int(padding_depth / 2)
+    #     prefix_zero_padding = ['0'] * prefix_padding_depth * tensor_shape[1] * tensor_shape[2]
+    #     suffix_zero_padding = ['0'] * suffix_padding_depth * tensor_shape[1] * tensor_shape[2]
+    #     append_list.append(prefix_zero_padding + matrix + suffix_zero_padding)
     table_dict['position'].append(pos)
     table_dict['label'].append(label)
     table_dict['alt_info'].append(alt_info)
@@ -165,8 +177,8 @@ def write_table_dict(table_dict, normal_string, tumor_string, label, pos, total,
 
 def update_table_dict():
     table_dict = {}
-    table_dict['normal_matrix'] = []
-    table_dict['tumor_matrix'] = []
+    table_dict['input_matrix'] = []
+    # table_dict['tumor_matrix'] = []
     table_dict['alt_info'] = []
     table_dict['position'] = []
     table_dict['label'] = []
@@ -185,11 +197,11 @@ def write_table_file(table_file, table_dict, tensor_shape, label_size, float_typ
     time, especially in ont data, here we usually use 1:1 or 1:2 for variant candidate: non variant candidate.
     """
 
-    normal_matrix = np.array(table_dict['normal_matrix'], np.dtype(float_type)).reshape([-1] + tensor_shape)
-    table_file.root.normal_matrix.append(normal_matrix)
+    input_matrix = np.array(table_dict['input_matrix'], np.dtype(float_type)).reshape([-1] + tensor_shape)
+    table_file.root.input_matrix.append(input_matrix)
 
-    tumor_matrix = np.array(table_dict['tumor_matrix'], np.dtype(float_type)).reshape([-1] + tensor_shape)
-    table_file.root.tumor_matrix.append(tumor_matrix)
+    # tumor_matrix = np.array(table_dict['tumor_matrix'], np.dtype(float_type)).reshape([-1] + tensor_shape)
+    # table_file.root.tumor_matrix.append(tumor_matrix)
 
     table_file.root.alt_info.append(np.array(table_dict['alt_info']).reshape(-1, 1))
     table_file.root.position.append(np.array(table_dict['position']).reshape(-1, 1))
@@ -285,6 +297,20 @@ def print_label(path):
 #     yield None, total
 
 
+def get_key_list(input_dict, shuffle = True):
+    input_size = len(input_dict)
+    output_list = []
+    for key, infos in input_dict.items():
+        if 'normal' not in infos or 'tumor' not in infos:
+            continue
+        normal_index_list = range(len(infos['normal']))
+        tumor_index_list = range(len(infos['tumor']))
+        for x, y in product(normal_index_list, tumor_index_list):
+            output_list.append((key, x, y))
+    if shuffle == True:
+        np.random.shuffle(output_list)
+    return output_list
+
 def bin_reader_generator_from(subprocess_process, Y, is_tree_empty, tree, miss_variant_set, is_allow_duplicate_chr_pos=False, non_variant_subsample_ratio=1.0):
 
     """
@@ -297,8 +323,10 @@ def bin_reader_generator_from(subprocess_process, Y, is_tree_empty, tree, miss_v
     non_variant_subsample_ratio: define a maximum non variant ratio for training, we always expect use more non variant data, while it would greatly increase training
     time, especially in ont data, here we usually use 1:1 or 1:2 for variant candidate: non variant candidate.
     """
-
+    dup_pos_end_flag = False
+    pre_pos = None
     for row_idx, row in enumerate(subprocess_process.stdout):
+        columns = row.split("\t")
         chrom, center_pos, seq, string, alt_info, tumor_tag, variant_type = row.split("\t")
         is_tumor = tumor_tag == 'tumor'
         alt_info = alt_info.rstrip()
@@ -315,7 +343,13 @@ def bin_reader_generator_from(subprocess_process, Y, is_tree_empty, tree, miss_v
 
         if is_reference and non_variant_subsample_ratio < 1.0 and random() >= non_variant_subsample_ratio:
             continue
-        yield (center_pos, is_tumor, string, alt_info, seq, variant_type)
+
+        if pre_pos == center_pos:
+            dup_pos_end_flag = False
+        elif pre_pos and center_pos != pre_pos:
+                dup_pos_end_flag = True
+        pre_pos = center_pos
+        yield (center_pos, is_tumor, string, alt_info, seq, variant_type, dup_pos_end_flag)
 
         # if len(X) == shuffle_bin_size:
         #     yield X, total
@@ -332,22 +366,26 @@ def heapq_merge_generator_from(normal_bin_reader_generator, tumor_bin_reader_gen
     X = defaultdict(defaultdict)
     batch_count = 0
     for tensor_infos in heapq.merge(normal_bin_reader_generator, tumor_bin_reader_generator):
-        pos, is_tumor, string, alt_info, seq, somatic_flag = tensor_infos
+        pos, is_tumor, string, alt_info, seq, somatic_flag, dup_pos_end_flag = tensor_infos
         if pos not in tensor_infos_set and is_tumor:
             continue
         tensor_infos_set.add(pos)
         tumor_flag = 'tumor' if is_tumor else 'normal'
-        if tumor_flag in X[pos]:
-            X[pos][tumor_flag].append((string, alt_info, seq, somatic_flag))
-        else:
-            X[pos][tumor_flag] = [(string, alt_info, seq, somatic_flag)]
-        batch_count += 1
-        if batch_count >= shuffle_bin_size and is_tumor:
+        tensor_list = string.split(" ")
+
+        if batch_count >= shuffle_bin_size and is_tumor and dup_pos_end_flag:
             yield X, batch_count
             X = defaultdict(defaultdict)
-            batch_count = 0
+            batch_count = 1
+
+        if tumor_flag in X[pos]:
+            X[pos][tumor_flag].append((tensor_list, alt_info, seq, somatic_flag))
+        else:
+            X[pos][tumor_flag] = [(tensor_list, alt_info, seq, somatic_flag)]
+        batch_count += 1
+
     if len(X):
-        yield X, len(X)
+        yield X, batch_count
 
 def get_training_array(normal_tensor_fn, tumor_tensor_fn, var_fn, bed_fn, bin_fn, shuffle=True, is_allow_duplicate_chr_pos=True, chunk_id=None,
                        chunk_num=None, platform='ont', pileup=False, maximum_non_variant_ratio=None, candidate_details_fn_prefix=None):
@@ -438,10 +476,10 @@ def get_training_array(normal_tensor_fn, tumor_tensor_fn, var_fn, bed_fn, bin_fn
     string_atom = tables.StringAtom(itemsize=param.no_of_positions + 50)
     long_string_atom = tables.StringAtom(itemsize=5000)  # max alt_info length
     table_file = tables.open_file(bin_fn, mode='w', filters=FILTERS)
-    table_file.create_earray(where='/', name='normal_matrix', atom=int_atom, shape=[0] + tensor_shape,
+    table_file.create_earray(where='/', name='input_matrix', atom=int_atom, shape=[0] + tensor_shape,
                              filters=FILTERS)
-    table_file.create_earray(where='/', name='tumor_matrix', atom=int_atom, shape=[0] + tensor_shape,
-                             filters=FILTERS)
+    # table_file.create_earray(where='/', name='tumor_matrix', atom=int_atom, shape=[0] + tensor_shape,
+    #                          filters=FILTERS)
     table_file.create_earray(where='/', name='position', atom=string_atom, shape=(0, 1), filters=FILTERS)
     table_file.create_earray(where='/', name='label', atom=int_atom, shape=(0, param.label_size), filters=FILTERS)
     table_file.create_earray(where='/', name='alt_info', atom=long_string_atom, shape=(0, 1), filters=FILTERS)
@@ -471,29 +509,25 @@ def get_training_array(normal_tensor_fn, tumor_tensor_fn, var_fn, bed_fn, bin_fn
     total = 0
     for X, batch_total in heapq_merge_generator_from(normal_bin_reader_generator, tumor_bin_reader_generator):
         total += batch_total
-        all_chr_pos = sorted(X.keys())
-        if shuffle == True:
-            np.random.shuffle(all_chr_pos)
-        for key in all_chr_pos:
+        all_pos_list = get_key_list(X)
+
+        for key, normal_index, tumor_index in all_pos_list:
             infos = X[key]
-            if 'normal' not in infos or 'tumor' not in infos:
-                # print (infos)
-                # print ('[ERROR] Missed normal or tumor')
-                # only one pair existed
-                continue
-            normal_infos, tumor_infos = infos['normal'], infos['tumor']
-            normal_string, alt_info, seq, variant_type = normal_infos
+            normal_infos = infos['normal'][normal_index]
+            tumor_infos = infos['tumor'][tumor_index]
+
+            normal_tensor, alt_info, seq, variant_type = normal_infos
             variant_type = variant_type.rstrip()
             # use tumor alternative information instead of the normal one
-            tumor_string, tumor_alt_info = tumor_infos[0], tumor_infos[1]
+            tumor_tensor, tumor_alt_info = tumor_infos[0], tumor_infos[1]
             pos = key + ':' + seq + ':' + variant_type
             if variant_type == 'homo_somatic':
-                label = [0, 0,1]
+                label = [0, 0, 1]
             elif variant_type == 'homo_germline':
-                label = [0,1,0]
+                label = [0, 1, 0]
             else:
-                label = [1,0,0]
-            total_compressed = write_table_dict(table_dict, normal_string, tumor_string, label, pos, total_compressed, tumor_alt_info,
+                label = [1, 0, 0]
+            total_compressed = write_table_dict(table_dict, normal_tensor, tumor_tensor, label, pos, total_compressed, tumor_alt_info,
                                                 tensor_shape, pileup)
 
             if total_compressed % 500 == 0 and total_compressed > 0:
