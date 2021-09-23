@@ -11,7 +11,7 @@ from itertools import accumulate
 
 import clair_somatic.model as model_path
 from shared.utils import str2bool
-
+import shared.param as param
 logging.basicConfig(format='%(message)s', level=logging.INFO)
 tables.set_blosc_max_threads(512)
 os.environ['NUMEXPR_MAX_THREADS'] = '64'
@@ -183,25 +183,17 @@ def train_model(args):
     pileup = args.pileup
     add_indel_length = args.add_indel_length
     ctg_name_string = args.ctgName
+    use_siam = False
+    add_contrastive = False
     ctg_name_list = ctg_name_string.split(',')  if ctg_name_string is not None else []
     exclude_training_samples = args.exclude_training_samples
     exclude_training_samples = set(exclude_training_samples.split(',')) if exclude_training_samples else set()
     add_validation_dataset = True
     ochk_prefix = args.ochk_prefix if args.ochk_prefix is not None else ""
-    if pileup:
-        import shared.param_p as param
-        model = model_path.Clair3_P()
-    else:
-        import shared.param as param
-        if use_siam:
-            model = model_path.Clair3_Siam(add_indel_length=add_indel_length,add_contrastive=add_contrastive)
-        else:
-            model = model_path.Clair3_F(add_indel_length=add_indel_length)
     tensor_shape = param.ont_input_shape if platform == 'ont' else param.input_shape
     label_size, label_shape = param.label_size, param.label_shape
-    # label_shape = [2, 2]
-    # label_size = sum(label_shape)
-    label_shape = [label_size, label_size] if use_siam else label_shape
+
+    label_shape = [2, 3] if use_siam else label_shape
     label_shape_cum = list(accumulate(label_shape))
     batch_size, chunk_size = param.trainBatchSize, param.chunk_size
     random.seed(param.RANDOM_SEED)
@@ -215,7 +207,6 @@ def train_model(args):
     TensorDtype = ((tf.int32, tf.int32), tuple(tf.float32 for _ in range(task_num)))
 
     bin_list = os.listdir(args.bin_fn)
-    # default we exclude sample hg003 and all chr20 for training
     bin_list = [f for f in bin_list if pass_chr(f, ctg_name_list) and not exist_file_prefix(exclude_training_samples, f)]
     logging.info("[INFO] total {} training bin files: {}".format(len(bin_list), ','.join(bin_list)))
     total_data_size = 0
@@ -223,7 +214,6 @@ def train_model(args):
     validate_table_dataset_list = []
     chunk_offset = np.zeros(len(bin_list), dtype=int)
 
-    # effective_label_num = None
     for bin_idx, bin_file in enumerate(bin_list):
         table_dataset = tables.open_file(os.path.join(args.bin_fn, bin_file), 'r')
         validate_table_dataset = tables.open_file(os.path.join(args.bin_fn, bin_file), 'r')
@@ -239,22 +229,7 @@ def train_model(args):
     train_data_size = int(train_data_size // chunk_size) * chunk_size
     train_shuffle_chunk_list, validate_shuffle_chunk_list = get_chunk_list(chunk_offset, train_data_size, chunk_size)
 
-    first_epoch = True
-    if load_data_into_memory:
-        train_normal_matrix = np.empty([0] + tensor_shape, np.int32)
-        train_tumor_matrix = np.empty([0] + tensor_shape, np.int32)
-        train_label = np.empty((0, param.label_size), np.float32)
-        validate_normal_matrix = np.empty([0] + tensor_shape, np.int32)
-        validate_tumor_matrix = np.empty([0] + tensor_shape, np.int32)
-        validate_label = np.empty((0, param.label_size), np.float32)
-
     def DataGenerator(x, data_size, shuffle_chunk_list, train_flag=True):
-
-        """
-        data generator for pileup or full alignment data processing, pytables with blosc:lz4hc are used for extreme fast
-        compression and decompression. random chunk shuffling and random start position to increase training model robustness.
-
-        """
 
         chunk_iters = batch_size // chunk_size
         batch_num = data_size // batch_size
@@ -280,22 +255,19 @@ def train_model(args):
                 label[chunk_idx * chunk_size:(chunk_idx + 1) * chunk_size] = x[bin_id].root.label[
                         random_start_position + chunk_id * chunk_size:random_start_position + (chunk_id + 1) * chunk_size]
 
-            if load_data_into_memory and first_epoch:
-                if train_flag:
-                    train_normal_matrix = np.vstack(train_normal_matrix, normal_matrix)
-                    train_tumor_matrix = np.vstack(train_tumor_matrix, tumor_matrix)
-                    train_label = np.vstack(train_label, label)
-                else:
-                    validate_normal_matrix = np.vstack(validate_normal_matrix, normal_matrix)
-                    validate_tumor_matrix = np.vstack(validate_tumor_matrix, tumor_matrix)
-                    validate_label = np.vstack(validate_label, label)
-
             if add_contrastive:
-                yield (normal_matrix, tumor_matrix), (label[:,:label_shape_cum[0]],label[:,:label_shape_cum[0]])
+                label_for_normal = [[0,1] if np.argmax(item) == 1 else [1,0] for item in label]
+                label_for_tumor = [[0,0,1] if np.argmax(item) == 2 else ([0, 1,0] if np.argmax(item) == 1 else [1,0,0]) for item in label]
+                label_for_normal = np.array(label_for_normal, dtype=np.float32)
+                label_for_tumor = np.array(label_for_tumor, dtype=np.float32)
+                yield (normal_matrix, tumor_matrix), (label_for_normal, label_for_tumor)
             else:
-                yield (normal_matrix, tumor_matrix), (label[:,:label_shape_cum[0]],)
-            # else:
-            #     yield (normal_matrix, tumor_matrix), (label[:,:label_shape_cum[0]])
+                label_for_tumor = [
+                    [0, 0, 1] if np.argmax(item) == 2 else ([0, 1, 0] if np.argmax(item) == 1 else [1, 0, 0]) for item
+                    in label]
+                label_for_tumor = np.array(label_for_tumor, dtype=np.float32)
+                yield (normal_matrix, tumor_matrix), (label_for_tumor,)
+                # yield (normal_matrix, tumor_matrix), (label[:,:label_shape_cum[0]],)
 
 
     train_dataset = tf.data.Dataset.from_generator(
@@ -307,15 +279,7 @@ def train_model(args):
 
     total_steps = max_epoch * train_data_size // batch_size
 
-    #RectifiedAdam with warmup start
-    # optimizer = tfa.optimizers.Lookahead(tfa.optimizers.RectifiedAdam(
-    #     lr=learning_rate,
-    #     total_steps=total_steps,
-    #     warmup_proportion=0.1,
-    #     min_lr=learning_rate*0.75,
-    # ))
     optimizer = tf.optimizers.Adam()
-    # loss_func = [FocalLoss(label_shape_cum, task, effective_label_num) for task in range(task_num)]
     if task_num == 1:
 
         # loss_func = [BinaryCrossentropy() for task in range(task_num)]
@@ -325,12 +289,14 @@ def train_model(args):
         metrics = {"output_{}".format(task + 1): tfa.metrics.F1Score(num_classes=label_shape[task], average='micro') for
                    task in range(task_num)}
     else:
-            loss_func = [BinaryCrossentropy(), ContrastiveLoss()]
+            loss_func = [FocalLoss(label_shape_cum, task) for task in range(task_num)]
 
             loss_task = {"output_{}".format(task + 1): loss_func[task] for task in range(task_num)}
             metrics = {"output_{}".format(task + 1): tfa.metrics.F1Score(num_classes=label_shape[task], average='micro')
                        for
-                       task in range(1)}
+                       task in range(task_num)}
+
+    model = model_path.Clair3_F(add_indel_length=add_indel_length,two_task=use_siam)
 
     model.compile(
         loss=loss_task,
@@ -421,8 +387,6 @@ def main():
     ## Add indel length for training and calling, default true for full alignment
     parser.add_argument('--add_indel_length', type=str2bool, default=False,
                         help=SUPPRESS)
-
-
 
     args = parser.parse_args()
 
