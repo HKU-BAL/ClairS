@@ -102,7 +102,7 @@ def evc_base_from(base):
         return 'a'
 
 
-def sorted_by_hap_read_name(center_pos, haplotag_dict, pileup_dict, hap_dict, platform, tensor_sample_mode=False):
+def sorted_by_hap_read_name(center_pos, haplotag_dict, pileup_dict, hap_dict, max_depth, use_tensor_sample_mode=False):
     """
     Sort by reads haplotype after haplotag reads otherwise sort by read start position.
     center_pos: define the center candidate position for proccessing.
@@ -118,8 +118,8 @@ def sorted_by_hap_read_name(center_pos, haplotag_dict, pileup_dict, hap_dict, pl
         if p in pileup_dict.keys():
             all_nearby_read_name += pileup_dict[p].read_name_list
     all_nearby_read_name = list(OrderedDict.fromkeys(all_nearby_read_name))  # have sorted by order
-    matrix_depth = param.matrix_depth_dict[platform]
-    if len(all_nearby_read_name) > matrix_depth and not tensor_sample_mode:
+    matrix_depth = max_depth
+    if len(all_nearby_read_name) > matrix_depth and not use_tensor_sample_mode:
         # set same seed for reproducibility
         random.seed(0)
         indices = random.sample(range(len(all_nearby_read_name)), matrix_depth)
@@ -310,7 +310,7 @@ def generate_tensor(ctg_name,
                     add_no_phasing_data_training,
                     is_tumor,
                     candidates_type_dict,
-                    tensor_sample_mode=False,
+                    use_tensor_sample_mode=False,
                     truths_variant_dict=None):
     """
     Generate full alignment input tensor
@@ -362,37 +362,19 @@ def generate_tensor(ctg_name,
         for ins_idx in range(min(len(ins_base), no_of_positions - p)):
             tensor[read_idx][ins_idx + p][5] = ACGT_NUM[ins_base[ins_idx]]
 
+    matrix_depth = param.tumor_matrix_depth_dict[platform] if is_tumor else param.normal_matrix_depth_dict[platform]
 
     min_af_for_samping = 0.1
     max_af_for_sampling = 0.3
     tensor_string_list = []
     alt_info_list = []
     # gradient = each reads
-    if tensor_sample_mode and candidates_type_dict[center_pos] == 'homo_somatic' and center_pos in truths_variant_dict:
-
-        alt_dict = defaultdict(int)
-        depth, max_del_length = 0, 0
-        tumor_alt_dict = defaultdict(list)
-        for read_name, (base, indel) in zip(pileup_dict[center_pos].read_name_list, pileup_dict[center_pos].base_list):
-            if base in "#*":
-                continue
-            if read_name.startswith('t'):
-                tumor_alt_dict[read_name] = (base, indel)
-                continue
-            base_upper = base.upper()
-            if indel != '':
-                if indel[0] == '+':
-                    alt_dict['+' + base_upper + indel[1:].upper()] += 1
-                else:  # del
-                    alt_dict[indel.upper()] += 1
-                    max_del_length = max(len(indel), max_del_length)
-            elif base.upper() != reference_base:
-                alt_dict[base.upper()] += 1
-
+    if use_tensor_sample_mode:
 
         tumor_reads_meet_alt_info_set, normal_read_name_set = find_tumor_alt_match(center_pos, sorted_read_name_list, pileup_dict, truths_variant_dict)
         if len(tumor_reads_meet_alt_info_set) == 0:
-            print ("NO reads support tumor alternative in pos:{}".format(center_pos))
+            print ("No reads support tumor alternative in pos:{}".format(center_pos))
+            return None, None
         # TODO also sampled tumor reads here?
         paired_reads_num = len(normal_read_name_set)
         sampled_reads_num_list = []
@@ -408,29 +390,35 @@ def generate_tensor(ctg_name,
             sampled_tumor_read_name_list = random.sample(tumor_reads_meet_alt_info_list, read_num)
             re_sorted_read_name_list = normal_read_name_list + sampled_tumor_read_name_list
             tmp_tensor = []
-            tmp_depth = len(re_sorted_read_name_list)
-            af_set = set()
 
+            re_sorted_read_name_set = set(re_sorted_read_name_list)
+            if len(re_sorted_read_name_list) > matrix_depth:
+                # set same seed for reproducibility
+                random.seed(0)
+                re_sorted_read_name_set = set(random.sample(re_sorted_read_name_list, matrix_depth))
+
+            tmp_depth = len(re_sorted_read_name_set)
+            af_set = set()
             tmp_read_name_list = []
             for row_idx, (hap, _, read_name) in enumerate(sorted_read_name_list):
-                if read_name in re_sorted_read_name_list:
+                if read_name in re_sorted_read_name_set:
                     tmp_tensor.append(tensor[row_idx])
                     tmp_read_name_list.append(read_name)
-            tmp_alt_dict = deepcopy(alt_dict)
-            for read_name in tmp_read_name_list:
-                if read_name not in tumor_alt_dict:
+            alt_dict = defaultdict(int)
+            for read_name, (base, indel) in zip(pileup_dict[center_pos].read_name_list,
+                                                pileup_dict[center_pos].base_list):
+                if base in "#*":
                     continue
-                base, indel = tumor_alt_dict[read_name]
-
+                if read_name not in re_sorted_read_name_set:
+                    continue
                 base_upper = base.upper()
                 if indel != '':
                     if indel[0] == '+':
-                        tmp_alt_dict['+' + base_upper + indel[1:].upper()] += 1
+                        alt_dict['+' + base_upper + indel[1:].upper()] += 1
                     else:  # del
-                        tmp_alt_dict[indel.upper()] += 1
-                        max_del_length = max(len(indel), max_del_length)
+                        alt_dict[indel.upper()] += 1
                 elif base.upper() != reference_base:
-                    tmp_alt_dict[base.upper()] += 1
+                    alt_dict[base.upper()] += 1
 
             for row_idx, read_name in enumerate(tmp_read_name_list):
                 af_num = 0
@@ -440,11 +428,11 @@ def generate_tensor(ctg_name,
                     if indel != '':
                         if indel[0] == '+':
                             insert_str = ('+' + base_upper + indel.upper()[1:])
-                            af_num = tmp_alt_dict[insert_str] / max(1, float(tmp_depth)) if insert_str in tmp_alt_dict else af_num
+                            af_num = alt_dict[insert_str] / max(1, float(tmp_depth)) if insert_str in alt_dict else af_num
                         else:
-                            af_num = alt_dict[indel.upper()] / max(1, float(tmp_depth)) if indel.upper() in tmp_alt_dict else af_num
-                    elif base.upper() in tmp_alt_dict:
-                        af_num = tmp_alt_dict[base_upper] / max(1, float(tmp_depth))
+                            af_num = alt_dict[indel.upper()] / max(1, float(tmp_depth)) if indel.upper() in alt_dict else af_num
+                    elif base.upper() in alt_dict:
+                        af_num = alt_dict[base_upper] / max(1, float(tmp_depth))
                 af_num = _normalize_af(af_num) if af_num != 0 else af_num
                 af_set.add(round(af_num / 100, 3))
                 # hap_type = HAP_TYPE[hap]
@@ -454,9 +442,10 @@ def generate_tensor(ctg_name,
                         tmp_tensor[row_idx][p][4] = af_num
                         tmp_tensor[row_idx][p][6] = hap_type
 
+            # print (len(tmp_tensor))
             alt_info = []
             af_infos = ' '.join([str(item) for item in sorted(list(af_set), reverse=True) if item != 0])
-            for alt_type, alt_count in tmp_alt_dict.items():
+            for alt_type, alt_count in alt_dict.items():
                 if alt_type[0] == '+':
                     alt_info.append(['I' + alt_type[1:].upper(), str(alt_count)])
                 elif alt_type[0] == '-':
@@ -471,7 +460,6 @@ def generate_tensor(ctg_name,
             alt_info_list.append(alt_info)
             tensor_string_list.append(" ".join(
                 (" ".join(" ".join(str(x) for x in innerlist) for innerlist in outerlist)) for outerlist in tmp_tensor))
-
             variant_type = candidates_type_dict[center_pos] if center_pos in candidates_type_dict else 'unknown'
 
         if 0:
@@ -547,7 +535,6 @@ def generate_tensor(ctg_name,
                 alt_info.append(['X' + alt_type, str(alt_count)])
         alt_info = str(depth) + '-' + ' '.join([' '.join([item[0], str(item[1])]) for item in alt_info]) + '-' + af_infos
         tensor_string_list = [" ".join((" ".join(" ".join(str(x) for x in innerlist) for innerlist in outerlist)) for outerlist in tensor)]
-
         variant_type = candidates_type_dict[center_pos] if center_pos in candidates_type_dict else 'unknown'
 
         return '\n'.join(["%s\t%d\t%s\t%s\t%s\t%s\t%s" % (
@@ -977,15 +964,17 @@ def CreateTensorFullAlignment(args):
         #         haplotag_dict[read_name] = haplotype
         #         # skip if two scores are the same
 
-        sorted_read_name_list = sorted_by_hap_read_name(pos, haplotag_dict, pileup_dict, hap_dict, platform, tensor_sample_mode)
+        use_tensor_sample_mode = tensor_sample_mode and candidates_type_dict[pos] == 'homo_somatic' and pos in truths_variant_dict
+        max_depth = param.tumor_matrix_depth_dict[platform] if is_tumor else param.normal_matrix_depth_dict[platform]
+        sorted_read_name_list = sorted_by_hap_read_name(pos, haplotag_dict, pileup_dict, hap_dict, max_depth, use_tensor_sample_mode)
         ref_seq = reference_sequence[
                   pos - reference_start - flanking_base_num: pos - reference_start + flanking_base_num + 1].upper()
 
         # if alt_fn and normal_pos_set is not None and int(pos) not in normal_pos_set:
         #     continue
-        if pos not in truths_variant_dict:
-            continue
-        print (1)
+        # if pos not in truths_variant_dict:
+        #     continue
+        # print (1)
         if not unify_repre:
             tensor, alt_info = generate_tensor(ctg_name=ctg_name,
                                                center_pos=pos,
@@ -999,7 +988,7 @@ def CreateTensorFullAlignment(args):
                                                add_no_phasing_data_training=add_no_phasing_data_training,
                                                is_tumor=is_tumor,
                                                candidates_type_dict=candidates_type_dict,
-                                               tensor_sample_mode=tensor_sample_mode,
+                                               use_tensor_sample_mode=use_tensor_sample_mode,
                                                truths_variant_dict=truths_variant_dict)
             if not tensor:
                 continue
