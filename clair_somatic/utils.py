@@ -237,6 +237,49 @@ def print_label(path):
         total_somatic += sum(table.root.label[:, 2])
     print('[INFO] total: {}, total germline:{}, total somatic:{}'.format(total,total_germline, total_somatic))
 
+def check_bin_af_distrbution(path):
+    import tables
+    import os
+    total = 0
+    total_germline = 0
+    total_somatic = 0
+    normal_max = np.empty(shape=(0))
+    tumor_max = np.empty(shape=(0))
+    all_label = np.empty(shape=(0, 3))
+    for fn_idx, file_name in enumerate(os.listdir(path)):
+        table = tables.open_file(os.path.join(path, file_name), 'r')
+        print("[INFO] {} size is: {}".format(file_name, len(table.root.label)))
+        total += sum(table.root.label[:, 0])
+        input_matrix_af_channel = table.root.input_matrix[:,:,16,4]
+        normal_part = input_matrix_af_channel[:,:42]
+        tumor_part = input_matrix_af_channel[:,44:]
+        label = table.root.label[:]
+        normal_max = np.concatenate([normal_max, np.max(normal_part, axis=1)], axis=0)
+        tumor_max = np.concatenate([tumor_max, np.max(tumor_part, axis=1)], axis=0)
+        all_label = np.concatenate([all_label, label], axis=0)
+        total_germline += sum(table.root.label[:, 1])
+        total_germline += sum(table.root.label[:, 1])
+        total_somatic += sum(table.root.label[:, 2])
+        if fn_idx > 10:
+            break
+    if 0:
+        import pandas as pd
+        normal_max_df = pd.DataFrame(normal_max)
+        normal = [True if np.argmax(x) == 0 else False for x in label]
+        germline = [True if np.argmax(x) == 1 else False for x in label]
+        somatic = [True if np.argmax(x) == 2 else False for x in label]
+        input_matrix = np.array(table.root.input_matrix)
+        position = np.array(table.root.position)
+        normal_position = [p[0].decode().split(':')[0] for p in position if "ref" in p[0].decode()]
+        germline_position = [p[0].decode().split(':')[0] for p in position if "homo_germline" in p[0].decode()]
+        somatic_position = [p[0].decode().split(':')[0] for p in position if "homo_somatic" in p[0].decode()]
+        normal_matrix = input_matrix[normal]
+        germline_matrix = input_matrix[germline]
+        somatic_matrix = input_matrix[somatic]
+
+    print('[INFO] total: {}, total germline:{}, total somatic:{}'.format(total,total_germline, total_somatic))
+
+
 # def bin_reader_generator_from(subprocess_list, Y, is_tree_empty, tree, miss_variant_set, is_allow_duplicate_chr_pos=False, non_variant_subsample_ratio=1.0):
 #
 #     """
@@ -545,5 +588,6 @@ def get_training_array(normal_tensor_fn, tumor_tensor_fn, var_fn, bed_fn, bin_fn
 # import numpy as np
 # import tables
 # a = tables.open_tables(bin_fn)
-# nm = np.array(a.root.normal_matrix[:100])
+# nm = np.array(a.root.input_matrix[:100])
+#label = np.array(a.root.label[:100])
 # tm = np.array(a.root.tumor_matrix[:100])
