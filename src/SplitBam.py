@@ -3,6 +3,7 @@ import random
 import shlex
 from argparse import ArgumentParser, SUPPRESS
 import subprocess
+from subprocess import DEVNULL
 from subprocess import PIPE
 random.seed(0)
 
@@ -34,7 +35,6 @@ def SplitBin(args):
     normal_bam_depth = get_coverage(normal_depth_log)
     tumor_bam_depth = get_coverage(tumor_depth_log)
 
-    print ("[INFO] Contig/Normal coverage/Tumor coverage: {}/{}/{}".format(ctg_name, normal_bam_depth, tumor_bam_depth))
     normal_bin_num = int(int(normal_bam_depth) / int(min_coverage))
     tumor_bin_num = int(int(tumor_bam_depth) / int(min_coverage))
 
@@ -68,6 +68,7 @@ def SplitBin(args):
             save_file_fp.stdin.close()
             save_file_fp.wait()
 
+    print ("[INFO] Contig/Normal coverage/Tumor coverage: {}/{}/{}".format(ctg_name, normal_bam_depth, tumor_bam_depth))
 
 def main():
     parser = ArgumentParser(description="Generate variant candidate tensors using phased full-alignment")
@@ -102,9 +103,8 @@ def main():
     parser.add_argument('--samtools_threads', type=int, default=32,
                         help="Reference fasta file input, required")
 
-    parser.add_argument('--samtools_output_threads', type=int, default=16,
+    parser.add_argument('--samtools_output_threads', type=int, default=8,
                         help="Reference fasta file input, required")
-
 
     parser.add_argument('--proportion', type=float, default=0.1,
                         help="Reference fasta file input, required")
