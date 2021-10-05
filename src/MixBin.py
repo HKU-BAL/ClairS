@@ -69,7 +69,7 @@ def MixBin(args):
     sampled_normal_bin_num = int(normal_depth / min_coverage)
     sampled_tumor_bin_num = int(tumor_depth / min_coverage)
 
-    print (tumor_depth, normal_depth, sampled_normal_bin_num, sampled_tumor_bin_num)
+    print ("[INFO] Normal depth/Tumor depth, normal sampled bins/tumor sampled bins:{}:{}".format(tumor_depth, normal_depth, sampled_normal_bin_num, sampled_tumor_bin_num))
     sampled_normal_bam_list = [normal_bam_list[idx] for idx in random.sample(range(normal_bin_num), sampled_normal_bin_num)]
     random.seed(0)
     sampled_tumor_bam_list = [tumor_bam_list[idx] for idx in random.sample(range(tumor_bin_num), sampled_tumor_bin_num)]
@@ -108,16 +108,16 @@ def MixBin(args):
                                         normal_sampled_bam_list)))
     subprocess_run(shlex.split("{} index -@{} {}".format(samtools_execute_command, samtools_threads, normal_output_bam)))
 
-    if contaminative_proportions is not None:
-        # contam_tumor_num =
-        contaminative_proportion_list = contaminative_proportions.split(',')
-        normal_output_bam = output_fn.replace('tumor_', 'normal_')
-        normal_sampled_bam_list = ' '.join([os.path.join(input_dir, bam) for bam in pair_normal_bam_list])
-        subprocess_run(shlex.split(
-            "{} merge -f -@{} {} {}".format(samtools_execute_command, samtools_threads, normal_output_bam,
-                                            normal_sampled_bam_list)))
-        subprocess_run(
-            shlex.split("{} index -@{} {}".format(samtools_execute_command, samtools_threads, normal_output_bam)))
+    # if contaminative_proportions is not None:
+    #     # contam_tumor_num =
+    #     contaminative_proportion_list = contaminative_proportions.split(',')
+    #     normal_output_bam = output_fn.replace('tumor_', 'normal_')
+    #     normal_sampled_bam_list = ' '.join([os.path.join(input_dir, bam) for bam in pair_normal_bam_list])
+    #     subprocess_run(shlex.split(
+    #         "{} merge -f -@{} {} {}".format(samtools_execute_command, samtools_threads, normal_output_bam,
+    #                                         normal_sampled_bam_list)))
+    #     subprocess_run(
+    #         shlex.split("{} index -@{} {}".format(samtools_execute_command, samtools_threads, normal_output_bam)))
 
 
         # subprocess_run(shlex.split("ln -sf {} {}".format(normal_bam_fn, normal_output_bam)))
