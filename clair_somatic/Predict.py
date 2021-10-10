@@ -153,17 +153,21 @@ def find_max_candidates(pos, alt_info):
 
 def get_max_af(input_matrix):
 
-
-    all_max_normal = []
-    all_max_tumor = []
-    for item in input_matrix:
-        normal_tumor_channel = item[6,:]
-        is_normal = [True if x == 0.5 else False for x in normal_tumor_channel]
-        is_tumor = [True if x == 1.0 else False for x in normal_tumor_channel]
-        max_normal = np.max(item[4, :][is_normal])
-        max_tumor = np.max(item[4,:][is_tumor])
-        all_max_normal.append(max_normal)
-        all_max_tumor.append(max_tumor)
+    normal_tumor_channel = input_matrix[:,6,:]
+    is_normal = normal_tumor_channel == 0.5
+    is_tumor = normal_tumor_channel == 1.0
+    max_normal = np.max(input_matrix[:,4,:] * is_normal, axis=1)
+    max_tumor = np.max(input_matrix[:,4,:] * is_tumor, axis=1)
+    # all_max_normal = []
+    # all_max_tumor = []
+    # for item in input_matrix:
+    #     normal_tumor_channel = item[6,:]
+    #     is_normal = [True if x == 0.5 else False for x in normal_tumor_channel]
+    #     is_tumor = [True if x == 1.0 else False for x in normal_tumor_channel]
+    #     max_normal = np.max(item[4, :][is_normal])
+    #     max_tumor = np.max(item[4,:][is_tumor])
+    #     all_max_normal.append(max_normal)
+    #     all_max_tumor.append(max_tumor)
     return max_normal, max_tumor
 
 def predict_model(args):
@@ -189,6 +193,10 @@ def predict_model(args):
     if ochk_prefix and not os.path.exists(ochk_prefix):
         output = run('mkdir {}'.format(ochk_prefix), shell=True)
         print("[INFO] Model path empty, create folder")
+
+    if output_dir and not os.path.exists(output_dir):
+        output = run('mkdir {}'.format(output_dir), shell=True)
+        print("[INFO] Output path empty, create folder")
 
     unified_vcf_fn = args.unified_vcf_fn
     unified_vcf_reader_dict = defaultdict()
@@ -317,7 +325,7 @@ def predict_model(args):
             batch_num = data_size // batch_size if data_size % batch_size == 0 else data_size // batch_size + 1
 
             for batch_idx in range(batch_num):
-                current_batch_size = batch_size if batch_idx != batch_num -1 else data_size % batch_size
+                current_batch_size = batch_size if batch_idx != batch_num - 1 else data_size - batch_size * batch_idx
                 input_matrix = np.array(dataset.root.input_matrix[batch_idx * batch_size:(batch_idx + 1) * batch_size])
                 label = np.array(dataset.root.label[batch_idx * batch_size:(batch_idx + 1) * batch_size])
                 positions = np.array(dataset.root.position[batch_idx * batch_size:(batch_idx + 1) * batch_size])
@@ -329,7 +337,6 @@ def predict_model(args):
                 input_tensor = torch.from_numpy(np.transpose(input_matrix.astype(float), (0,3,1,2))/100.0).to(device)
                 # tumor_tensor = torch.from_numpy(tumor_matrix)
                 label_tensor = label
-
                 yield input_tensor, label_tensor, positions, alt_infos, ctg_name_infos
     validate_dataset = DataGenerator_all(table_dataset_list)
 
@@ -347,6 +354,7 @@ def predict_model(args):
     labels = np.empty(shape=(0, label_size))
     predict_germline = False
     prefix = 'germline_' if predict_germline else ""
+    if chunk_id is not None: prefix  += str(chunk_id)
     fp_vcf = open(os.path.join(output_dir, prefix +'fp.vcf'), 'w')
     fn_vcf = open(os.path.join(output_dir, prefix+'fn.vcf'), 'w')
     tp_vcf = open(os.path.join(output_dir, prefix+'tp.vcf'), 'w')
@@ -366,6 +374,9 @@ def predict_model(args):
         fp = [True if x != arg_index and y == arg_index else False for x, y in zip(y_truth, y_pred)]
         fn = [True if x == arg_index and y != arg_index else False for x, y in zip(y_truth, y_pred)]
         tp = [True if x == y and x == arg_index else False for x, y in zip(y_truth, y_pred)]
+
+        input_matrix = np.max(val_data.cpu().numpy(), axis=3)
+        max_normal_af, max_tumor_af = get_max_af(input_matrix)
         try:
             fp_pos_array = [item[0].numpy().decode().split(':') for item in val_positions[fp]]
             fn_pos_array = [item[0].numpy().decode().split(':') for item in val_positions[fn]]
@@ -391,6 +402,13 @@ def predict_model(args):
             fn_alt_array = [item[0].decode() for item in val_alt_infos[fn]]
             tp_alt_array = [item[0].decode() for item in val_alt_infos[tp]]
 
+        fp_normal_af_array = max_normal_af[fp]
+        fn_normal_af_array = max_normal_af[fn]
+        tp_normal_af_array = max_normal_af[tp]
+        fp_tumor_af_array = max_tumor_af[fp]
+        fn_tumor_af_array = max_tumor_af[fn]
+        tp_tumor_af_array = max_tumor_af[tp]
+
         fp_pos_array = [(item[0],item[-1]) for item in fp_pos_array]
         fn_pos_array = [(item[0],item[-1]) for item in fn_pos_array]
         tp_pos_array = [(item[0],item[-1]) for item in tp_pos_array]
@@ -398,16 +416,15 @@ def predict_model(args):
         all_pos_array = [fp_pos_array, fn_pos_array, tp_pos_array]
         all_chr_array = [fp_chr_array, fn_chr_array, tp_chr_array]
         all_alt_array = [fp_alt_array, fn_alt_array, tp_alt_array]
+        all_normal_af_array = [fp_normal_af_array, fn_normal_af_array, tp_normal_af_array]
+        all_tumor_af_array = [fp_tumor_af_array, fn_tumor_af_array, tp_tumor_af_array]
+
         all_vcf_fn = [fp_vcf, fn_vcf, tp_vcf]
         candidate_types = ['fp', 'fn', 'tp']
 
-        input_matrix = np.max(val_data.cpu().numpy(), axis=3)
-
-        max_normal_af, max_tumor_af = get_max_af(input_matrix)
-
-        for pos_array, chr_array, vcf_fn, alt_array, ct, n_af, t_af in zip(all_pos_array, all_chr_array, all_vcf_fn, all_alt_array, candidate_types, max_normal_af, max_tumor_af):
+        for pos_array, chr_array, vcf_fn, alt_array, ct, normal_af_array, tumor_af_array in zip(all_pos_array, all_chr_array, all_vcf_fn, all_alt_array, candidate_types, all_normal_af_array, all_tumor_af_array):
             # print(len(pos_array), len(chr_array), len(alt_array), len(ct))
-            for (pos, variant_type), contig, alt_info in zip(pos_array, chr_array, alt_array):
+            for (pos, variant_type), contig, alt_info, n_af, t_af in zip(pos_array, chr_array, alt_array, normal_af_array, tumor_af_array):
                 vcf_format = "%s\t%d\t.\t%s\t%s\t%d\t%s\t%s\tGT:GQ:DP:NAF:TAF:VT\t%s:%d:%d:%.4f:%.4f:%s" % (
                     contig,
                     int(pos),
