@@ -169,7 +169,7 @@ def get_tensor_info(base_info, bq, ref_base, read_mq=None):
     return read_channel, ins_base, query_base
 
 
-def decode_pileup_bases(pos, pileup_bases, reference_base, minimum_af_for_candidate, has_pileup_candidates, candidates_type_dict,is_tumor):
+def decode_pileup_bases(pos, pileup_bases, reference_base, minimum_af_for_candidate,  minimum_snp_af_for_candidate, minimum_indel_af_for_candidate, has_pileup_candidates, candidates_type_dict,is_tumor):
     """
     Decode mpileup input string.
     pileup_bases: pileup base string for each position, include all mapping information.
@@ -219,14 +219,29 @@ def decode_pileup_bases(pos, pileup_bases, reference_base, minimum_af_for_candid
         elif len(key) > 1 and key[1] == '-':
             pileup_dict['D'] += count
 
+    minimum_snp_af_for_candidate = minimum_snp_af_for_candidate if minimum_snp_af_for_candidate > 0 else param.min_af
+    minimum_indel_af_for_candidate = minimum_indel_af_for_candidate if minimum_indel_af_for_candidate > 0 else param.min_af_dict[platform]
+
     denominator = depth if depth > 0 else 1
     pileup_list = sorted(list(pileup_dict.items()), key=lambda x: x[1], reverse=True)
-    af = (float(pileup_list[1][1]) / denominator) if len(pileup_list) > 1 else 0.0
-    pass_af = len(pileup_list) and (pileup_list[0][0] != reference_base or af >= minimum_af_for_candidate)
-    pass_af = len(pileup_list) and (af >= minimum_af_for_candidate)
 
+    pass_af = len(pileup_list) and (pileup_list[0][0] != reference_base)
+    pass_snp_af = False
+    pass_indel_af = False
+
+    for item, count in pileup_list:
+        if item == reference_base:
+            continue
+        elif item[0] in 'ID':
+            pass_indel_af = (pass_indel_af or (float(count) / denominator >= minimum_indel_af_for_candidate))
+            continue
+        pass_snp_af = pass_snp_af or (float(count) / denominator >= minimum_snp_af_for_candidate)
+
+    af = (float(pileup_list[1][1]) / denominator) if len(pileup_list) > 1 else 0.0
     af = (float(pileup_list[0][1]) / denominator) if len(pileup_list) >= 1 and pileup_list[0][
         0] != reference_base else af
+
+    pass_af = pass_snp_af or pass_indel_af
 
     return base_list, depth, pass_af, af
 
@@ -297,7 +312,7 @@ def find_tumor_alt_match(center_pos, sorted_read_name_list, pileup_dict, truths_
                 matched_read_name_set.add(read_name)
     return matched_read_name_set, normal_read_name_set
 
-
+#--bam_fn /mnt/bal36/zxzheng/somatic/ont/test_chr20-22/downsample/pair/tumor_chr20_0.17.bam --ref_fn /mnt/bal36/zxzheng/testData/ont/data/GRCh38_no_alt_analysis_set.fasta --ctgName chr20 --samtools /autofs/bal33/zxzheng/env/conda/envs/samtools/bin/samtools --min_af 0.15 --full_aln_regions /mnt/bal36/zxzheng/somatic/ont/test_chr20-22/build/candidates/chr20.40_229 --tensor_can_fn /mnt/bal36/zxzheng/somatic/ont/test_chr20-22/build/0.17_chr20.40_229 --alt_fn /mnt/bal36/zxzheng/somatic/ont/test_chr20-22/build/normal_alt_output/0.17_chr20.40_229 --platform ont --tensor_sample_mode 1 --truth_vcf_fn /mnt/bal36/zxzheng/somatic/ont/test_chr20-22/build/unified_vcf/unified_hg004_chr20 --test_pos False
 def generate_tensor(ctg_name,
                     center_pos,
                     sorted_read_name_list,
@@ -357,7 +372,7 @@ def generate_tensor(ctg_name,
                 if ins_base != '' and p < end_pos - 1:
                     insert_tuple.append((read_idx, offset, ins_base, p))
 
-    for read_idx, p, ins_base, cp in insert_tuple:
+    for read_idx, p, ins_base, center_p in insert_tuple:
 
         for ins_idx in range(min(len(ins_base), no_of_positions - p)):
             tensor[read_idx][ins_idx + p][5] = ACGT_NUM[ins_base[ins_idx]]
@@ -478,7 +493,6 @@ def generate_tensor(ctg_name,
         ) for tensor_string, alt_info in zip(tensor_string_list, alt_info_list)]), None
 
     else:
-
         alt_dict = defaultdict(int)
         depth, max_del_length = 0, 0
         for base, indel in pileup_dict[center_pos].base_list:
@@ -595,6 +609,8 @@ def CreateTensorFullAlignment(args):
     extend_bp = param.extend_bp
     unify_repre = args.unify_repre
     minimum_af_for_candidate = args.min_af
+    minimum_snp_af_for_candidate = args.snp_min_af
+    minimum_indel_af_for_candidate = args.indel_min_af
     min_coverage = args.minCoverage
     platform = args.platform
     confident_bed_fn = args.bed_fn
@@ -837,6 +853,8 @@ def CreateTensorFullAlignment(args):
                                                                 pileup_bases=pileup_bases,
                                                                 reference_base=reference_base,
                                                                 minimum_af_for_candidate=minimum_af_for_candidate,
+                                                                minimum_snp_af_for_candidate=minimum_snp_af_for_candidate,
+                                                                minimum_indel_af_for_candidate=minimum_indel_af_for_candidate,
                                                                 has_pileup_candidates=has_pileup_candidates,
                                                                 candidates_type_dict=candidates_type_dict,
                                                                 is_tumor=is_tumor)
@@ -902,8 +920,6 @@ def CreateTensorFullAlignment(args):
                     break
             current_pos_index += 1
 
-        yield None
-
     samtools_pileup_generator = samtools_pileup_generator_from(samtools_mpileup_process)
 
     for hete_pos in hete_snp_pos_dict:
@@ -914,10 +930,7 @@ def CreateTensorFullAlignment(args):
                                                                                                        extend_bp=extend_bp,
                                                                                                        hete_snp_pos_dict=hete_snp_pos_dict[hete_pos].alt_base)
 
-    while True:
-        pos = next(samtools_pileup_generator)
-        if pos is None:
-            break
+    for pos in samtools_pileup_generator:
         if pos not in pileup_dict:
             continue
         # if need_phasing:
@@ -1041,8 +1054,14 @@ def main():
     parser.add_argument('--vcf_fn', type=str, default=None,
                         help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file,  default: %(default)s")
 
-    parser.add_argument('--min_af', type=float, default=0.08,
+    parser.add_argument('--min_af', type=float, default=None,
                         help="Minimum allele frequency for both SNP and Indel for a site to be considered as a condidate site, default: %(default)f")
+
+    parser.add_argument('--snp_min_af', type=float, default=0.1,
+                        help="Minimum snp allele frequency for a site to be considered as a candidate site, default: %(default)f")
+
+    parser.add_argument('--indel_min_af', type=float, default=0.2,
+                        help="Minimum indel allele frequency for a site to be considered as a candidate site, default: %(default)f")
 
     parser.add_argument('--ctgName', type=str, default=None,
                         help="The name of sequence to be processed, required if --bed_fn is not defined")
