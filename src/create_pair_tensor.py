@@ -171,7 +171,7 @@ def get_tensor_info(base_info, bq, ref_base, read_mq=None):
     return read_channel, ins_base, query_base
 
 
-def decode_pileup_bases(pos, pileup_bases, reference_base, minimum_af_for_candidate, has_pileup_candidates, candidates_type_dict,is_tumor):
+def decode_pileup_bases(pos, pileup_bases, reference_base, minimum_af_for_candidate,  minimum_snp_af_for_candidate, minimum_indel_af_for_candidate, has_pileup_candidates, candidates_type_dict,is_tumor):
     """
     Decode mpileup input string.
     pileup_bases: pileup base string for each position, include all mapping information.
@@ -221,14 +221,29 @@ def decode_pileup_bases(pos, pileup_bases, reference_base, minimum_af_for_candid
         elif len(key) > 1 and key[1] == '-':
             pileup_dict['D'] += count
 
+    minimum_snp_af_for_candidate = minimum_snp_af_for_candidate if minimum_snp_af_for_candidate > 0 else param.min_af
+    minimum_indel_af_for_candidate = minimum_indel_af_for_candidate if minimum_indel_af_for_candidate > 0 else param.min_af_dict[platform]
+
     denominator = depth if depth > 0 else 1
     pileup_list = sorted(list(pileup_dict.items()), key=lambda x: x[1], reverse=True)
-    af = (float(pileup_list[1][1]) / denominator) if len(pileup_list) > 1 else 0.0
-    pass_af = len(pileup_list) and (pileup_list[0][0] != reference_base or af >= minimum_af_for_candidate)
-    pass_af = len(pileup_list) and (af >= minimum_af_for_candidate)
 
+    pass_af = len(pileup_list) and (pileup_list[0][0] != reference_base)
+    pass_snp_af = False
+    pass_indel_af = False
+
+    for item, count in pileup_list:
+        if item == reference_base:
+            continue
+        elif item[0] in 'ID':
+            pass_indel_af = (pass_indel_af or (float(count) / denominator >= minimum_indel_af_for_candidate))
+            continue
+        pass_snp_af = pass_snp_af or (float(count) / denominator >= minimum_snp_af_for_candidate)
+
+    af = (float(pileup_list[1][1]) / denominator) if len(pileup_list) > 1 else 0.0
     af = (float(pileup_list[0][1]) / denominator) if len(pileup_list) >= 1 and pileup_list[0][
         0] != reference_base else af
+
+    pass_af = pass_snp_af or pass_indel_af
 
     return base_list, depth, pass_af, af
 
@@ -276,7 +291,7 @@ def get_alt_info(center_pos, pileup_dict, ref_seq, reference_sequence, reference
     alt_info = str(depth) + '\t' + json.dumps(alt_read_name_dict)
 
     return alt_info
-#add check here
+
 def find_tumor_alt_match(center_pos, sorted_read_name_list, pileup_dict, truths_variant_dict):
     tumor_reads = [read_name for (hap, _, read_name) in sorted_read_name_list if read_name.startswith('t')]
     normal_reads = [read_name for (hap, _, read_name) in sorted_read_name_list if read_name.startswith('n')]
@@ -605,8 +620,8 @@ def get_key_list(input_dict, normal_tensor_infos_dict, tumor_tensor_infos_dict, 
     normal_index_list = range(len(input_dict['normal'][0]))
     tumor_index_list = range(len(input_dict['tumor'][0]))
     for normal_idx, tumor_idx in product(normal_index_list, tumor_index_list):
-        normal_tensor, normal_alt_info =  normal_tensor_infos_dict[0][normal_idx], normal_tensor_infos_dict[1][normal_idx]
-        tumor_tensor, tumor_alt_info =  tumor_tensor_infos_dict[0][normal_idx], tumor_tensor_infos_dict[1][normal_idx]
+        normal_tensor, normal_alt_info = normal_tensor_infos_dict[0][normal_idx], normal_tensor_infos_dict[1][normal_idx]
+        tumor_tensor, tumor_alt_info = tumor_tensor_infos_dict[0][normal_idx], tumor_tensor_infos_dict[1][normal_idx]
         yield (normal_tensor, normal_alt_info, tumor_tensor, tumor_alt_info)
         # output_list.append((x, y))
     # return output_list
@@ -630,6 +645,8 @@ def CreateTensorFullAlignment(args):
     extend_bp = param.extend_bp
     unify_repre = args.unify_repre
     minimum_af_for_candidate = args.min_af
+    minimum_snp_af_for_candidate = args.snp_min_af
+    minimum_indel_af_for_candidate = args.indel_min_af
     min_coverage = args.minCoverage
     platform = args.platform
     confident_bed_fn = args.bed_fn
@@ -819,6 +836,8 @@ def CreateTensorFullAlignment(args):
                                                                 pileup_bases=pileup_bases,
                                                                 reference_base=reference_base,
                                                                 minimum_af_for_candidate=minimum_af_for_candidate,
+                                                                minimum_snp_af_for_candidate=minimum_snp_af_for_candidate,
+                                                                minimum_indel_af_for_candidate=minimum_indel_af_for_candidate,
                                                                 has_pileup_candidates=has_pileup_candidates,
                                                                 candidates_type_dict=candidates_type_dict,
                                                                 is_tumor=is_tumor)
@@ -901,7 +920,7 @@ def CreateTensorFullAlignment(args):
         for tensor_infos in get_key_list(tensor_infos_dict, tensor_infos_dict['normal'], tensor_infos_dict['tumor']):
             normal_tensor_string, normal_alt_info, tumor_tensor_string, tumor_alt_info = tensor_infos
 
-            tensor = "%s\t%d\t%s\t%s\t%s\t%s\t%s\t%s" % (
+            tensor = "%s\t%d\t%s\t%s\t%s\t%s\t%s\t%s\n" % (
                 ctg_name,
                 pos,
                 ref_seq,
@@ -910,7 +929,7 @@ def CreateTensorFullAlignment(args):
                 tumor_tensor_string,
                 tumor_alt_info,
                 variant_type)
-            tensor_can_fp.stdin.write(tensor + "\n")
+            tensor_can_fp.stdin.write(tensor)
             # if alt_fn:
             #     # alt_info = alt_info.replace('-', '\t')
             #     alt_fp.write('\t'.join([ctg_name + ' ' + str(pos)]) + '\n')
@@ -960,8 +979,14 @@ def main():
     parser.add_argument('--vcf_fn', type=str, default=None,
                         help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file,  default: %(default)s")
 
-    parser.add_argument('--min_af', type=float, default=0.08,
+    parser.add_argument('--min_af', type=float, default=None,
                         help="Minimum allele frequency for both SNP and Indel for a site to be considered as a condidate site, default: %(default)f")
+
+    parser.add_argument('--snp_min_af', type=float, default=0.1,
+                        help="Minimum snp allele frequency for a site to be considered as a candidate site, default: %(default)f")
+
+    parser.add_argument('--indel_min_af', type=float, default=0.2,
+                        help="Minimum indel allele frequency for a site to be considered as a candidate site, default: %(default)f")
 
     parser.add_argument('--ctgName', type=str, default=None,
                         help="The name of sequence to be processed, required if --bed_fn is not defined")
