@@ -1,53 +1,33 @@
 import logging
+import tables
+import sys
+
+import os
 import random
 import numpy as np
-from argparse import ArgumentParser, SUPPRESS
-# import tensorflow_addons as tfa
-# import tensorflow as tf
-import tables
-import os
-import sys
-from itertools import accumulate
+import torch
+import torch.nn as nn
+import torch.optim as optim
 from time import time
-# import clair_somatic.model as model_path
+from subprocess import run
+from argparse import ArgumentParser, SUPPRESS
+from torch.optim.lr_scheduler import StepLR
+from torch.utils.tensorboard import SummaryWriter
+from torchsummary import summary
+from tqdm import tqdm
+
 from shared.utils import str2bool
 import shared.param as param
+import clair_somatic.model as model_path
+
+# reuqired package  torchsummary, tqdm tables,  einops
 logging.basicConfig(format='%(message)s', level=logging.INFO)
 tables.set_blosc_max_threads(512)
 os.environ['NUMEXPR_MAX_THREADS'] = '64'
 os.environ['NUMEXPR_NUM_THREADS'] = '8'
-from tqdm import tqdm
-import os
-import random
-import zipfile
-
-# import matplotlib.pyplot as plt
-import numpy as np
-# import pandas as pd
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-# from linformer import Linformer
-# from PIL import Image
-# from sklearn.model_selection import train_test_split
-from torch.optim.lr_scheduler import StepLR
-from torch.utils.data import DataLoader, Dataset
-# from torchvision import datasets, transforms
-# from tqdm.notebook import tqdm
-
-from torchsummary import summary
-from clair_somatic.cvt import CvT
-
-# reuqired package  torchsummary, tqdm tables,  einops
-
 batch_size = 64
-epochs = 20
-lr = 3e-5
 gamma = 0.7
-seed = 42
-device = 'cuda'
-
+seed = 100
 random.seed(seed)
 os.environ['PYTHONHASHSEED'] = str(seed)
 np.random.seed(seed)
@@ -55,40 +35,6 @@ torch.manual_seed(seed)
 torch.cuda.manual_seed(seed)
 torch.cuda.manual_seed_all(seed)
 torch.backends.cudnn.deterministic = True
-
-
-# import glob
-# from itertools import chain
-# import os
-# import random
-# import zipfile
-#
-# import matplotlib.pyplot as plt
-# import numpy as np
-# # import pandas as pd
-# import torch
-# import torch.nn as nn
-# import torch.nn.functional as F
-# import torch.optim as optim
-# from linformer import Linformer
-# from PIL import Image
-# from sklearn.model_selection import train_test_split
-# from torch.optim.lr_scheduler import StepLR
-# from torch.utils.data import DataLoader, Dataset
-# from torchvision import datasets, transforms
-# from tqdm.notebook import tqdm
-#
-# from vit_pytorch.efficient import ViT
-#
-# model = ViT(
-#     dim=128,
-#     image_size=224,
-#     patch_size=32,
-#     num_classes=2,
-#     transformer=efficient_transformer,
-#     channels=3,
-# ).to(device)
-#
 
 
 class FocalLoss(nn.Module):
@@ -133,72 +79,6 @@ def cal_class_weight(samples_per_cls, no_of_classes, beta=0.999):
     cls_weights = (1.0 - beta) / np.array(effective_num)
     cls_weights = cls_weights / np.sum(cls_weights) * no_of_classes
     return cls_weights
-
-#
-# class FocalLoss(tf.keras.losses.Loss):
-#     """
-#     updated version of focal loss function, for multi class classification, we remove alpha parameter, which the loss
-#     more stable, and add gradient clipping to avoid gradient explosion and precision overflow.
-#     """
-#
-#     def __init__(self, label_shape_cum, task, effective_label_num=None, gamma=2):
-#         super(FocalLoss, self).__init__()
-#         self.gamma = gamma
-#         self.cls_weights = None
-#         if effective_label_num is not None:
-#             task_label_num = get_label_task(effective_label_num, label_shape_cum, task)
-#             cls_weights = cal_class_weight(task_label_num, len(task_label_num))
-#             cls_weights = tf.constant(cls_weights, dtype=tf.float32)
-#             cls_weights = tf.expand_dims(cls_weights, axis=0)
-#             self.cls_weights = cls_weights
-#
-#     def call(self, y_true, y_pred):
-#         y_pred = tf.clip_by_value(y_pred, clip_value_min=1e-9, clip_value_max=1 - 1e-9)
-#         cross_entropy = -y_true * tf.math.log(y_pred)
-#         weight = ((1 - y_pred) ** self.gamma) * y_true
-#         FCLoss = cross_entropy * weight
-#         if self.cls_weights is not None:
-#             FCLoss = FCLoss * self.cls_weights
-#         reduce_fl = tf.reduce_sum(FCLoss, axis=-1)
-#         return reduce_fl
-#
-# class BinaryCrossentropy(tf.keras.losses.Loss):
-#     """
-#     updated version of focal loss function, for multi class classification, we remove alpha parameter, which the loss
-#     more stable, and add gradient clipping to avoid gradient explosion and precision overflow.
-#     """
-#
-#     def __init__(self):
-#         super(BinaryCrossentropy, self).__init__()
-#
-#     def call(self, y_true, y_pred):
-#         sigmoids = tf.nn.sigmoid_cross_entropy_with_logits(labels=y_true, logits=y_pred)
-#         sigmoids_loss = tf.reduce_mean(sigmoids)
-#         return sigmoids_loss
-
-
-def get_chunk_list(chunk_offset, train_data_size, chunk_size):
-    """
-    get chunk list for training and validation data. we will randomly split training and validation dataset,
-    all training data is directly acquired from various tensor bin files.
-
-    """
-    all_shuffle_chunk_list = []
-    total_size = 0
-    offset_idx = 0
-    for bin_idx, chunk_num in enumerate(chunk_offset):
-        all_shuffle_chunk_list += [(bin_idx, chunk_idx) for chunk_idx in range(chunk_num)]
-    np.random.seed(0)
-    np.random.shuffle(all_shuffle_chunk_list)  # keep the same random validate dataset
-    for bin_idx, chunk_num in enumerate(chunk_offset):
-        if chunk_num * chunk_size + total_size >= train_data_size:
-            chunk_num = (train_data_size - total_size) // chunk_size
-            offset_idx += chunk_num
-            # print ("Sum:{}".format(np.sum(np.array(all_shuffle_chunk_list[:offset_idx]))))
-            return np.array(all_shuffle_chunk_list[:offset_idx]), np.array(all_shuffle_chunk_list[offset_idx + 1:])
-        else:
-            total_size += chunk_num * chunk_size
-            offset_idx += chunk_num
 
 
 def get_chunk_list(chunk_offset, train_chunk_num, chunks_per_batch=10, training_dataset_percentage=None):
@@ -248,71 +128,15 @@ def pass_chr(fn, ctg_name_list):
             return True
     return False
 
-# def compute_euclidean_distance(x, y):
-#     """
-#     Computes the euclidean distance between two tensorflow variables
-#     """
-#
-#     d = tf.reduce_sum(tf.square(tf.sub(x, y)),1)
-#     return d
-
-
-#
-# class ContrastiveLoss(tf.keras.losses.Loss):
-#
-#     """
-#     Compute the contrastive loss as in
-#
-#
-#     L = 0.5 * Y * D^2 + 0.5 * (Y-1) * {max(0, margin - D)}^2
-#     Y=1: same class(similar), Y=0: different class
-#     **Parameters**
-#      left_feature: First element of the pair
-#      right_feature: Second element of the pair
-#      label: Label of the pair (0 or 1)
-#      margin: Contrastive margin
-#
-#     **Returns**
-#      Return the loss operation
-#
-#     """
-#
-#     def __init__(self, margin=1):
-#         super(ContrastiveLoss, self).__init__()
-#         self.margin = margin
-#
-#     # def call(self, y_true, y_pred):
-#     #     label = tf.argmax(y_true, axis=1)
-#     #     label = tf.cast(label, tf.float32)
-#     #
-#     #     d_sqrt = tf.sqrt(y_pred)
-#     #     first_part = tf.multiply(1.0 - label, y_pred)  # (Y-1)*(d)
-#     #
-#     #     max_part = tf.square(tf.maximum(self.margin - d_sqrt, 0))
-#     #     second_part = tf.multiply(label, max_part)  # (Y) * max(margin - d, 0)
-#     #
-#     #     loss = 0.5 * tf.reduce_sum(first_part + second_part, axis=-1)
-#     #     return loss
-#     def call(self, y_true, y_pred):
-#         label = tf.argmax(y_true, axis=1)
-#         label = tf.cast(label, tf.float32)
-#
-#         d_sqrt = tf.sqrt(y_pred)
-#         first_part = tf.multiply(1.0 - label, y_pred)  # (Y-1)*(d)
-#
-#         max_part = tf.square(tf.maximum(self.margin - d_sqrt, 0))
-#         second_part = tf.multiply(label, max_part)  # (Y) * max(margin - d, 0)
-#
-#         loss = 0.5 * tf.reduce_sum(first_part + second_part, axis=-1)
-#         return loss
-
 def train_model(args):
     apply_focal_loss = False
-
+    use_resnet = args.use_resnet
     platform = args.platform
     ctg_name_string = args.ctgName
     chkpnt_fn = args.chkpnt_fn
     ochk_prefix = args.ochk_prefix
+    add_writer = args.add_writer
+
     add_validation_dataset = args.random_validation or (args.validation_fn is not None)
     validation_fn = args.validation_fn
     ctg_name_list = ctg_name_string.split(',')  if ctg_name_string is not None else []
@@ -320,10 +144,14 @@ def train_model(args):
     exclude_training_samples = set(exclude_training_samples.split(',')) if exclude_training_samples else set()
 
     if ochk_prefix and not os.path.exists(ochk_prefix):
-        from subprocess import run
         output = run('mkdir {}'.format(ochk_prefix), shell=True)
-        print("[INFO] Model path empty, mkdir folder")
-    model = CvT(
+        print("[INFO] Model path empty, create folder")
+
+    if add_writer:
+        writer = SummaryWriter("{}/log".format(ochk_prefix))
+
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    model = model_path.CvT(
         num_classes=3,
         s1_emb_dim=16,  # stage 1 - dimension
         s1_emb_kernel=3,  # stage 1 - conv kernel
@@ -353,9 +181,13 @@ def train_model(args):
         depth=param.max_depth,
         width=param.no_of_positions,
         dim=param.channel_size,
-        apply_softmax = apply_focal_loss
+        apply_softmax=True if apply_focal_loss else False
     ).to(device)
 
+    if use_resnet:
+        model = model_path.ResNet().to(device)
+    if chkpnt_fn is not None:
+        model = torch.load(chkpnt_fn)
     input = torch.ones(size=(100, param.channel_size, param.max_depth, param.no_of_positions)).to(device)
     output = model(input)
     tensor_shape = param.ont_input_shape if platform == 'ont' else param.input_shape
@@ -369,13 +201,7 @@ def train_model(args):
     max_epoch = args.maxEpoch if args.maxEpoch else param.maxEpoch
     bin_list = os.listdir(args.bin_fn)
     bin_list = [f for f in bin_list if pass_chr(f, ctg_name_list) and not exist_file_prefix(exclude_training_samples, f)]
-    bin_list = bin_list[:3]
-    # bin_list = bin_list[:10]
     logging.info("[INFO] total {} training bin files: {}".format(len(bin_list), ','.join(bin_list)))
-    # total_data_size = 0
-    # table_dataset_list = []
-    # validate_table_dataset_list = []
-    # chunk_offset = np.zeros(len(bin_list), dtype=int)
 
     def populate_dataset_table(file_list, file_path):
         chunk_offset = np.zeros(len(file_list), dtype=int)
@@ -388,20 +214,6 @@ def train_model(args):
         return table_dataset_list, chunk_offset
 
     table_dataset_list, chunk_offset = populate_dataset_table(bin_list, args.bin_fn)
-    # for bin_idx, bin_file in enumerate(bin_list):
-    #     table_dataset = tables.open_file(os.path.join(args.bin_fn, bin_file), 'r')
-    #     validate_table_dataset = tables.open_file(os.path.join(args.bin_fn, bin_file), 'r')
-    #     table_dataset_list.append(table_dataset)
-    #     validate_table_dataset_list.append(validate_table_dataset)
-    #     chunk_num = (len(table_dataset.root.label) - batch_size) // chunk_size
-    #     data_size = int(chunk_num * chunk_size)
-    #     chunk_offset[bin_idx] = chunk_num
-    #     total_data_size += data_size
-
-    # train_data_size = total_data_size * param.trainingDatasetPercentage
-    # train_data_size = int(train_data_size // chunk_size) * chunk_size
-    # validate_data_size = int((total_data_size - train_data_size) // chunk_size) * chunk_size
-    # train_shuffle_chunk_list, validate_shuffle_chunk_list = get_chunk_list(chunk_offset, train_data_size, chunk_size)
 
     validate_table_dataset_list = []
     if validation_fn:
@@ -435,12 +247,10 @@ def train_model(args):
     def DataGenerator(x, shuffle_chunk_list, train_flag=True):
 
         batch_num = len(shuffle_chunk_list) // chunks_per_batch
-        # normal_matrix = np.empty([batch_size] + tensor_shape, np.int32)
-        # tumor_matrix = np.empty([batch_size] + tensor_shape, np.int32)
-        input_matrix = np.empty([batch_size] + tensor_shape, np.int32)
+        input_matrix = np.empty([batch_size] + tensor_shape, np.float32)
         label = np.empty((batch_size, param.label_size), np.float32)
 
-        for epoch in range(epochs):
+        for epoch in range(max_epoch):
             random_start_position = np.random.randint(0, batch_size) if train_flag else 0
             if train_flag:
                 np.random.shuffle(shuffle_chunk_list)
@@ -449,12 +259,6 @@ def train_model(args):
                 for chunk_idx in range(chunks_per_batch):
                     offset_chunk_id = shuffle_chunk_list[batch_idx * chunks_per_batch + chunk_idx]
                     bin_id, chunk_id = offset_chunk_id
-                    # normal_matrix[chunk_idx * chunk_size:(chunk_idx + 1) * chunk_size] = x[bin_id].root.normal_matrix[
-                    #         random_start_position + chunk_id * chunk_size:random_start_position + (chunk_id + 1) * chunk_size]
-                    #
-                    # tumor_matrix[chunk_idx * chunk_size:(chunk_idx + 1) * chunk_size] = x[bin_id].root.tumor_matrix[
-                    #         random_start_position + chunk_id * chunk_size:random_start_position + (chunk_id + 1) * chunk_size]
-                    #
                     input_matrix[chunk_idx * chunk_size:(chunk_idx + 1) * chunk_size] = x[bin_id].root.input_matrix[
                             random_start_position + chunk_id * chunk_size:random_start_position + (chunk_id + 1) * chunk_size]
 
@@ -464,21 +268,21 @@ def train_model(args):
                 # input_matrix = np.concatenate((normal_matrix, tumor_matrix), axis=1)
                 # if add_contrastive:
                 label_for_normal = [[0,1] if np.argmax(item) == 1 else [1,0] for item in label]
-                label_for_tumor = [[0,0,1] if np.argmax(item) == 2 else ([0, 1,0] if np.argmax(item) == 1 else [1,0,0]) for item in label]
+                label_for_tumor = [[0,0,1] if np.argmax(item) == 2 else ([0,1,0] if np.argmax(item) == 1 else [1,0,0]) for item in label]
                 label_for_normal = np.array(label_for_normal, dtype=np.float32)
                 label_for_tumor = np.array(label_for_tumor, dtype=np.float32)
 
-                input_tensor = torch.from_numpy(np.transpose(input_matrix, (0,3,1,2))).to('cuda')
+                # input_matrix = np.maximum(input_matrix * 2.55, 255.0)
+                input_tensor = torch.from_numpy(np.transpose(input_matrix, (0,3,1,2))/100.0).to(device)
                 # tumor_tensor = torch.from_numpy(tumor_matrix)
-                label_tensor = torch.from_numpy(label_for_tumor).to('cuda')
+                label_tensor = torch.from_numpy(label_for_tumor).to(device)
                 yield input_tensor, label_tensor
 
     print (summary(model, input_size=(param.channel_size,param.max_depth,param.no_of_positions)))
     train_dataset_loder = DataGenerator(table_dataset_list, train_shuffle_chunk_list, True)
-    validate_dataset_loder = DataGenerator(validate_table_dataset_list, validate_shuffle_chunk_list, False)
+    validate_dataset_loder = DataGenerator(validate_table_dataset_list if validation_fn else table_dataset_list, validate_shuffle_chunk_list, False)
 
-    criterion = nn.CrossEntropyLoss()
-    # criterion = FocalLoss()
+    criterion = FocalLoss() if apply_focal_loss else nn.CrossEntropyLoss()
     # optimizer
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     # scheduler
@@ -493,47 +297,82 @@ def train_model(args):
 
     print('[INFO] Train steps:{}'.format(train_steps))
     print('[INFO] Validate steps:{}'.format(validate_steps))
-    for epoch in range(epochs):
-        epoch_loss = 0
-        start_time = time()
-        tumor_fp, tumor_tp, tumor_fn = 0,0,0
-        val_tumor_fp, val_tumor_tp, val_tumor_fn = 0,0,0
-        ref_fp, ref_tp, ref_fn = 0,0,0
 
+    training_loss, validation_loss = 0.0, 0.0
+    training_step, validation_step = 0, 0
+    echo_each_step = 200
+    for epoch in range(max_epoch):
+        epoch_loss = 0
+        fp, tp, fn = 0,0,0
         t = tqdm(enumerate(train_dataset_loder), total=train_steps, position=0, leave=True)
+        v = tqdm(enumerate(validate_dataset_loder), total=validate_steps, position=0, leave=True)
         for batch_idx, (data, label) in t:
             t.set_description('EPOCH {}'.format(epoch))
             data = data.to(device)
             label = label.to(device)
-            current_batch_size = len(label)
 
-            output_logit = model(data.float())
+            output_logit = model(data)
             y_truth = torch.argmax(label, axis=1)
-            if apply_focal_loss:
-                # y_pred, y_true
-                loss = criterion(input=output_logit, target=label)
-            else:
-                # CE
-                loss = criterion(output_logit, y_truth)
             optimizer.zero_grad()
+            loss = criterion(input=output_logit, target=label) if apply_focal_loss else criterion(output_logit, y_truth)
             loss.backward()
             optimizer.step()
 
+            training_step += 1
+            training_loss += loss.item()
+            if add_writer:
+                if training_step % echo_each_step == echo_each_step - 1:
+                    writer.add_scalar('training loss', training_loss / echo_each_step, training_step)
+                training_loss = 0.0
             y_truth = y_truth.cpu().numpy()
-            y_pred = output.argmax(dim=1).cpu().numpy()
+            y_pred = output_logit.argmax(dim=1).cpu().numpy()
             arg_index = 2
-            tumor_fp += sum([True if x != arg_index and y == arg_index else False for x, y in zip(y_truth, y_pred)])
-            tumor_fn += sum([True if x == arg_index and y != arg_index else False for x, y in zip(y_truth, y_pred)])
-            tumor_tp += sum([True if x == y and x == arg_index else False for x, y in zip(y_truth, y_pred)])
+            fp += sum([True if x != arg_index and y == arg_index else False for x, y in zip(y_truth, y_pred)])
+            fn += sum([True if x == arg_index and y != arg_index else False for x, y in zip(y_truth, y_pred)])
+            tp += sum([True if x == y and x == arg_index else False for x, y in zip(y_truth, y_pred)])
 
             if batch_idx + 1 == train_steps:
                 break
 
             epoch_loss += loss
             el = epoch_loss.detach().cpu().numpy()
-            t.set_postfix({'loss': el, 'tp': tumor_tp, 'fp': tumor_fp, 'fn': tumor_fn,})
+            t.set_postfix({'loss': el, 'tp': tp, 'fp': fp, 'fn': fn})
             t.update(1)
 
+        # validation
+        val_fp, val_tp, val_fn = 0, 0, 0
+        val_epoch_loss = 0
+        for batch_idx, (data, label) in v:
+            v.set_description('VAL EPOCH {}'.format(epoch))
+            data = data.to(device)
+            label = label.to(device)
+            with torch.no_grad():
+                output_logit = model(data)
+            y_truth = torch.argmax(label, axis=1)
+            optimizer.zero_grad()
+            loss = criterion(input=output_logit, target=label) if apply_focal_loss else criterion(output_logit, y_truth)
+            validation_step += 1
+            validation_loss += loss.item()
+            if add_writer:
+                if validation_step % echo_each_step == echo_each_step - 1:
+                    writer.add_scalar('validation loss', validation_loss / echo_each_step, validation_step)
+                validation_loss = 0.0
+            y_truth = y_truth.cpu().numpy()
+            y_pred = output_logit.argmax(dim=1).cpu().numpy()
+            arg_index = 2
+            val_fp += sum([True if x != arg_index and y == arg_index else False for x, y in zip(y_truth, y_pred)])
+            val_fn += sum([True if x == arg_index and y != arg_index else False for x, y in zip(y_truth, y_pred)])
+            val_tp += sum([True if x == y and x == arg_index else False for x, y in zip(y_truth, y_pred)])
+
+            if batch_idx + 1 == validate_steps:
+                break
+
+            val_epoch_loss += loss
+            el = val_epoch_loss.detach().cpu().numpy()
+            v.set_postfix(
+                {'validation_loss': el, 'val_tp': val_tp, 'val_fp': val_fp, 'val_fn': val_fn})
+
+            v.update(1)
 
         # with torch.no_grad():
         #     epoch_val_loss = 0
@@ -556,6 +395,8 @@ def train_model(args):
         # model = torch.load("{}.pkl".format(epoch))
 
 
+    if add_writer:
+        writer.close()
     for table_dataset in table_dataset_list:
         table_dataset.close()
 
@@ -590,7 +431,7 @@ def main():
     parser.add_argument('--maxEpoch', type=int, default=None,
                         help="Maximum number of training epochs")
 
-    parser.add_argument('--learning_rate', type=float, default=1e-3,
+    parser.add_argument('--learning_rate', type=float, default=None,
                         help="Set the initial learning rate, default: %(default)s")
 
 
@@ -614,6 +455,12 @@ def main():
     parser.add_argument('--add_indel_length', type=str2bool, default=False,
                         help=SUPPRESS)
 
+    parser.add_argument('--use_resnet', type=str2bool, default=False,
+                        help=SUPPRESS)
+
+    parser.add_argument('--add_writer', type=str2bool, default=False,
+                        help=SUPPRESS)
+
     # mutually-incompatible validation options
     vgrp = parser.add_mutually_exclusive_group()
     vgrp.add_argument('--random_validation', action='store_true',
@@ -634,3 +481,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# time /mnt/bal36/zxzheng/env/miniconda3/envs/clair3/bin/python3 /mnt/bal36/zxzheng/somatic/Clair-somatic/clair-somatic.py Train_torch --bin_fn /mnt/bal36/zxzheng/somatic/ont/12345/build/bins --ochk_prefix /mnt/bal36/zxzheng/somatic/ont/12345/train/torch_test_test_writer --platform ont --use_resnet 0 --add_writer 1 --ctgName chr1,chr2,chr3,chr4,chr5
