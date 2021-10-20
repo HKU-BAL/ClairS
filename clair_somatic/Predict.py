@@ -353,8 +353,9 @@ def predict_model(args):
     tumor_logits = np.empty(shape=(0, 64))
     labels = np.empty(shape=(0, label_size))
     predict_germline = False
+    snp_only = False
     prefix = 'germline_' if predict_germline else ""
-    if chunk_id is not None: prefix  += str(chunk_id)
+    if chunk_id is not None: prefix += str(chunk_id)
     fp_vcf = open(os.path.join(output_dir, prefix +'fp.vcf'), 'w')
     fn_vcf = open(os.path.join(output_dir, prefix+'fn.vcf'), 'w')
     tp_vcf = open(os.path.join(output_dir, prefix+'tp.vcf'), 'w')
@@ -425,21 +426,6 @@ def predict_model(args):
         for pos_array, chr_array, vcf_fn, alt_array, ct, normal_af_array, tumor_af_array in zip(all_pos_array, all_chr_array, all_vcf_fn, all_alt_array, candidate_types, all_normal_af_array, all_tumor_af_array):
             # print(len(pos_array), len(chr_array), len(alt_array), len(ct))
             for (pos, variant_type), contig, alt_info, n_af, t_af in zip(pos_array, chr_array, alt_array, normal_af_array, tumor_af_array):
-                vcf_format = "%s\t%d\t.\t%s\t%s\t%d\t%s\t%s\tGT:GQ:DP:NAF:TAF:VT\t%s:%d:%d:%.4f:%.4f:%s" % (
-                    contig,
-                    int(pos),
-                    "A",
-                    "A",
-                    10,
-                    'PASS',
-                    '.',
-                    "0/0",
-                    10,
-                    10,
-                    n_af,
-                    t_af,
-                    variant_type)
-                vcf_fn.write(vcf_format + '\n')
 
                 # calculate indel and snp information
                 is_snp, is_ins, is_del, best_match_alt = find_max_candidates(pos, alt_info)
@@ -477,6 +463,27 @@ def predict_model(args):
                 fn_snp = fn_snp + 1 if is_snp and ct == 'fn' else fn_snp
                 fn_ins = fn_ins + 1 if is_ins and ct == 'fn' else fn_ins
                 fn_del = fn_del + 1 if is_del and ct == 'fn' else fn_del
+
+                is_tp_snp = ct == 'tp' and is_snp and is_snp_truth
+                is_fp_snp = is_snp and ct == 'fp'
+                is_fn_snp = is_snp and ct == 'fn'
+                if snp_only and not(is_tp_snp or is_fp_snp or is_fn_snp):
+                    continue
+                vcf_format = "%s\t%d\t.\t%s\t%s\t%d\t%s\t%s\tGT:GQ:DP:NAF:TAF:VT\t%s:%d:%d:%.4f:%.4f:%s" % (
+                    contig,
+                    int(pos),
+                    "A",
+                    "A",
+                    10,
+                    'PASS',
+                    '.',
+                    "0/0",
+                    10,
+                    10,
+                    n_af,
+                    t_af,
+                    variant_type)
+                vcf_fn.write(vcf_format + '\n')
 
     print(''.join([x.ljust(15) for x in ['tp_snp', 'tp_ins', 'tp_del', 'fp_snp', 'fp_ins', 'fp_del', 'fp_snp_truth', 'fp_ins_truth', 'fp_del_truth', 'fn_snp', 'fn_ins', 'fn_del']]))
     print(''.join([str(x).ljust(15) for x in [tp_snp, tp_ins, tp_del, fp_snp, fp_ins, fp_del,fp_snp_truth,fp_ins_truth, fp_del_truth, fn_snp, fn_ins, fn_del]]))
