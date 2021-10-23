@@ -63,14 +63,14 @@ class VcfWriter(object):
 
         self.vcf_writer.write(header)
 
-    def write_row(self, POS, REF, ALT, QUAL, GT, DP, AF, CHROM=None, GQ=None, ID='.', FILTER="PASS", NAF=None, TAF=None, VT=None):
+    def write_row(self, POS, REF, ALT, QUAL, GT, DP, AF, CHROM=None, GQ=None, ID='.', FILTER=".", INFO='.', NAF=None, TAF=None, VT=None):
         GQ = GQ if GQ else QUAL
         CHROM = CHROM if CHROM else self.ctg_name
         if not self.show_ref_calls and (GT == "0/0" or GT == "./."):
             return
-        INFO = "GT:GQ:DP:AF"
-        FORMAT = "%s:%d:%d:%.4f" % (GT, GQ, DP, AF)
-        basic_vcf_format = "%s\t%d\t%s\t%s\t%s\t%d\t%s" % (
+        FORMAT = "GT:GQ:DP:AF"
+        FORMAT_V = "%s:%d:%d:%.4f" % (GT, GQ, DP, AF)
+        basic_vcf_format = "%s\t%d\t%s\t%s\t%s\t%d\t%s\t%s" % (
             CHROM,
             int(POS),
             ID,
@@ -78,18 +78,19 @@ class VcfWriter(object):
             ALT,
             QUAL,
             FILTER,
+            INFO
             )
         if NAF is not None:
-            INFO += ":NAF"
-            FORMAT += ":%.4f" % (NAF)
+            FORMAT += ":NAF"
+            FORMAT_V += ":%.4f" % (NAF)
         if TAF is not None:
-            INFO += ":TAF"
-            FORMAT += ":%.4f" % (TAF)
+            FORMAT += ":TAF"
+            FORMAT_V += ":%.4f" % (TAF)
         if VT is not None:
-            INFO += ":VT"
-            FORMAT += ":%s" % (VT)
+            FORMAT += ":VT"
+            FORMAT_V += ":%s" % (VT)
 
-        vcf_format = '\t'.join([basic_vcf_format, INFO, FORMAT]) + '\n'
+        vcf_format = '\t'.join([basic_vcf_format, FORMAT, FORMAT_V]) + "\n"
 
         self.vcf_writer.write(vcf_format)
 
