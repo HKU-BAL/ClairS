@@ -132,7 +132,7 @@ def train_model(args):
     apply_focal_loss = False
     use_resnet = args.use_resnet
     platform = args.platform
-    ctg_name_string = args.ctgName
+    ctg_name_string = args.ctg_name
     chkpnt_fn = args.chkpnt_fn
     ochk_prefix = args.ochk_prefix
     add_writer = args.add_writer
@@ -444,7 +444,7 @@ def main():
     parser.add_argument('--add_contrastive', action='store_true',
                         help=SUPPRESS)
 
-    parser.add_argument('--ctgName', type=str, default=None,
+    parser.add_argument('--ctg_name', type=str, default=None,
                         help="Define training samples to be excluded")
     # Internal process control
     ## In pileup training mode or not
@@ -482,4 +482,4 @@ def main():
 if __name__ == "__main__":
     main()
 
-# time /mnt/bal36/zxzheng/env/miniconda3/envs/clair3/bin/python3 /mnt/bal36/zxzheng/somatic/Clair-somatic/clair-somatic.py Train_torch --bin_fn /mnt/bal36/zxzheng/somatic/ont/12345/build/bins --ochk_prefix /mnt/bal36/zxzheng/somatic/ont/12345/train/torch_test_test_writer --platform ont --use_resnet 0 --add_writer 1 --ctgName chr1,chr2,chr3,chr4,chr5
+# time /mnt/bal36/zxzheng/env/miniconda3/envs/clair3/bin/python3 /mnt/bal36/zxzheng/somatic/Clair-somatic/clair-somatic.py Train_torch --bin_fn /mnt/bal36/zxzheng/somatic/ont/12345/build/bins --ochk_prefix /mnt/bal36/zxzheng/somatic/ont/12345/train/torch_test_test_writer --platform ont --use_resnet 0 --add_writer 1 --ctg_name chr1,chr2,chr3,chr4,chr5
