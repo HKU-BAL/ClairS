@@ -88,15 +88,18 @@ def MixBin(args):
         resample_bin_list = [sampled_normal_bam_list[idx] for idx in random.sample(range(len(sampled_normal_bam_list)), resampled_bin_count)]
         pair_normal_bam_list = resample_bin_list + rest_normal_bam_list
 
-    if tensor_sample_mode:
-        sampled_tumor_bam_list = tumor_bam_list
+
+
+    print("[INFO] Normal coverage/tumor coverage: {}/{}, normal sampled bins/tumor sampled bins:{}/{}".format(
+        normal_coverage, tumor_coverage, sampled_normal_bin_num, sampled_tumor_bin_num))
+    print("[INFO] Tumor sampled normal chunked BAMs:{}:{}".format(len(sampled_normal_bam_list), ' '.join(sampled_normal_bam_list)))
+    print("[INFO] Tumor sampled tumor chunked BAMs:{}:{}".format(len(sampled_tumor_bam_list), ' '.join(sampled_tumor_bam_list)))
+    print("[INFO] Normal sampled BAMs:{}:{}".format(len(pair_normal_bam_list), ' '.join(pair_normal_bam_list)))
+    print("[INFO] Synthetic coverage: {}, Normal sampled BAMs intersection:{}".format(synthetic_coverage, set(pair_normal_bam_list).intersection(set(sampled_normal_bam_list + sampled_tumor_bam_list))))
 
     tumor_sampled_bam_list = [bam for bam in sampled_normal_bam_list + sampled_tumor_bam_list]
-    print ("[INFO] Tumor sampled normal bam:{}:{}".format(len(sampled_normal_bam_list), ' '.join(sampled_normal_bam_list)))
-    print ("[INFO] Tumor sampled tumor bam:{}:{}".format(len(sampled_tumor_bam_list), ' '.join(sampled_tumor_bam_list)))
     tumor_sampled_bam_list = ' '.join([os.path.join(input_dir, bam) for bam in tumor_sampled_bam_list])
-    print("[INFO] Normal sampled bam:{}:{}".format(len(pair_normal_bam_list), ' '.join(pair_normal_bam_list)))
-    print("[INFO] Synthetic depth: {}, Normal sampled bam intersection:{}".format(synthetic_depth, set(pair_normal_bam_list).intersection(set(sampled_normal_bam_list + sampled_tumor_bam_list))))
+
     normal_output_bam = output_fn.replace('tumor_', 'normal_')
     normal_sampled_bam_list = ' '.join([os.path.join(input_dir, bam) for bam in pair_normal_bam_list])
 
@@ -163,10 +166,10 @@ def main():
     parser.add_argument('--tumor_bam_fn', type=str, default="input.bam",
                         help="Sorted BAM file input, required")
 
-    parser.add_argument('--normal_bam_depth', type=int, default=None,
+    parser.add_argument('--normal_bam_coverage', type=int, default=None,
                         help="Sorted BAM file input, required")
 
-    parser.add_argument('--tumor_bam_depth', type=int, default=None,
+    parser.add_argument('--tumor_bam_coverage', type=int, default=None,
                         help="Sorted BAM file input, required")
 
     parser.add_argument('--samtools', type=str, default="samtools",
@@ -187,13 +190,13 @@ def main():
     parser.add_argument('--synthetic_proportion', type=float, default=0.25,
                         help="Reference fasta file input, required")
 
-    parser.add_argument('--synthetic_depth', type=int, default=None,
+    parser.add_argument('--synthetic_coverage', type=int, default=None,
                         help="Reference fasta file input, required")
 
     parser.add_argument('--contaminative_proportions', type=str, default=None,
                         help="contaminative_proportions, split by ','. ")
 
-    parser.add_argument('--ctgName', type=str, default=None,
+    parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of sequence to be processed, required if --bed_fn is not defined")
 
     parser.add_argument('--cov_dir', type=str, default=None,
