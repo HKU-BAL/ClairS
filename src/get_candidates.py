@@ -173,12 +173,16 @@ def filter_somatic_candidates(truths, variant_info, alt_dict, paired_alt_dict, g
     min_af_for_tumor = 0.04
     # af_gap_for_errors = 0.15
     low_confident_truths = []
+    skip_no_read_support = True
+    skip_high_af_in_normal = False
+    skip_low_af_in_tumor = False
     for pos, variant_type in truths:
         if pos not in alt_dict:# or not len(alt_dict[pos].tumor_alt_dict):
             truth_not_pass_af += 1
             if gen_vcf:
                 low_confident_truths.append((pos, variant_type + 'no_read_support'))
-            continue
+            if skip_no_read_support:
+                continue
 
         if pos in paired_alt_dict:
             ref_base, alt_base = variant_info[pos]
@@ -187,7 +191,8 @@ def filter_somatic_candidates(truths, variant_info, alt_dict, paired_alt_dict, g
                 truth_filter_in_normal += 1
                 if gen_vcf:
                     low_confident_truths.append((pos, variant_type + 'high_af_in_normal'))
-                continue
+                if skip_high_af_in_normal:
+                    continue
 
         if len(alt_dict[pos].tumor_alt_dict):
             ref_base, alt_base = variant_info[pos]
@@ -197,7 +202,8 @@ def filter_somatic_candidates(truths, variant_info, alt_dict, paired_alt_dict, g
                 truth_filter_with_low_af += 1
                 if gen_vcf:
                     low_confident_truths.append((pos, variant_type + 'low_af_in_tumor'))
-                continue
+                if skip_low_af_in_tumor:
+                    continue
         # if math.fabs(tumor_af - tumor_af_from_tumor_reads - normal_af) > af_gap_for_errors:
         #     continue
 
@@ -228,7 +234,7 @@ def get_candidates(args):
     output_fp_bed_regions = output_bed_fn is not None
     homo_variant_set_1, homo_variant_info_1, hete_variant_set_1, hete_variant_info_1, variant_set_1, variant_info_1 = vcf_reader(vcf_fn=vcf_fn_1, contig_name=contig_name, bed_tree=bed_tree, add_hete_pos=add_hete_pos)
     homo_variant_set_2, homo_variant_info_2, hete_variant_set_2, hete_variant_info_2, variant_set_2, variant_info_2 = vcf_reader(vcf_fn=vcf_fn_2, contig_name=contig_name, bed_tree=bed_tree, add_hete_pos=add_hete_pos)
-    print (len(variant_info_1), len(variant_info_2))
+    # print (len(variant_info_1), len(variant_info_2))
     tumor_alt_dict = get_ref_candidates(fn=tumor_reference_cans_fn, contig_name=contig_name, bed_tree=bed_tree, variant_info=variant_info_2)
     normal_alt_dict = get_ref_candidates(fn=normal_reference_cans_fn, contig_name=contig_name, bed_tree=bed_tree, variant_info=variant_info_2)
 
@@ -250,7 +256,6 @@ def get_candidates(args):
                 if ref_base == ref_base_2 and alt_base == alt_base_2:
                     hete_list_with_same_repre.append(pos)
 
-    print (len(tumor_alt_dict), len(normal_alt_dict))
     homo_germline = [(item, 'homo_germline') for item in list(same_alt_pos_set)]
     hete_germline = [(item, 'hete_germline') for item in hete_list_with_same_repre]
     ref_list = normal_ref_cans_list + tumor_ref_cans_list if consider_normal_af else tumor_ref_cans_list
@@ -282,8 +287,8 @@ def get_candidates(args):
     pos_list = sorted(fp_list + tp_list, key=lambda x: x[0])
 
     if gen_vcf:
-        vcf_writer = VcfWriter(vcf_fn=output_vcf_fn, ref_fn=ref_fn, ctg_name=contig_name)
-        for pos, variant_type in pos_list:
+        vcf_writer = VcfWriter(vcf_fn=output_vcf_fn, ref_fn=ref_fn, ctg_name=contig_name, show_ref_calls=True)
+        for pos, variant_type in pos_list + low_confident_truths:
             genotype = '1/1' if (variant_type == 'homo_somatic' or variant_type == 'hete_somatic') else '0/0'
             filter_tag = "PASS" if genotype == '1/1' else "LowQual"
             if genotype == "1/1":
@@ -291,7 +296,8 @@ def get_candidates(args):
             elif pos in tumor_alt_dict:
                 ref_base = alt_base = tumor_alt_dict[pos].ref_base
             else:
-                continue
+                ref_base="A"
+                alt_base="A"
             vcf_writer.write_row(POS=pos,
                                  REF=ref_base,
                                  ALT=alt_base,
@@ -299,7 +305,8 @@ def get_candidates(args):
                                  FILTER=filter_tag,
                                  GT=genotype,
                                  DP=10,
-                                 AF=0.5)
+                                 AF=0.5,
+                                 VT=variant_type)
         vcf_writer.close()
 
     if output_fp_bed_regions:
