@@ -9,24 +9,31 @@ random.seed(0)
 from src.utils import subprocess_popen, file_path_from, IUPAC_base_to_num_dict as BASE2NUM, region_from, \
     reference_sequence_from, str2bool
 
-cov_suffix = ".depth.mosdepth.summary.txt"
+cov_suffix = ".cov.mosdepth.summary.txt"
 
-def get_coverage(depth_log):
-    with open(depth_log) as f:
-        last_row = f.readlines()[-1]
-    depth = int(float(last_row.split()[3]))
-    return depth
+def get_coverage(coverage_log, ctg_name=None):
+    # we use the overall average coverage if no contig specified
+    if ctg_name is None:
+        last_row = open(coverage_log).readlines()[-1]
+        coverage = int(float(last_row.split()[3]))
+    else:
+        all_rows = open(coverage_log).readlines()
+        ctg_row = [row for row in all_rows if row.split()[0] == ctg_name]
+        if len(ctg_row) == 0:
+            print('[ERROR] no contig coverage found for contig {}'.format(ctg_name))
+        coverage = int(ctg_row[0].split()[3])
+    return coverage
 
-def check_max_sampled_coverage(nor_cov, tum_cov, pro, pair_gamma=1.0, min_coverage=4):
+def check_max_sampled_coverage(nor_cov, tum_cov, pro, pair_gamma=0.5, min_coverage=4):
     nor_cov = int(nor_cov / min_coverage * min_coverage)
     tum_cov = int(tum_cov / min_coverage * min_coverage)
-    synthetic_depth_1 = int(tum_cov / pro)
-    synthetic_depth_2 = int(nor_cov / (1 + pair_gamma - pro))
+    synthetic_coverage_1 = int(tum_cov / pro)
+    synthetic_coverage_2 = int(nor_cov / (1 + pair_gamma - pro))
 
-    synthetic_depth = min(synthetic_depth_1, synthetic_depth_2)
-    synthetic_depth = int(synthetic_depth / min_coverage * min_coverage)
+    synthetic_coverage = min(synthetic_coverage_1, synthetic_coverage_2)
+    synthetic_coverage = int(synthetic_coverage / min_coverage * min_coverage)
 
-    return synthetic_depth
+    return synthetic_coverage
 
 
 def MixBin(args):
