@@ -7,7 +7,7 @@ from collections import defaultdict
 
 
 from shared.utils import log_error, log_warning, file_path_from, subprocess_popen
-from shared.vcf import VcfReader
+from shared.vcf import VcfReader, VcfWriter
 from shared.interval_tree import bed_tree_from, is_region_in
 major_contigs_order = ["chr" + str(a) for a in list(range(1, 23)) + ["X", "Y"]] + [str(a) for a in
                                                                                    list(range(1, 23)) + ["X", "Y"]]
@@ -25,6 +25,7 @@ def compare_vcf(args):
     How som.py works
     """
     output_fn = args.output_fn
+    output_dir = args.output_dir
     truth_vcf_fn = args.truth_vcf_fn
     input_vcf_fn = args.input_vcf_fn
     bed_fn = args.bed_fn
@@ -52,6 +53,10 @@ def compare_vcf(args):
     truth_snp, truth_ins, truth_del = 0,0,0
     query_snp, query_ins, query_del = 0,0,0
     pos_out_of_bed = 0
+
+    fp_set = set()
+    fn_set = set()
+    tp_set = set()
     for pos, vcf_infos in input_variant_dict.items():
         pass_bed_region = len(fp_bed_tree) == 0 or is_region_in(tree=fp_bed_tree,
                                                     contig_name=ctg_name,
@@ -72,6 +77,8 @@ def compare_vcf(args):
             fp_snp = fp_snp + 1 if is_snp else fp_snp
             fp_ins = fp_ins + 1 if is_ins else fp_ins
             fp_del = fp_del + 1 if is_del else fp_del
+            if fp_snp:
+                fp_set.add(pos)
 
         if pos in truth_variant_dict:
             vcf_infos = truth_variant_dict[int(pos)]
@@ -97,6 +104,11 @@ def compare_vcf(args):
                 fn_snp = fn_snp + 1 if is_snp_truth else fn_snp
                 fn_ins = fn_ins + 1 if is_ins_truth else fn_ins
                 fn_del = fn_del + 1 if is_del_truth else fn_del
+
+                if fp_snp:
+                    fp_set.add(fp_snp)
+                if fn_snp:
+                    fn_set.add(fn_snp)
 
             truth_set.add(pos)
 
@@ -181,6 +193,9 @@ def main():
 
     parser.add_argument('--contigs_fn', type=str, default=None,
                         help="Contigs file with all processing contigs")
+
+    parser.add_argument('--output_dir', type=str, default=None,
+                        help="Output VCF filename, required")
 
     args = parser.parse_args()
     compare_vcf(args)
