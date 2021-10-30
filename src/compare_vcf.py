@@ -134,6 +134,31 @@ def compare_vcf(args):
         fn_ins = fn_ins + 1 if is_ins_truth else fn_ins
         fn_del = fn_del + 1 if is_del_truth else fn_del
 
+        if fn_snp:
+            fn_set.add(fn_snp)
+
+    print (len(fp_set), len(fn_set), len(tp_set))
+    if output_dir is not None:
+        if not os.path.exists(output_dir):
+            subprocess.run("mkdir -p {}".format(output_dir), shell=True)
+        candidate_types = ['fp', 'fn', 'tp']
+        variant_sets = [fp_set, fn_set, tp_set]
+        for vcf_type, variant_set in zip(candidate_types, variant_sets):
+            vcf_fn = os.path.join(output_dir, '{}.vcf'.format(vcf_type))
+            vcf_writer = VcfWriter(vcf_fn=vcf_fn, ctg_name=ctg_name, write_header=False)
+            for pos in variant_set:
+                if pos in input_variant_dict:
+                    vcf_infos = input_variant_dict[pos]
+                elif pos in truth_variant_dict:
+                    vcf_infos = input_variant_dict[pos]
+                else:
+                    continue
+                ref_base = vcf_infos.reference_bases
+                alt_base = vcf_infos.alternate_bases[0]
+                genotype = vcf_infos.genotype_str
+                vcf_writer.write_row(POS=pos, REF=ref_base, ALT=alt_base, GT=genotype)
+            vcf_writer.close()
+
     truth_indel = truth_ins + truth_del
     query_indel = query_ins + query_del
     tp_indel = tp_ins + tp_del
