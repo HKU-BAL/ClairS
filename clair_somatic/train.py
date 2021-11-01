@@ -23,9 +23,8 @@ import clair_somatic.model as model_path
 # reuqired package  torchsummary, tqdm tables,  einops
 logging.basicConfig(format='%(message)s', level=logging.INFO)
 tables.set_blosc_max_threads(512)
-os.environ['NUMEXPR_MAX_THREADS'] = '64'
-os.environ['NUMEXPR_NUM_THREADS'] = '8'
-batch_size = 64
+os.environ['NUMEXPR_MAX_THREADS'] = '256'
+os.environ['NUMEXPR_NUM_THREADS'] = '32'
 gamma = 0.7
 seed = 100
 random.seed(seed)
@@ -43,18 +42,19 @@ class FocalLoss(nn.Module):
     more stable, and add gradient clipping to avoid gradient explosion and precision overflow.
     """
 
-    def __init__(self, alpha=None, gamma=2):
+    def __init__(self, alpha=None, gamma=1):
         super(FocalLoss, self).__init__()
         self.gamma = gamma
 
     def forward(self, input, target):
         y_pred, y_true = input, target
-        y_pred = torch.clamp(y_pred, min=1e-9, max=1 - 1e-9)
+        y_pred = torch.nn.functional.softmax(y_pred, dim=1)
+        y_pred = torch.clamp(y_pred, min=1e-9, max=1-1e-9)
         cross_entropy = -y_true * torch.log(y_pred)
         weight = ((1 - y_pred) ** self.gamma) * y_true
         FCLoss = cross_entropy * weight
 
-        reduce_fl = torch.mean(FCLoss)
+        reduce_fl = torch.mean(torch.sum(FCLoss,dim=1))
         return reduce_fl
 
 def cal_metrics(tp, fp, fn):
@@ -144,13 +144,20 @@ def train_model(args):
     exclude_training_samples = set(exclude_training_samples.split(',')) if exclude_training_samples else set()
 
     if ochk_prefix and not os.path.exists(ochk_prefix):
-        output = run('mkdir {}'.format(ochk_prefix), shell=True)
-        print("[INFO] Model path empty, create folder")
+        output = run('mkdir -p {}'.format(ochk_prefix), shell=True)
+        print("[INFO] Model path empty, create folder:{}".format(ochk_prefix))
 
     if add_writer:
         writer = SummaryWriter("{}/log".format(ochk_prefix))
-
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = 'cpu'
+    if torch.cuda.is_available():
+        # gpu_id = torch.cuda.current_device()
+        # total_memory = torch.cuda.get_device_properties(gpu_id).total_memory
+        # reserved = torch.cuda.memory_reserved(gpu_id)
+        # allocated = torch.cuda.memory_allocated(gpu_id)
+        # free_memory = (reserved - allocated) / (1024 ** 3)  # free inside reserved
+        # if free_memory >= 1:
+        device = 'cuda'
     model = model_path.CvT(
         num_classes=3,
         s1_emb_dim=16,  # stage 1 - dimension
@@ -181,7 +188,8 @@ def train_model(args):
         depth=param.max_depth,
         width=param.no_of_positions,
         dim=param.channel_size,
-        apply_softmax=True if apply_focal_loss else False
+        # apply_softmax=True if apply_focal_loss else False
+        apply_softmax=False
     ).to(device)
 
     if use_resnet:
@@ -278,18 +286,20 @@ def train_model(args):
                 label_tensor = torch.from_numpy(label_for_tumor).to(device)
                 yield input_tensor, label_tensor
 
-    print (summary(model, input_size=(param.channel_size,param.max_depth,param.no_of_positions)))
+    print (summary(model, input_size=(param.channel_size,param.max_depth,param.no_of_positions), device=device))
     train_dataset_loder = DataGenerator(table_dataset_list, train_shuffle_chunk_list, True)
     validate_dataset_loder = DataGenerator(validate_table_dataset_list if validation_fn else table_dataset_list, validate_shuffle_chunk_list, False)
 
     criterion = FocalLoss() if apply_focal_loss else nn.CrossEntropyLoss()
+    criterion = criterion.to(device)
     # optimizer
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=param.weight_decay)
     # scheduler
     scheduler = StepLR(optimizer, step_size=1, gamma=gamma)
     
     train_steps = train_data_size // batch_size
     validate_steps = validate_data_size // batch_size
+    print("[INFO] Using GPU for model training: {}".format(True if device == 'cuda' else False))
     print("[INFO] The size of dataset: {}".format(train_data_size))
     print("[INFO] The training batch size: {}".format(batch_size))
     print("[INFO] The training learning_rate: {}".format(learning_rate))
@@ -301,7 +311,7 @@ def train_model(args):
     training_loss, validation_loss = 0.0, 0.0
     training_step, validation_step = 0, 0
     echo_each_step = 200
-    for epoch in range(max_epoch):
+    for epoch in range(1, max_epoch+1):
         epoch_loss = 0
         fp, tp, fn = 0,0,0
         t = tqdm(enumerate(train_dataset_loder), total=train_steps, position=0, leave=True)
@@ -311,7 +321,7 @@ def train_model(args):
             data = data.to(device)
             label = label.to(device)
 
-            output_logit = model(data)
+            output_logit = model(data).contiguous()
             y_truth = torch.argmax(label, axis=1)
             optimizer.zero_grad()
             loss = criterion(input=output_logit, target=label) if apply_focal_loss else criterion(output_logit, y_truth)
