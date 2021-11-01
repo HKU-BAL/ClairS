@@ -32,8 +32,8 @@ def compare_vcf(args):
     sample_name = args.sampleName
     ref_fn = args.ref_fn
     ctg_name = args.ctg_name
-
-    fp_bed_tree = bed_tree_from(bed_file_path=bed_fn, contig_name=ctg_name)
+    fp_bed_tree = {}
+    # fp_bed_tree = bed_tree_from(bed_file_path=bed_fn, contig_name=ctg_name)
 
     truth_vcf_reader = VcfReader(vcf_fn=truth_vcf_fn, ctg_name=ctg_name, show_ref=False)
     truth_vcf_reader.read_vcf()
