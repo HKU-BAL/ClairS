@@ -10,18 +10,26 @@ random.seed(0)
 from src.utils import subprocess_popen, file_path_from, IUPAC_base_to_num_dict as BASE2NUM, region_from, \
     reference_sequence_from, str2bool
 
-cov_suffix = ".depth.mosdepth.summary.txt"
+cov_suffix = ".cov.mosdepth.summary.txt"
 
-def get_coverage(depth_log):
-    last_row = open(depth_log).readlines()[-1]
-    depth = int(float(last_row.split()[3]))
-    return depth
+def get_coverage(coverage_log, ctg_name=None):
+    # we use the overall average coverage if no contig specified
+    if ctg_name is None:
+        last_row = open(coverage_log).readlines()[-1]
+        coverage = int(float(last_row.split()[3]))
+    else:
+        all_rows = open(coverage_log).readlines()
+        ctg_row = [row for row in all_rows if row.split()[0] == ctg_name]
+        if len(ctg_row) == 0:
+            print('[ERROR] no contig coverage found for contig {}'.format(ctg_name))
+        coverage = int(ctg_row[0].split()[3])
+    return coverage
 
 def SplitBin(args):
     normal_bam_fn = args.normal_bam_fn
     tumor_bam_fn = args.tumor_bam_fn
     output_dir = args.output_dir
-    ctg_name = args.ctgName
+    ctg_name = args.ctg_name
     samtools_execute_command = args.samtools
     samtools_threads = args.samtools_threads
     samtools_output_threads = args.samtools_output_threads
@@ -30,18 +38,18 @@ def SplitBin(args):
     cov_dir = args.cov_dir
     platform = args.platform
 
-    normal_depth_log = os.path.join(cov_dir, 'normal_' + ctg_name + cov_suffix)
-    tumor_depth_log = os.path.join(cov_dir, 'tumor_' + ctg_name + cov_suffix)
-    normal_bam_depth = get_coverage(normal_depth_log)
-    tumor_bam_depth = get_coverage(tumor_depth_log)
+    normal_coverage_log = os.path.join(cov_dir, 'raw_normal_' + ctg_name + cov_suffix)
+    tumor_coverage_log = os.path.join(cov_dir, 'raw_tumor_' + ctg_name + cov_suffix)
+    normal_bam_coverage = get_coverage(normal_coverage_log)
+    tumor_bam_coverage = get_coverage(tumor_coverage_log)
 
-    normal_bin_num = int(int(normal_bam_depth) / int(min_coverage))
-    tumor_bin_num = int(int(tumor_bam_depth) / int(min_coverage))
+    normal_bin_num = int(int(normal_bam_coverage) / int(min_coverage))
+    tumor_bin_num = int(int(tumor_bam_coverage) / int(min_coverage))
 
     for bam_fn, bin_num, prefix in zip((normal_bam_fn, tumor_bam_fn), (normal_bin_num, tumor_bin_num), ("normal", 'tumor')):
         subprocess_list = []
         for bin_idx in range(bin_num):
-            output_fn = os.path.join(output_dir, '_'.join([prefix, ctg_name, str(bin_idx)]))
+            output_fn = os.path.join(output_dir, '_'.join([prefix, ctg_name, str(bin_idx)]) + '.bam')
             save_file_fp = subprocess_popen(
                 shlex.split("{} view -bh -@ {} - -o {}".format(samtools_execute_command,samtools_output_threads, output_fn)), stdin=PIPE,
                 stdout=PIPE)
@@ -68,7 +76,7 @@ def SplitBin(args):
             save_file_fp.stdin.close()
             save_file_fp.wait()
 
-    print ("[INFO] Contig/Normal coverage/Tumor coverage: {}/{}/{}".format(ctg_name, normal_bam_depth, tumor_bam_depth))
+    print ("[INFO] Contig/Normal coverage/Tumor coverage: {}/{}/{}".format(ctg_name, normal_bam_coverage, tumor_bam_coverage))
 
 def main():
     parser = ArgumentParser(description="Generate variant candidate tensors using phased full-alignment")
@@ -82,10 +90,10 @@ def main():
     parser.add_argument('--tumor_bam_fn', type=str, default="input.bam",
                         help="Sorted BAM file input, required")
 
-    parser.add_argument('--normal_bam_depth', type=int, default=None,
+    parser.add_argument('--normal_bam_coverage', type=int, default=None,
                         help="Sorted BAM file input, required")
 
-    parser.add_argument('--tumor_bam_depth', type=int, default=None,
+    parser.add_argument('--tumor_bam_coverage', type=int, default=None,
                         help="Sorted BAM file input, required")
 
     parser.add_argument('--samtools', type=str, default="samtools",
@@ -103,13 +111,13 @@ def main():
     parser.add_argument('--samtools_threads', type=int, default=32,
                         help="Reference fasta file input, required")
 
-    parser.add_argument('--samtools_output_threads', type=int, default=8,
+    parser.add_argument('--samtools_output_threads', type=int, default=24,
                         help="Reference fasta file input, required")
 
     parser.add_argument('--proportion', type=float, default=0.1,
                         help="Reference fasta file input, required")
 
-    parser.add_argument('--ctgName', type=str, default=None,
+    parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of sequence to be processed, required if --bed_fn is not defined")
 
     args = parser.parse_args()
