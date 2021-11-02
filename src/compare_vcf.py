@@ -106,9 +106,9 @@ def compare_vcf(args):
                 fn_del = fn_del + 1 if is_del_truth else fn_del
 
                 if fp_snp:
-                    fp_set.add(fp_snp)
+                    fp_set.add(pos)
                 if fn_snp:
-                    fn_set.add(fn_snp)
+                    fn_set.add(pos)
 
             truth_set.add(pos)
 
@@ -135,9 +135,9 @@ def compare_vcf(args):
         fn_del = fn_del + 1 if is_del_truth else fn_del
 
         if fn_snp:
-            fn_set.add(fn_snp)
+            fn_set.add(pos)
 
-    print (len(fp_set), len(fn_set), len(tp_set))
+    print (len(fp_set), len(fn_set), len(tp_set), len(fp_set.intersection(fn_set)))
     if output_dir is not None:
         if not os.path.exists(output_dir):
             subprocess.run("mkdir -p {}".format(output_dir), shell=True)
@@ -150,7 +150,7 @@ def compare_vcf(args):
                 if pos in input_variant_dict:
                     vcf_infos = input_variant_dict[pos]
                 elif pos in truth_variant_dict:
-                    vcf_infos = input_variant_dict[pos]
+                    vcf_infos = truth_variant_dict[pos]
                 else:
                     continue
                 ref_base = vcf_infos.reference_bases
