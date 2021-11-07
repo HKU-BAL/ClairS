@@ -8,27 +8,40 @@ POST_PROCESS_SCRIPTS_FOLDER="clair_somatic.metrics"
 deep_learning_folder = [
     "CallVarBam",
     "CallVariants",
-    "Train",
+    "train",
     "Predict",
-    "Predict_with_logits"
+    "Predict_with_logits",
+    "Train_multi-task",
+    "Predict_multi_class",
+    "Train_multi-task2",
+    "Predict_multi_class_add",
+    "Train_torch",
+    "predict",
+    "call_variants",
+    "call_variants_from_bam",
+    "Predict_all"
 ]
 
 REPO_NAME = "clair-somatic"
 data_preprocess_folder = [
-    "GetCandidates",
+    "get_candidates",
     "ExtractCandidates",
-    "CreateTensorFullAlignment",
-    "Tensor2Bin",
-    "SplitBam",
+    "create_tensor",
+    "create_bin",
+    "split_bam",
     "PlotAlignment",
-    "MixBin",
-    "ExtractAF",
+    "mix_chunk_bam",
+    "extract_candidates",
     "Vcf2Bed",
     "PlotAF",
     "FilterRef",
     "CreateTensorFullAdjacent",
     'find_tumor_truth_in_normal',
-    "UpdateVar"
+    "UpdateVar",
+    "create_pair_tensor",
+    "sort_vcf",
+    "compare_vcf",
+    "extract_candidates_with_af"
 ]
 
 post_process_scripts_folder = [
