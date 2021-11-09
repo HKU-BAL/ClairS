@@ -41,7 +41,8 @@ data_preprocess_folder = [
     "create_pair_tensor",
     "sort_vcf",
     "compare_vcf",
-    "extract_candidates_with_af"
+    "extract_candidates_with_af",
+    "extract_candidates_with_af_ru"
 ]
 
 post_process_scripts_folder = [
