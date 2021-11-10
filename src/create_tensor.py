@@ -1011,7 +1011,7 @@ def create_tensor(args):
             tensor_can_fp.stdin.write("\n")
             if alt_fn:
                 # alt_info = alt_info.replace('-', '\t')
-                alt_fp.write('\t'.join([ctg_name + ' ' + str(pos)]) + '\n')
+                alt_fp.stdin.write('\t'.join([ctg_name + ' ' + str(pos), alt_info]) + '\n')
 
         if unify_repre and unify_repre_fn:
             label_info = get_alt_info(center_pos=pos,
