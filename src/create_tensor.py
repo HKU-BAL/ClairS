@@ -169,7 +169,7 @@ def get_tensor_info(base_info, bq, ref_base, read_mq=None):
     return read_channel, ins_base, query_base
 
 
-def decode_pileup_bases(pos, pileup_bases, reference_base, minimum_af_for_candidate,  minimum_snp_af_for_candidate, minimum_indel_af_for_candidate, has_pileup_candidates, candidates_type_dict,is_tumor):
+def decode_pileup_bases(pos, pileup_bases, reference_base, minimum_af_for_candidate,  minimum_snp_af_for_candidate, minimum_indel_af_for_candidate, has_pileup_candidates, candidates_type_dict,is_tumor, platform="ont"):
     """
     Decode mpileup input string.
     pileup_bases: pileup base string for each position, include all mapping information.
@@ -214,6 +214,8 @@ def decode_pileup_bases(pos, pileup_bases, reference_base, minimum_af_for_candid
         if key[0].upper() in 'ACGT':
             pileup_dict[key[0].upper()] += count
             depth += count
+        elif key[0] in "#*":
+            depth += count
         if len(key) > 1 and key[1] == '+':
             pileup_dict['I'] += count
         elif len(key) > 1 and key[1] == '-':
@@ -225,7 +227,6 @@ def decode_pileup_bases(pos, pileup_bases, reference_base, minimum_af_for_candid
     denominator = depth if depth > 0 else 1
     pileup_list = sorted(list(pileup_dict.items()), key=lambda x: x[1], reverse=True)
 
-    pass_af = len(pileup_list) and (pileup_list[0][0] != reference_base)
     pass_snp_af = False
     pass_indel_af = False
 
@@ -312,7 +313,7 @@ def find_tumor_alt_match(center_pos, sorted_read_name_list, pileup_dict, truths_
                 matched_read_name_set.add(read_name)
     return matched_read_name_set, normal_read_name_set
 
-#--bam_fn /mnt/bal36/zxzheng/somatic/ont/test_chr20-22/downsample/pair/tumor_chr20_0.17.bam --ref_fn /mnt/bal36/zxzheng/testData/ont/data/GRCh38_no_alt_analysis_set.fasta --ctgName chr20 --samtools /autofs/bal33/zxzheng/env/conda/envs/samtools/bin/samtools --min_af 0.15 --full_aln_regions /mnt/bal36/zxzheng/somatic/ont/test_chr20-22/build/candidates/chr20.40_229 --tensor_can_fn /mnt/bal36/zxzheng/somatic/ont/test_chr20-22/build/0.17_chr20.40_229 --alt_fn /mnt/bal36/zxzheng/somatic/ont/test_chr20-22/build/normal_alt_output/0.17_chr20.40_229 --platform ont --tensor_sample_mode 1 --truth_vcf_fn /mnt/bal36/zxzheng/somatic/ont/test_chr20-22/build/unified_vcf/unified_hg004_chr20 --test_pos False
+#--bam_fn /mnt/bal36/zxzheng/somatic/ont/test_chr20-22/downsample/pair/tumor_chr20_0.17.bam --ref_fn /mnt/bal36/zxzheng/testData/ont/data/GRCh38_no_alt_analysis_set.fasta --ctg_name chr20 --samtools /autofs/bal33/zxzheng/env/conda/envs/samtools/bin/samtools --min_af 0.15 --full_aln_regions /mnt/bal36/zxzheng/somatic/ont/test_chr20-22/build/candidates/chr20.40_229 --tensor_can_fn /mnt/bal36/zxzheng/somatic/ont/test_chr20-22/build/0.17_chr20.40_229 --alt_fn /mnt/bal36/zxzheng/somatic/ont/test_chr20-22/build/normal_alt_output/0.17_chr20.40_229 --platform ont --tensor_sample_mode 1 --truth_vcf_fn /mnt/bal36/zxzheng/somatic/ont/test_chr20-22/build/unified_vcf/unified_hg004_chr20 --test_pos False
 def generate_tensor(ctg_name,
                     center_pos,
                     sorted_read_name_list,
@@ -379,8 +380,9 @@ def generate_tensor(ctg_name,
 
     matrix_depth = param.tumor_matrix_depth_dict[platform] if is_tumor else param.normal_matrix_depth_dict[platform]
 
-    min_af_for_samping = 0.1
-    max_af_for_sampling = 0.3
+    min_af_for_samping = 0.06
+    max_af_for_sampling = 0.5
+    chunk_read_size = 3
     tensor_string_list = []
     alt_info_list = []
     # gradient = each reads
@@ -397,7 +399,7 @@ def generate_tensor(ctg_name,
             tumor_af = read_num / (read_num + paired_reads_num)
             if tumor_af >= min_af_for_samping and tumor_af <= max_af_for_sampling:
                 sampled_reads_num_list.append(read_num)
-
+        sampled_reads_num_list = sampled_reads_num_list[::chunk_read_size]
         tumor_reads_meet_alt_info_list = list(tumor_reads_meet_alt_info_set)
         normal_read_name_list = list(normal_read_name_set)
         for read_num in sampled_reads_num_list:
@@ -490,7 +492,7 @@ def generate_tensor(ctg_name,
             alt_info,
             "tumor" if is_tumor else "normal",
             variant_type
-        ) for tensor_string, alt_info in zip(tensor_string_list, alt_info_list)]), None
+        ) for tensor_string, alt_info in zip(tensor_string_list, alt_info_list)]), ""
 
     else:
         alt_dict = defaultdict(int)
@@ -509,7 +511,6 @@ def generate_tensor(ctg_name,
                     max_del_length = max(len(indel), max_del_length)
             elif base.upper() != reference_base:
                 alt_dict[base.upper()] += 1
-
 
         af_set= set()
         for row_idx, (hap, _, read_name) in enumerate(sorted_read_name_list):
@@ -591,12 +592,12 @@ def get_normal_set(alt_fn):
     file_path_process.wait()
     return normal_pos_set
 
-def CreateTensorFullAlignment(args):
+def create_tensor(args):
     ctg_start = args.ctgStart
     ctg_end = args.ctgEnd
     full_aln_regions = args.full_aln_regions
     fasta_file_path = args.ref_fn
-    ctg_name = args.ctgName
+    ctg_name = args.ctg_name
     need_phasing = args.need_phasing
     samtools_execute_command = args.samtools
     bam_file_path = args.bam_fn
@@ -614,7 +615,6 @@ def CreateTensorFullAlignment(args):
     min_coverage = args.minCoverage
     platform = args.platform
     confident_bed_fn = args.bed_fn
-    phased_vcf_fn = args.phased_vcf_fn
     alt_fn = args.alt_fn
     extend_bed = args.extend_bed
     is_extend_bed_file_given = extend_bed is not None
@@ -682,7 +682,7 @@ def CreateTensorFullAlignment(args):
         candidate_file_path_output.close()
         candidate_file_path_process.wait()
 
-        # currently deprecate using ctgName.start_end as file name, which will run similar regions for several times when start and end has slight difference
+        # currently deprecate using ctg_name.start_end as file name, which will run similar regions for several times when start and end has slight difference
         # if '.' in full_aln_regions.split('/')[-1] and len(full_aln_regions.split('/')[-1].split('.')[-1].split('_')) > 0:
         #     ctg_start, ctg_end = full_aln_regions.split('/')[-1].split('.')[-1].split('_')
         #     ctg_start, ctg_end = int(ctg_start), int(ctg_end)
@@ -800,7 +800,7 @@ def CreateTensorFullAlignment(args):
     #
     is_tumor = "tumor_" in bam_file_path
     normal_pos_set = get_normal_set(alt_fn) if is_tumor and alt_fn is not None else None
-    alt_fn = None if is_tumor else alt_fn
+    # alt_fn = None if is_tumor else alt_fn
 
     if tensor_can_output_path != "PIPE":
         tensor_can_fpo = open(tensor_can_output_path, "wb")
@@ -812,7 +812,8 @@ def CreateTensorFullAlignment(args):
         label_fp = open(unify_repre_fn, 'w')
     if alt_fn:
         output_alt_fn = alt_fn
-        alt_fp = open(output_alt_fn, 'w')
+        alt_fpo = open(output_alt_fn, "wb")
+        alt_fp = subprocess_popen(shlex.split("{} -c".format(args.zstd)), stdin=PIPE, stdout=alt_fpo)
 
     hap_dict = defaultdict(int)
     haplotag_dict = defaultdict(int)
@@ -1030,7 +1031,9 @@ def CreateTensorFullAlignment(args):
         tensor_can_fpo.close()
 
     if alt_fn:
-        alt_fp.close()
+        alt_fp.stdin.close()
+        alt_fp.wait()
+        alt_fpo.close()
 
     if unify_repre_fn:
         label_fp.close()
@@ -1063,17 +1066,17 @@ def main():
     parser.add_argument('--indel_min_af', type=float, default=0.2,
                         help="Minimum indel allele frequency for a site to be considered as a candidate site, default: %(default)f")
 
-    parser.add_argument('--ctgName', type=str, default=None,
+    parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of sequence to be processed, required if --bed_fn is not defined")
 
     parser.add_argument('--ctgStart', type=int, default=None,
-                        help="The 1-based starting position of the sequence to be processed, optional, will process the whole --ctgName if not set")
+                        help="The 1-based starting position of the sequence to be processed, optional, will process the whole --ctg_name if not set")
 
     parser.add_argument('--ctgEnd', type=int, default=None,
-                        help="The 1-based inclusive ending position of the sequence to be processed, optional, will process the whole --ctgName if not set")
+                        help="The 1-based inclusive ending position of the sequence to be processed, optional, will process the whole --ctg_name if not set")
 
     parser.add_argument('--bed_fn', type=str, default=None,
-                        help="Call variant only in the provided regions. Will take an intersection if --ctgName and/or (--ctgStart, --ctgEnd) are set")
+                        help="Call variant only in the provided regions. Will take an intersection if --ctg_name and/or (--ctgStart, --ctgEnd) are set")
 
     parser.add_argument('--gvcf', type=str2bool, default=False,
                         help="Enable GVCF output, default: disabled")
@@ -1178,7 +1181,7 @@ def main():
 
     args = parser.parse_args()
 
-    CreateTensorFullAlignment(args)
+    create_tensor(args)
 
 
 if __name__ == "__main__":
