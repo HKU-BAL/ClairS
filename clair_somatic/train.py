@@ -124,7 +124,7 @@ def pass_chr(fn, ctg_name_list):
         return True
     in_testing_chr = False
     for ctg_name in ctg_name_list:
-        if '_' + ctg_name + '.' in fn:
+        if ctg_name + '.' in fn:
             return True
     return False
 
@@ -294,9 +294,10 @@ def train_model(args):
     criterion = criterion.to(device)
     # optimizer
     optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=param.weight_decay)
-    # scheduler
-    scheduler = StepLR(optimizer, step_size=1, gamma=gamma)
-    
+    # learning rate scheduler
+    lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
+    lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9)
+
     train_steps = train_data_size // batch_size
     validate_steps = validate_data_size // batch_size
     print("[INFO] Using GPU for model training: {}".format(True if device == 'cuda' else False))
