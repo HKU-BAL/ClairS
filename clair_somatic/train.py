@@ -42,7 +42,7 @@ class FocalLoss(nn.Module):
     more stable, and add gradient clipping to avoid gradient explosion and precision overflow.
     """
 
-    def __init__(self, alpha=None, gamma=1):
+    def __init__(self, alpha=None, gamma=2):
         super(FocalLoss, self).__init__()
         self.gamma = gamma
 
@@ -401,6 +401,8 @@ def train_model(args):
         #
         #     print(f"Epoch : {epoch+1} - loss : {epoch_loss:.4f} - acc: {epoch_accuracy:.4f} - val_loss : {epoch_val_loss:.4f} - val_acc: {epoch_val_accuracy:.4f}\n")
 
+        # leanrning rate decay in each epoch end
+        lr_scheduler.step()
         save_path = os.path.join(ochk_prefix, "{}.pkl".format(epoch)) if ochk_prefix is not None else "{}.pkl".format(epoch)
         torch.save(model, save_path)
         # model = torch.load("{}.pkl".format(epoch))
