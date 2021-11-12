@@ -206,6 +206,8 @@ def decode_pileup_bases(pileup_bases, reference_base, minimum_af_for_candidate,m
         if key[0].upper() in 'ACGT':
             pileup_dict[key[0].upper()] += count
             depth += count
+        elif key[0] in "#*":
+            depth += count
         if len(key) > 1 and key[1] == '+':
             pileup_dict['I'] += count
         elif len(key) > 1 and key[1] == '-':
