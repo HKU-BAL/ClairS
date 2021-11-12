@@ -33,17 +33,6 @@ HAP_TYPE = dict(zip((1, 0, 2), (30, 60, 90)))  # hap1 UNKNOWN H2
 ACGT_NUM = dict(zip("ACGT+-*#N", (100, 25, 75, 50, -50, -100, 0, 0, 100)))
 
 
-def _normalize_bq(x):
-    return int(NORMALIZE_NUM * min(x, MAX_BQ) / MAX_BQ)
-
-
-def _normalize_mq(x):
-    return int(NORMALIZE_NUM * min(x, MAX_MQ) / MAX_MQ)
-
-
-def _normalize_af(x):
-    return int(NORMALIZE_NUM * min(x, MAX_AF) / MAX_AF)
-
 
 class Position(object):
     def __init__(self, pos, ref_base=None, alt_base=None, read_name_list=None, base_list=None, raw_base_quality=None,
@@ -67,16 +56,16 @@ class Position(object):
         self.genotype = genotype
         self.read_name_seq = defaultdict(str)
 
-    def update_infos(self):
-        # only proceed when variant exists in candidate windows which greatly improves efficiency
-        self.update_info = True
-        self.read_name_dict = dict(zip(self.read_name_list, self.base_list))
-        # self.mapping_quality = [_normalize_mq(phredscore2raw_score(item)) for item in self.raw_mapping_quality]
-        self.base_quality = [_normalize_bq(phredscore2raw_score(item)) for item in self.raw_base_quality]
-
-        for read_name, base_info, bq in zip(self.read_name_list, self.base_list, self.base_quality,):
-            read_channel, ins_base, query_base = get_tensor_info(base_info, bq, self.ref_base)#, mq)
-            self.read_info[read_name] = (read_channel, ins_base)
+    # def update_infos(self):
+    #     # only proceed when variant exists in candidate windows which greatly improves efficiency
+    #     self.update_info = True
+    #     self.read_name_dict = dict(zip(self.read_name_list, self.base_list))
+    #     # self.mapping_quality = [_normalize_mq(phredscore2raw_score(item)) for item in self.raw_mapping_quality]
+    #     self.base_quality = [_normalize_bq(phredscore2raw_score(item)) for item in self.raw_base_quality]
+    #
+    #     for read_name, base_info, bq in zip(self.read_name_list, self.base_list, self.base_quality,):
+    #         read_channel, ins_base, query_base = get_tensor_info(base_info, bq, self.ref_base)#, mq)
+    #         self.read_info[read_name] = (read_channel, ins_base)
 
 
 class PhasingRead(object):
@@ -170,7 +159,7 @@ def get_tensor_info(base_info, bq, ref_base, read_mq=None):
     return read_channel, ins_base, query_base
 
 
-def decode_pileup_bases(pileup_bases, reference_base, minimum_af_for_candidate,minimum_snp_af_for_candidate, minimum_indel_af_for_candidate, has_pileup_candidates, read_name_list, is_tumor):
+def decode_pileup_bases(pileup_bases, reference_base, minimum_af_for_candidate,minimum_snp_af_for_candidate, minimum_indel_af_for_candidate, has_pileup_candidates, read_name_list, is_tumor,platform="ont"):
     """
     Decode mpileup input string.
     pileup_bases: pileup base string for each position, include all mapping information.
@@ -318,7 +307,7 @@ def extract_candidates(args):
     ctg_end = args.ctgEnd
     full_aln_regions = args.full_aln_regions
     fasta_file_path = args.ref_fn
-    ctg_name = args.ctgName
+    ctg_name = args.ctg_name
     need_phasing = args.need_phasing
     samtools_execute_command = args.samtools
     output_depth = args.output_depth
@@ -433,7 +422,7 @@ def extract_candidates(args):
         """
         if is_confident_bed_file_given:
             # consistent with pileup generation, faster to extract tensor using bed region
-            tree, bed_start, bed_end = bed_tree_from(bed_file_path=extend_bed,
+            tree, bed_start, bed_end = bed_tree_from(bed_file_path=confident_bed_fn,
                                                      contig_name=ctg_name,
                                                      return_bed_region=True)
 
@@ -490,7 +479,7 @@ def extract_candidates(args):
     # pileup bed first
     read_name_option = ' --output-QNAME' if store_tumor_infos else ' '
     bed_option = ' -l {}'.format(
-        extend_bed) if is_extend_bed_file_given and platform != 'ilmn' else ""
+        confident_bed_fn) if is_confident_bed_file_given and platform != 'ilmn' else ""
     bed_option = ' -l {}'.format(full_aln_regions) if is_full_aln_regions_given and platform != 'ilmn' else bed_option
     flags_option = ' --excl-flags {}'.format(param.SAMTOOLS_VIEW_FILTER_FLAG)
     max_depth_option = ' --max-depth {}'.format(args.max_depth) if args.max_depth > 0 else ""
@@ -605,17 +594,17 @@ def main():
     parser.add_argument('--indel_min_af', type=float, default=0.2,
                         help="Minimum indel allele frequency for a site to be considered as a candidate site, default: %(default)f")
 
-    parser.add_argument('--ctgName', type=str, default=None,
+    parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of sequence to be processed, required if --bed_fn is not defined")
 
     parser.add_argument('--ctgStart', type=int, default=None,
-                        help="The 1-based starting position of the sequence to be processed, optional, will process the whole --ctgName if not set")
+                        help="The 1-based starting position of the sequence to be processed, optional, will process the whole --ctg_name if not set")
 
     parser.add_argument('--ctgEnd', type=int, default=None,
-                        help="The 1-based inclusive ending position of the sequence to be processed, optional, will process the whole --ctgName if not set")
+                        help="The 1-based inclusive ending position of the sequence to be processed, optional, will process the whole --ctg_name if not set")
 
     parser.add_argument('--bed_fn', type=str, default=None,
-                        help="Call variant only in the provided regions. Will take an intersection if --ctgName and/or (--ctgStart, --ctgEnd) are set")
+                        help="Call variant only in the provided regions. Will take an intersection if --ctg_name and/or (--ctgStart, --ctgEnd) are set")
 
     parser.add_argument('--gvcf', type=str2bool, default=False,
                         help="Enable GVCF output, default: disabled")
@@ -671,7 +660,7 @@ def main():
                         help="DEBUG: Enable bp resolution for GVCF, default: disabled")
 
     parser.add_argument('--candidates_folder', type=str, default=None,
-                        help="Call variant only in the provided regions. Will take an intersection if --ctgName and/or (--ctgStart, --ctgEnd) are set")
+                        help="Call variant only in the provided regions. Will take an intersection if --ctg_name and/or (--ctgStart, --ctgEnd) are set")
 
     # options for internal process control
     ## Path to the 'zstd' compression
