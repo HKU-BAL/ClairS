@@ -76,8 +76,8 @@ def MixBin(args):
         print('[INFO] Synthetic coverage not set, use maximum synthetic coverage {}'.format(max_syn_coverage))
         synthetic_coverage = max_syn_coverage
     elif synthetic_coverage > max_syn_coverage:
-        synthetic_coverage = max_syn_coverage
         print('[WARNING] Synthetic coverage is larger than maximum coverage {} > {}'.format(synthetic_coverage, max_syn_coverage))
+        synthetic_coverage = max_syn_coverage
 
     tumor_coverage = int(synthetic_coverage * synthetic_proportion)
     normal_coverage = int(synthetic_coverage - tumor_coverage)
