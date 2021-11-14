@@ -25,9 +25,8 @@ from shared.vcf import VcfReader
 # reuqired package  torchsummary, tqdm tables,  einops
 logging.basicConfig(format='%(message)s', level=logging.INFO)
 tables.set_blosc_max_threads(512)
-os.environ['NUMEXPR_MAX_THREADS'] = '512'
-os.environ['NUMEXPR_NUM_THREADS'] = '256'
-batch_size = 64
+os.environ['NUMEXPR_MAX_THREADS'] = '256'
+os.environ['NUMEXPR_NUM_THREADS'] = '32'
 gamma = 0.7
 seed = 100
 random.seed(seed)
@@ -175,7 +174,7 @@ def predict_model(args):
     use_resnet = args.use_resnet
     platform = args.platform
     output_dir = args.output_dir
-    ctg_name_string = args.ctgName
+    ctg_name_string = args.ctg_name
     chkpnt_fn = args.chkpnt_fn
     ochk_prefix = args.ochk_prefix
     add_writer = args.add_writer
@@ -250,7 +249,7 @@ def predict_model(args):
     output = model(input)
     tensor_shape = param.ont_input_shape if platform == 'ont' else param.input_shape
 
-    batch_size, chunk_size = param.trainBatchSize, param.chunk_size
+    batch_size, chunk_size = param.predictBatchSize, param.chunk_size
     assert batch_size % chunk_size == 0
     chunks_per_batch = batch_size // chunk_size
     random.seed(param.RANDOM_SEED)
@@ -310,8 +309,6 @@ def predict_model(args):
         validate_chunk_num = len(validate_shuffle_chunk_list)
     train_data_size = train_chunk_num * chunk_size
     validate_data_size = validate_chunk_num * chunk_size
-
-    batch_size = param.predictBatchSize
     def DataGenerator_all(x):
 
         """
@@ -570,7 +567,7 @@ def main():
     parser.add_argument('--exclude_training_samples', type=str, default=None,
                         help="Define training samples to be excluded")
 
-    parser.add_argument('--ctgName', type=str, default=None,
+    parser.add_argument('--ctg_name', type=str, default=None,
                         help="Define training samples to be excluded")
 
     parser.add_argument('--unified_vcf_fn', type=str, default=None,
