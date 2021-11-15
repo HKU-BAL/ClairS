@@ -778,8 +778,9 @@ def create_tensor(args):
 
     phasing_option = " --output-extra HP" if phasing_info_in_bam else " "
     mq_option = ' --min-MQ {}'.format(min_mapping_quality)
-    output_mq = False
+    output_mq, output_read_name = False, False
     output_mq_option = '--output-MQ' if output_mq else ""
+    output_read_name_option = '--output-QNAME ' if output_read_name else ""
     bq_option = ' --min-BQ {}'.format(min_base_quality)
     # pileup bed first
     bed_option = ' -l {}'.format(
@@ -791,15 +792,14 @@ def create_tensor(args):
     # print (add_read_regions, ctg_start, ctg_end, reference_start)
     stdin = None if bam_file_path != "PIPE" else sys.stdin
     bam_file_path = bam_file_path if bam_file_path != "PIPE" else "-"
-    samtools_command = "{} mpileup  {} --reverse-del --output-QNAME".format(samtools_execute_command,
-                                                                                        bam_file_path) + \
-                       output_mq_option + reads_regions_option + phasing_option + mq_option + bq_option + bed_option + flags_option + max_depth_option
+    samtools_command = "{} mpileup  {} --reverse-del".format(samtools_execute_command, bam_file_path) + \
+                       output_read_name_option + output_mq_option + reads_regions_option + phasing_option + mq_option + bq_option + bed_option + flags_option + max_depth_option
     samtools_mpileup_process = subprocess_popen(
         shlex.split(samtools_command), stdin=stdin)
 
     #
     is_tumor = "tumor_" in bam_file_path
-    normal_pos_set = get_normal_set(alt_fn) if is_tumor and alt_fn is not None else None
+    # normal_pos_set = get_normal_set(alt_fn) if is_tumor and alt_fn is not None else None
     # alt_fn = None if is_tumor else alt_fn
 
     if tensor_can_output_path != "PIPE":
