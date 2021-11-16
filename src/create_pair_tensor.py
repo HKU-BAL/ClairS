@@ -171,7 +171,7 @@ def get_tensor_info(base_info, bq, ref_base, read_mq=None):
     return read_channel, ins_base, query_base
 
 
-def decode_pileup_bases(pos, pileup_bases, reference_base, minimum_af_for_candidate,  minimum_snp_af_for_candidate, minimum_indel_af_for_candidate, has_pileup_candidates, candidates_type_dict,is_tumor):
+def decode_pileup_bases(pos, pileup_bases, reference_base, minimum_af_for_candidate,  minimum_snp_af_for_candidate, minimum_indel_af_for_candidate, has_pileup_candidates, candidates_type_dict,is_tumor,platform="ont"):
     """
     Decode mpileup input string.
     pileup_bases: pileup base string for each position, include all mapping information.
@@ -216,6 +216,8 @@ def decode_pileup_bases(pos, pileup_bases, reference_base, minimum_af_for_candid
         if key[0].upper() in 'ACGT':
             pileup_dict[key[0].upper()] += count
             depth += count
+        elif key[0] in "#*":
+            depth += count
         if len(key) > 1 and key[1] == '+':
             pileup_dict['I'] += count
         elif len(key) > 1 and key[1] == '-':
@@ -227,7 +229,6 @@ def decode_pileup_bases(pos, pileup_bases, reference_base, minimum_af_for_candid
     denominator = depth if depth > 0 else 1
     pileup_list = sorted(list(pileup_dict.items()), key=lambda x: x[1], reverse=True)
 
-    pass_af = len(pileup_list) and (pileup_list[0][0] != reference_base)
     pass_snp_af = False
     pass_indel_af = False
 
@@ -386,7 +387,6 @@ def generate_tensor(ctg_name,
     tensor_string_list = []
     alt_info_list = []
     # gradient = each reads
-    select_tumor_read_only = True
     if use_tensor_sample_mode:
 
         tumor_reads_meet_alt_info_set, normal_read_name_set = find_tumor_alt_match(center_pos, sorted_read_name_list, pileup_dict, truths_variant_dict)
@@ -400,7 +400,7 @@ def generate_tensor(ctg_name,
             tumor_af = read_num / (read_num + paired_reads_num)
             if tumor_af >= min_af_for_samping and tumor_af <= max_af_for_sampling:
                 sampled_reads_num_list.append(read_num)
-
+        sampled_reads_num_list = sampled_reads_num_list[::chunk_read_size]
         tumor_reads_meet_alt_info_list = list(tumor_reads_meet_alt_info_set)
         normal_read_name_list = list(normal_read_name_set)
         for read_num in sampled_reads_num_list:
@@ -513,7 +513,6 @@ def generate_tensor(ctg_name,
             elif base.upper() != reference_base:
                 alt_dict[base.upper()] += 1
 
-
         af_set= set()
         for row_idx, (hap, _, read_name) in enumerate(sorted_read_name_list):
             af_num = 0
@@ -596,8 +595,6 @@ def get_normal_set(alt_fn):
     file_path_process.wait()
     return normal_pos_set
 
-
-
 def heapq_merge_generator_from(normal_bam_pileup_generator, tumor_bam_pileup_generator, skip_if_normal_empty=True):
     normal_candidates_set = set()
     tumor_candidates_set = set()
@@ -631,7 +628,7 @@ def CreateTensorFullAlignment(args):
     ctg_end = args.ctgEnd
     full_aln_regions = args.full_aln_regions
     fasta_file_path = args.ref_fn
-    ctg_name = args.ctgName
+    ctg_name = args.ctg_name
     need_phasing = args.need_phasing
     samtools_execute_command = args.samtools
     normal_bam_file_path = args.normal_bam_fn
@@ -650,7 +647,6 @@ def CreateTensorFullAlignment(args):
     min_coverage = args.minCoverage
     platform = args.platform
     confident_bed_fn = args.bed_fn
-    phased_vcf_fn = args.phased_vcf_fn
     alt_fn = args.alt_fn
     extend_bed = args.extend_bed
     is_extend_bed_file_given = extend_bed is not None
@@ -988,17 +984,17 @@ def main():
     parser.add_argument('--indel_min_af', type=float, default=0.2,
                         help="Minimum indel allele frequency for a site to be considered as a candidate site, default: %(default)f")
 
-    parser.add_argument('--ctgName', type=str, default=None,
+    parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of sequence to be processed, required if --bed_fn is not defined")
 
     parser.add_argument('--ctgStart', type=int, default=None,
-                        help="The 1-based starting position of the sequence to be processed, optional, will process the whole --ctgName if not set")
+                        help="The 1-based starting position of the sequence to be processed, optional, will process the whole --ctg_name if not set")
 
     parser.add_argument('--ctgEnd', type=int, default=None,
-                        help="The 1-based inclusive ending position of the sequence to be processed, optional, will process the whole --ctgName if not set")
+                        help="The 1-based inclusive ending position of the sequence to be processed, optional, will process the whole --ctg_name if not set")
 
     parser.add_argument('--bed_fn', type=str, default=None,
-                        help="Call variant only in the provided regions. Will take an intersection if --ctgName and/or (--ctgStart, --ctgEnd) are set")
+                        help="Call variant only in the provided regions. Will take an intersection if --ctg_name and/or (--ctgStart, --ctgEnd) are set")
 
     parser.add_argument('--gvcf', type=str2bool, default=False,
                         help="Enable GVCF output, default: disabled")
