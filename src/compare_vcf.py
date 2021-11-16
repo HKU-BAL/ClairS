@@ -33,7 +33,7 @@ def compare_vcf(args):
     ref_fn = args.ref_fn
     ctg_name = args.ctg_name
     fp_bed_tree = {}
-    # fp_bed_tree = bed_tree_from(bed_file_path=bed_fn, contig_name=ctg_name)
+    fp_bed_tree = bed_tree_from(bed_file_path=bed_fn, contig_name=ctg_name)
 
     truth_vcf_reader = VcfReader(vcf_fn=truth_vcf_fn, ctg_name=ctg_name, show_ref=False)
     truth_vcf_reader.read_vcf()
@@ -56,6 +56,7 @@ def compare_vcf(args):
 
     fp_set = set()
     fn_set = set()
+    fp_fn_set = set()
     tp_set = set()
     for pos, vcf_infos in input_variant_dict.items():
         pass_bed_region = len(fp_bed_tree) == 0 or is_region_in(tree=fp_bed_tree,
@@ -105,11 +106,8 @@ def compare_vcf(args):
                 fn_ins = fn_ins + 1 if is_ins_truth else fn_ins
                 fn_del = fn_del + 1 if is_del_truth else fn_del
 
-                if fp_snp:
-                    fp_set.add(pos)
-                if fn_snp:
-                    fn_set.add(pos)
-
+                if fn_snp or fp_snp:
+                    fp_fn_set.add(pos)
             truth_set.add(pos)
 
     for pos, vcf_infos in truth_variant_dict.items():
@@ -137,12 +135,12 @@ def compare_vcf(args):
         if fn_snp:
             fn_set.add(pos)
 
-    print (len(fp_set), len(fn_set), len(tp_set), len(fp_set.intersection(fn_set)))
+    print (len(fp_set), len(fn_set), len(fp_fn_set), len(tp_set), len(fp_set.intersection(fn_set)))
     if output_dir is not None:
         if not os.path.exists(output_dir):
             subprocess.run("mkdir -p {}".format(output_dir), shell=True)
-        candidate_types = ['fp', 'fn', 'tp']
-        variant_sets = [fp_set, fn_set, tp_set]
+        candidate_types = ['fp', 'fn', 'fp_fn', 'tp']
+        variant_sets = [fp_set, fn_set, fp_fn_set, tp_set]
         for vcf_type, variant_set in zip(candidate_types, variant_sets):
             vcf_fn = os.path.join(output_dir, '{}.vcf'.format(vcf_type))
             vcf_writer = VcfWriter(vcf_fn=vcf_fn, ctg_name=ctg_name, write_header=False)
