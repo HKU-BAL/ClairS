@@ -326,7 +326,7 @@ def extract_candidates(args):
     minimum_indel_af_for_candidate = args.indel_min_af
     split_bed_size = param.split_bed_size
     candidates_folder = args.candidates_folder
-    min_coverage = args.minCoverage
+    min_coverage = args.min_coverage
     minimum_af_for_truth = args.min_truth_af
     platform = args.platform
     store_tumor_infos = args.store_tumor_infos
@@ -618,7 +618,7 @@ def main():
                         help="Path to the 'samtools', samtools version >= 1.10 is required. default: %(default)s")
 
     # options for advanced users
-    parser.add_argument('--minCoverage', type=float, default=2,
+    parser.add_argument('--min_coverage', type=float, default=4,
                         help="EXPERIMENTAL: Minimum coverage required to call a variant, default: %(default)f")
 
     parser.add_argument('--minMQ', type=int, default=5,
