@@ -42,10 +42,16 @@ class VcfWriter(object):
                     ##INFO=<ID=F,Number=0,Type=Flag,Description="Result from full-alignment calling">
                     ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
                     ##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
-                    ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
+                    ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Overall Read Depth(Normal+Tumor)">
+                    ##FORMAT=<ID=NDP,Number=1,Type=Integer,Description="Normal Read Depth">
+                    ##FORMAT=<ID=TDP,Number=1,Type=Integer,Description="Tumor Read Depth">
                     ##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Read depth for each allele">
                     ##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Phred-scaled genotype likelihoods rounded to the closest integer">
                     ##FORMAT=<ID=AF,Number=1,Type=Float,Description="Estimated allele frequency in the range of [0,1]">
+                    ##FORMAT=<ID=AU,Number=1,Type=Integer,Description="Number of 'A' alleles in Tumor BAM">
+                    ##FORMAT=<ID=CU,Number=1,Type=Integer,Description="Number of 'C' alleles in Tumor BAM">
+                    ##FORMAT=<ID=GU,Number=1,Type=Integer,Description="Number of 'G' alleles in Tumor BAM">
+                    ##FORMAT=<ID=TU,Number=1,Type=Integer,Description="Number of 'T' alleles in Tumor BAM">
                     """
                )
 
@@ -63,7 +69,8 @@ class VcfWriter(object):
 
         self.vcf_writer.write(header)
 
-    def write_row(self, POS, REF, ALT, QUAL, GT, DP, AF, CHROM=None, GQ=None, ID='.', FILTER=".", INFO='.', NAF=None, TAF=None, VT=None):
+    def write_row(self, POS, REF, ALT, QUAL=0, GT='0/0', DP=0, AF=0, CHROM=None, GQ=None, ID='.', FILTER=".", INFO='.', NAF=None, TAF=None, VT=None,
+                  NDP=None, TDP=None, AU=None, CU=None, GU=None, TU=None):
         GQ = GQ if GQ else QUAL
         CHROM = CHROM if CHROM else self.ctg_name
         if not self.show_ref_calls and (GT == "0/0" or GT == "./."):
@@ -86,6 +93,9 @@ class VcfWriter(object):
         if TAF is not None:
             FORMAT += ":TAF"
             FORMAT_V += ":%.4f" % (TAF)
+        if AU is not None and CU is not None and GU is not None and TU is not None:
+            FORMAT += ":AU:CU:GU:TU"
+            FORMAT_V += ":%d:%d:%d:%d" % (AU, CU, GU, TU)
         if VT is not None:
             FORMAT += ":VT"
             FORMAT_V += ":%s" % (VT)
