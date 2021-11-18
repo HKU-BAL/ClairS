@@ -15,14 +15,14 @@ class TruthStdout(object):
     def __del__(self):
         self.stdin.close()
 
-
 class VcfWriter(object):
-    def __init__(self, vcf_fn, ctg_name=None, ref_fn = None, write_header=True, show_ref_calls=False):
+    def __init__(self, vcf_fn, ctg_name=None, ref_fn=None, sample_name="SAMPLE", write_header=True, show_ref_calls=False):
         self.vcf_fn = vcf_fn
         self.show_ref_calls = show_ref_calls
         self.vcf_writer = open(self.vcf_fn, 'w')
         self.ref_fn = ref_fn
         self.ctg_name = ctg_name
+        self.sample_name = sample_name
         if write_header:
             self.write_header(ref_fn=ref_fn)
 
@@ -32,7 +32,7 @@ class VcfWriter(object):
         except:
             pass
 
-    def write_header(self, ctg_name=None, ref_fn=None, sample_name="SAMPLE"):
+    def write_header(self, ctg_name=None, ref_fn=None):
         header = dedent("""\
                     ##fileformat=VCFv4.2
                     ##FILTER=<ID=PASS,Description="All filters passed">
@@ -59,7 +59,7 @@ class VcfWriter(object):
                         continue
                     header += "##contig=<ID=%s,length=%s>\n" % (contig_name, contig_size)
 
-        header += '#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t%s\n' % (sample_name)
+        header += '#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t%s\n' % (self.sample_name)
 
         self.vcf_writer.write(header)
 
@@ -89,13 +89,12 @@ class VcfWriter(object):
         if VT is not None:
             FORMAT += ":VT"
             FORMAT_V += ":%s" % (VT)
-
         vcf_format = '\t'.join([basic_vcf_format, FORMAT, FORMAT_V]) + "\n"
 
         self.vcf_writer.write(vcf_format)
 
 class VcfReader(object):
-    def __init__(self, vcf_fn, ctg_name, ctg_start=None, ctg_end=None, is_var_format=True, is_happy_format=False, is_fp=None):
+    def __init__(self, vcf_fn, ctg_name, ctg_start=None, ctg_end=None, is_var_format=False, is_happy_format=False, is_fp=None, show_ref=True, direct_open=False):
         self.vcf_fn = vcf_fn
         self.ctg_name = ctg_name
         self.ctg_start = ctg_start
@@ -104,6 +103,8 @@ class VcfReader(object):
         self.is_var_format = is_var_format
         self.is_happy_format = is_happy_format
         self.is_fp = is_fp
+        self.show_ref = show_ref
+        self.direct_open = direct_open
     def read_vcf(self):
         is_ctg_region_provided = self.ctg_start is not None and self.ctg_end is not None
 
@@ -111,8 +112,13 @@ class VcfReader(object):
             return
 
         header_last_column = []
-        vcf_fp = subprocess_popen(shlex.split("gzip -fdc %s" % (self.vcf_fn)))
-        for row in vcf_fp.stdout:
+        if self.direct_open:
+            vcf_fp = open(self.vcf_fn)
+            vcf_fo = vcf_fp
+        else:
+            vcf_fp = subprocess_popen(shlex.split("gzip -fdc %s" % (self.vcf_fn)))
+            vcf_fo = vcf_fp.stdout
+        for row in vcf_fo:
             columns = row.strip().split()
             if columns[0][0] == "#":
                 header_last_column = columns
@@ -126,6 +132,7 @@ class VcfReader(object):
             if is_ctg_region_provided and not (self.ctg_start <= int(position) <= self.ctg_end):
                 continue
             self.is_var_format = True if columns[2][0] in 'ACGT' else False
+            self.is_var_format = False
             if self.is_var_format:
                 reference, alternate = columns[2], columns[3]
                 genotype_1 = int(columns[4])
@@ -162,9 +169,11 @@ class VcfReader(object):
             position = int(position)
             have_extra_infos = 'VT' in row
 
+            if genotype_1 == "0" and genotype_2 == "0" and not self.show_ref:
+                continue
             extra_infos = columns[-1].split(':')[-1] if have_extra_infos else ''
             self.variant_dict[position] = Position(pos=position,
-                                                    ref_base=reference,
+                                                   ref_base=reference,
                                                    alt_base=alternate,
                                                    genotype1=int(genotype_1),
                                                    genotype2=int(genotype_2),
