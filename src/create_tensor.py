@@ -231,6 +231,8 @@ def decode_pileup_bases(pos, pileup_bases, reference_base, minimum_af_for_candid
     pass_indel_af = False
 
     for item, count in pileup_list:
+        if pass_snp_af or pass_indel_af:
+            break
         if item == reference_base:
             continue
         elif item[0] in 'ID':
@@ -778,9 +780,9 @@ def create_tensor(args):
 
     phasing_option = " --output-extra HP" if phasing_info_in_bam else " "
     mq_option = ' --min-MQ {}'.format(min_mapping_quality)
-    output_mq, output_read_name = False, False
+    output_mq, output_read_name = False, True
     output_mq_option = '--output-MQ' if output_mq else ""
-    output_read_name_option = '--output-QNAME ' if output_read_name else ""
+    output_read_name_option = ' --output-QNAME ' if output_read_name else ""
     bq_option = ' --min-BQ {}'.format(min_base_quality)
     # pileup bed first
     bed_option = ' -l {}'.format(
