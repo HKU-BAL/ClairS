@@ -398,6 +398,8 @@ def generate_tensor(ctg_name,
         paired_reads_num = len(normal_read_name_set)
         sampled_reads_num_list = []
         for read_num in range(len(tumor_reads_meet_alt_info_set)):
+            if read_num == 0 or paired_reads_num == 0:
+                continue
             tumor_af = read_num / (read_num + paired_reads_num)
             if tumor_af >= min_af_for_samping and tumor_af <= max_af_for_sampling:
                 sampled_reads_num_list.append(read_num)
