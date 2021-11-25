@@ -149,6 +149,7 @@ class VcfReader(object):
                 genotype_2 = int(columns[5])
             else:
                 reference, alternate, last_column = columns[3], columns[4], columns[-1]
+                qual = columns[5] if len(columns) > 5 else None
             # normal GetTruth
                 last_column = last_column if not tumor_in_last else columns[-2]
                 if self.is_happy_format and self.is_fp:
@@ -187,6 +188,7 @@ class VcfReader(object):
                                                    alt_base=alternate,
                                                    genotype1=int(genotype_1),
                                                    genotype2=int(genotype_2),
+                                                   qual=qual,
                                                    extra_infos=extra_infos)
     def get_alt_info(self, pos, extra_info=""):
         pos = int(pos)
