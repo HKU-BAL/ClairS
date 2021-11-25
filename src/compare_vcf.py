@@ -70,6 +70,7 @@ def compare_vcf(args):
         ref_base = vcf_infos.reference_bases
         alt_base = vcf_infos.alternate_bases[0]
         genotype = vcf_infos.genotype
+        qual = vcf_infos.qual
         is_snp = len(ref_base) == 1 and len(alt_base) == 1
         is_ins = len(ref_base) < len(alt_base)
         is_del = len(ref_base) > len(alt_base)
@@ -154,7 +155,8 @@ def compare_vcf(args):
                 ref_base = vcf_infos.reference_bases
                 alt_base = vcf_infos.alternate_bases[0]
                 genotype = vcf_infos.genotype_str
-                vcf_writer.write_row(POS=pos, REF=ref_base, ALT=alt_base, GT=genotype)
+                qual = float(vcf_infos.qual)
+                vcf_writer.write_row(POS=pos, REF=ref_base, ALT=alt_base, GT=genotype,QUAL=qual)
             vcf_writer.close()
 
     truth_indel = truth_ins + truth_del
