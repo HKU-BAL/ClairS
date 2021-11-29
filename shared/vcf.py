@@ -69,8 +69,11 @@ class VcfWriter(object):
 
         self.vcf_writer.write(header)
 
-    def write_row(self, POS, REF, ALT, QUAL=0, GT='0/0', DP=0, AF=0, CHROM=None, GQ=None, ID='.', FILTER=".", INFO='.', NAF=None, TAF=None, VT=None,
-                  NDP=None, TDP=None, AU=None, CU=None, GU=None, TU=None):
+    def write_row(self, POS=None, REF=None, ALT=None, QUAL=0, GT='0/0', DP=0, AF=0, CHROM=None, GQ=None, ID='.', FILTER=".", INFO='.', NAF=None, TAF=None, VT=None,
+                  NDP=None, TDP=None, AU=None, CU=None, GU=None, TU=None, row_str=None):
+        if row_str is not None:
+            self.vcf_writer.write(row_str)
+            return
         GQ = GQ if GQ else QUAL
         CHROM = CHROM if CHROM else self.ctg_name
         if not self.show_ref_calls and (GT == "0/0" or GT == "./."):
@@ -104,7 +107,7 @@ class VcfWriter(object):
         self.vcf_writer.write(vcf_format)
 
 class VcfReader(object):
-    def __init__(self, vcf_fn, ctg_name, ctg_start=None, ctg_end=None, is_var_format=False, is_happy_format=False, is_fp=None, show_ref=True, direct_open=False):
+    def __init__(self, vcf_fn, ctg_name, ctg_start=None, ctg_end=None, is_var_format=False, is_happy_format=False, is_fp=None, show_ref=True, direct_open=False, keep_row_str=False):
         self.vcf_fn = vcf_fn
         self.ctg_name = ctg_name
         self.ctg_start = ctg_start
@@ -115,6 +118,7 @@ class VcfReader(object):
         self.is_fp = is_fp
         self.show_ref = show_ref
         self.direct_open = direct_open
+        self.keep_row_str = keep_row_str
     def read_vcf(self):
         is_ctg_region_provided = self.ctg_start is not None and self.ctg_end is not None
 
@@ -183,12 +187,14 @@ class VcfReader(object):
             if genotype_1 == "0" and genotype_2 == "0" and not self.show_ref:
                 continue
             extra_infos = columns[-1].split(':')[-1] if have_extra_infos else ''
+            row_str = row if self.keep_row_str else False
             self.variant_dict[position] = Position(pos=position,
                                                    ref_base=reference,
                                                    alt_base=alternate,
                                                    genotype1=int(genotype_1),
                                                    genotype2=int(genotype_2),
                                                    qual=qual,
+                                                   row_str=row_str,
                                                    extra_infos=extra_infos)
     def get_alt_info(self, pos, extra_info=""):
         pos = int(pos)
