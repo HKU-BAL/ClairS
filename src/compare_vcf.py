@@ -35,11 +35,11 @@ def compare_vcf(args):
     fp_bed_tree = {}
     fp_bed_tree = bed_tree_from(bed_file_path=bed_fn, contig_name=ctg_name)
 
-    truth_vcf_reader = VcfReader(vcf_fn=truth_vcf_fn, ctg_name=ctg_name, show_ref=False)
+    truth_vcf_reader = VcfReader(vcf_fn=truth_vcf_fn, ctg_name=ctg_name, show_ref=False,keep_row_str=True)
     truth_vcf_reader.read_vcf()
     truth_variant_dict = truth_vcf_reader.variant_dict
 
-    input_vcf_reader = VcfReader(vcf_fn=input_vcf_fn, ctg_name=ctg_name, show_ref=False)
+    input_vcf_reader = VcfReader(vcf_fn=input_vcf_fn, ctg_name=ctg_name, show_ref=False,keep_row_str=True)
     input_vcf_reader.read_vcf()
     input_variant_dict = input_vcf_reader.variant_dict
 
@@ -98,6 +98,8 @@ def compare_vcf(args):
                 tp_snp = tp_snp + 1 if is_snp else tp_snp
                 tp_ins = tp_ins + 1 if is_ins else tp_ins
                 tp_del = tp_del + 1 if is_del else tp_del
+                if tp_snp or is_snp_truth:
+                    tp_set.add(pos)
             else:
                 fp_snp = fp_snp + 1 if is_snp else fp_snp
                 fp_ins = fp_ins + 1 if is_ins else fp_ins
@@ -109,6 +111,7 @@ def compare_vcf(args):
 
                 if fn_snp or fp_snp:
                     fp_fn_set.add(pos)
+
             truth_set.add(pos)
 
     for pos, vcf_infos in truth_variant_dict.items():
@@ -156,7 +159,7 @@ def compare_vcf(args):
                 alt_base = vcf_infos.alternate_bases[0]
                 genotype = vcf_infos.genotype_str
                 qual = float(vcf_infos.qual)
-                vcf_writer.write_row(POS=pos, REF=ref_base, ALT=alt_base, GT=genotype,QUAL=qual)
+                vcf_writer.write_row(row_str=vcf_infos.row_str)
             vcf_writer.close()
 
     truth_indel = truth_ins + truth_del
