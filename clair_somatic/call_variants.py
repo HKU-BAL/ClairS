@@ -332,10 +332,10 @@ def quality_score_from(probability):
     """
     make a modification for quality score calculation. did not apply quality square for computation.
     """
-    p = probability
-    tmp = max(Phred_Trans * log(((1.0 - p) + 1e-300) / (p + 1e-300)) + 10, 0)
-    return float(round(tmp, 2))
-
+    # p = probability
+    # tmp = max(Phred_Trans * log(((1.0 - p) + 1e-300) / (p + 1e-300)) + 10, 0)
+    # return float(round(tmp, 2))
+    return probability
 
 def possible_outcome_probabilites_with_indel_length_from(
         gt21_probabilities,
@@ -1100,7 +1100,7 @@ def output_with(
 
     # genotype string
     if is_reference:
-        genotype_string = genotype_string_from(Genotype.homo_reference)
+        genotype_string = '0/0' #genotype_string_from(Genotype.homo_reference)
 
     else:
         genotype_string = "1/1"
