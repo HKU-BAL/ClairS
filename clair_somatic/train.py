@@ -139,7 +139,7 @@ def train_model(args):
 
     add_validation_dataset = args.random_validation or (args.validation_fn is not None)
     validation_fn = args.validation_fn
-    ctg_name_list = ctg_name_string.split(',')  if ctg_name_string is not None else []
+    ctg_name_list = ctg_name_string.split(',') if ctg_name_string is not None else []
     exclude_training_samples = args.exclude_training_samples
     exclude_training_samples = set(exclude_training_samples.split(',')) if exclude_training_samples else set()
 
@@ -326,6 +326,22 @@ def train_model(args):
             y_truth = torch.argmax(label, axis=1)
             optimizer.zero_grad()
             loss = criterion(input=output_logit, target=label) if apply_focal_loss else criterion(output_logit, y_truth)
+            # loss_2 = nn.CrossEntropyLoss().to(device)(output_logit, y_truth)
+            # loss_2 = nn.CrossEntropyLoss().to(device)(output_logit, y_truth)
+            # loss_2 = FocalLoss().to(device)(input=output_logit, target=label)
+            # a = float(loss.detach().cpu().numpy())
+            # b = float(loss_2.detach().cpu().numpy())
+            # print(" ", a, b, round(a, 3) == round(b, 3))
+            reg_loss = None
+            lmbd = 0.1
+            for param in model.parameters():
+                if reg_loss is None:
+                    reg_loss = 0.5 * torch.sum(param ** 2)
+                else:
+                    reg_loss = reg_loss + 0.5 * param.norm(2) ** 2
+
+            loss += lmbd * reg_loss
+
             loss.backward()
             optimizer.step()
 
@@ -446,7 +462,6 @@ def main():
 
     parser.add_argument('--learning_rate', type=float, default=None,
                         help="Set the initial learning rate, default: %(default)s")
-
 
     parser.add_argument('--exclude_training_samples', type=str, default=None,
                         help="Define training samples to be excluded")
