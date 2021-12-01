@@ -180,6 +180,7 @@ def compare_vcf(args):
     del_pre, del_rec, del_f1 = cal_metrics(tp=tp_del, fp=fp_del, fn=fn_del)
 
     # print (tp_snp, tp_ins, tp_del, fp_snp, fp_ins, fp_del, fn_snp, fn_ins, fn_del, fp_snp_truth, fp_ins_truth, fp_del_truth)
+    print (ctg_name + '-' + input_vcf_fn.split('/')[-1])
     print (len(input_variant_dict), len(truth_variant_dict), pos_out_of_bed)
 
     print (''.join([item.ljust(15) for item in ["type", 'total.truth', 'total.query', 'tp','fp', 'fn', 'precision', 'recall', "f1-score"]]), file=output_file)
