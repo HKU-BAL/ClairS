@@ -194,7 +194,7 @@ def train_model(args):
         # if free_memory >= 1:
         device = 'cuda'
     model = model_path.CvT(
-        num_classes=3,
+        num_classes=2 if discard_germline else 3,
         s1_emb_dim=16,  # stage 1 - dimension
         s1_emb_kernel=3,  # stage 1 - conv kernel
         s1_emb_stride=2,  # stage 1 - conv stride
@@ -310,9 +310,12 @@ def train_model(args):
 
                 # input_matrix = np.concatenate((normal_matrix, tumor_matrix), axis=1)
                 # if add_contrastive:
-                label_for_normal = [[0,1] if np.argmax(item) == 1 else [1,0] for item in label]
-                label_for_tumor = [[0,0,1] if np.argmax(item) == 2 else ([0,1,0] if np.argmax(item) == 1 else [1,0,0]) for item in label]
-                label_for_normal = np.array(label_for_normal, dtype=np.float32)
+                # label_for_normal = [[0,1] if np.argmax(item) == 1 else [1,0] for item in label]
+                if discard_germline:
+                    label_for_tumor = [[0,1] if np.argmax(item) == 2 else ([1,0] if np.argmax(item) == 1 else [1,0]) for item in label]
+                else:
+                    label_for_tumor = [[0,0,1] if np.argmax(item) == 2 else ([0,1,0] if np.argmax(item) == 1 else [1,0,0]) for item in label]
+                # label_for_normal = np.array(label_for_normal, dtype=np.float32)
                 label_for_tumor = np.array(label_for_tumor, dtype=np.float32)
 
                 # input_matrix = np.maximum(input_matrix * 2.55, 255.0)
@@ -367,15 +370,15 @@ def train_model(args):
             # a = float(loss.detach().cpu().numpy())
             # b = float(loss_2.detach().cpu().numpy())
             # print(" ", a, b, round(a, 3) == round(b, 3))
-            reg_loss = None
-            lmbd = 0.1
-            for param in model.parameters():
-                if reg_loss is None:
-                    reg_loss = 0.5 * torch.sum(param ** 2)
-                else:
-                    reg_loss = reg_loss + 0.5 * param.norm(2) ** 2
+            # reg_loss = None
+            # lmbd = 0.1
+            # for params in model.parameters():
+            #     if reg_loss is None:
+            #         reg_loss = 0.5 * torch.sum(params ** 2)
+            #     else:
+            #         reg_loss = reg_loss + 0.5 * params.norm(2) ** 2
 
-            loss += lmbd * reg_loss
+            # loss += lmbd * reg_loss
 
             loss.backward()
             optimizer.step()
@@ -388,7 +391,7 @@ def train_model(args):
                 training_loss = 0.0
             y_truth = y_truth.cpu().numpy()
             y_pred = output_logit.argmax(dim=1).cpu().numpy()
-            arg_index = 2
+            arg_index = 1 if discard_germline else 2
             fp += sum([True if x != arg_index and y == arg_index else False for x, y in zip(y_truth, y_pred)])
             fn += sum([True if x == arg_index and y != arg_index else False for x, y in zip(y_truth, y_pred)])
             tp += sum([True if x == y and x == arg_index else False for x, y in zip(y_truth, y_pred)])
@@ -421,7 +424,7 @@ def train_model(args):
                 validation_loss = 0.0
             y_truth = y_truth.cpu().numpy()
             y_pred = output_logit.argmax(dim=1).cpu().numpy()
-            arg_index = 2
+            arg_index = 1 if discard_germline else 2
             val_fp += sum([True if x != arg_index and y == arg_index else False for x, y in zip(y_truth, y_pred)])
             val_fn += sum([True if x == arg_index and y != arg_index else False for x, y in zip(y_truth, y_pred)])
             val_tp += sum([True if x == y and x == arg_index else False for x, y in zip(y_truth, y_pred)])
