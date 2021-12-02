@@ -262,6 +262,10 @@ def get_candidates(args):
     references = [(item, 'ref') for item in ref_list]
     homo_germline = filter_germline_candidates(truths=homo_germline, variant_info=variant_info_2, alt_dict=tumor_alt_dict, paired_alt_dict=normal_alt_dict)
 
+    add_germline = False
+    if not add_germline:
+        homo_germline = []
+        hete_germline = []
     if gen_vcf:
         # exclude gerlmine variants when create VCF and fp BED region
         homo_germline = []
