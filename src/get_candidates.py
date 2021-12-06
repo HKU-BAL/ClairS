@@ -54,11 +54,10 @@ def vcf_reader(vcf_fn, contig_name, bed_tree=None, add_hete_pos=False):
         if g1 == "1" and g2 == "1":
             homo_variant_set.add(pos)
             homo_variant_info[pos] = (ref_base,alt_base)
-        if add_hete_pos and (g1 == "1" and g2 == "0" or g1 == "0" and g2 == "1" or g1 == "1" and g2 == "2"):
+        if add_hete_pos and (g1 == "1" and g2 == "0" or g1 == "0" and g2 == "1"): #or g1 == "1" and g2 == "2"): # exclude 1/2 truths here
             hete_variant_set.add(pos)
             hete_variant_info[pos] = (ref_base, alt_base)
-        variant_set.add(pos)
-        variant_info[pos] = (ref_base, alt_base)
+
     return homo_variant_set, homo_variant_info, hete_variant_set, hete_variant_info, variant_set, variant_info
 
 def get_ref_candidates(fn, contig_name = None, bed_tree=None, variant_info=None):
@@ -201,7 +200,7 @@ def filter_somatic_candidates(truths, variant_info, alt_dict, paired_alt_dict, g
             if tumor_af_from_tumor_reads is None or tumor_af_from_tumor_reads < min_af_for_tumor:
                 truth_filter_with_low_af += 1
                 if gen_vcf:
-                    low_confident_truths.append((pos, variant_type + 'low_af_in_tumor'))
+                    low_confident_truths.append((pos, variant_type + INFO + '_low_af_in_tumor'))
                 if skip_low_af_in_tumor:
                     continue
         # if math.fabs(tumor_af - tumor_af_from_tumor_reads - normal_af) > af_gap_for_errors:
@@ -209,7 +208,7 @@ def filter_somatic_candidates(truths, variant_info, alt_dict, paired_alt_dict, g
 
         filtered_truths.append([pos, variant_type])
 
-    print ('[INFO] Truth filtered by high AF in normal BAM: {}, filtered by low AF {}:{}, filtered by no read support:{}'.format(truth_filter_in_normal, min_af_for_tumor, truth_filter_with_low_af, truth_not_pass_af))
+    print ('[INFO] {} truth variants filtered by high AF in normal BAM: {}, filtered by low AF {}:{}, filtered by no read support:{}'.format(INFO, truth_filter_in_normal, min_af_for_tumor, truth_filter_with_low_af, truth_not_pass_af))
     return filtered_truths, low_confident_truths
 
 
@@ -263,36 +262,42 @@ def get_candidates(args):
     homo_germline = filter_germline_candidates(truths=homo_germline, variant_info=variant_info_2, alt_dict=tumor_alt_dict, paired_alt_dict=normal_alt_dict)
 
     add_germline = False
-    if not add_germline:
-        homo_germline = []
-        hete_germline = []
-    if gen_vcf:
+    if not add_germline or gen_vcf:
+        # exclude germline variants if we exclude germline variants into training
         # exclude gerlmine variants when create VCF and fp BED region
         homo_germline = []
         hete_germline = []
     if maximum_non_variant_ratio is not None:
+        # random sample reference calls in training mode
         random.seed(0)
         references = random.sample(references, int(len(references) * maximum_non_variant_ratio))
     fp_list = homo_germline + references + hete_germline
 
-    somatic_set = sorted(list(homo_variant_set_2 - homo_variant_set_1))
+    homo_somatic_set = sorted(list(homo_variant_set_2 - variant_set_1))
     hete_somatic_set = sorted(list(hete_variant_set_2 - variant_set_1))
-    homo_somatic = [(item, 'homo_somatic') for item in somatic_set if item not in variant_set_1]
+    homo_somatic = [(item, 'homo_somatic') for item in homo_somatic_set]
     # skip hete variant here
     hete_somatic = [(item, 'hete_somatic') for item in hete_somatic_set] if add_hete_pos else []
 
-    homo_somatic, low_confident_truths = filter_somatic_candidates(truths=homo_somatic,
+    homo_somatic, homo_low_confident_truths = filter_somatic_candidates(truths=homo_somatic,
                                              variant_info=variant_info_2,
                                              alt_dict=tumor_alt_dict,
                                              paired_alt_dict=normal_alt_dict,
                                              gen_vcf=gen_vcf)
+    hete_somatic, hete_low_confident_truths = filter_somatic_candidates(truths=hete_somatic,
+                                             variant_info=variant_info_2,
+                                             alt_dict=tumor_alt_dict,
+                                             paired_alt_dict=normal_alt_dict,
+                                             gen_vcf=gen_vcf,
+                                             INFO="Hete")
+
     # hete_somatic = filter_somatic_candidates(truths=hete_somatic, variant_info=variant_info_2, alt_dict=tumor_alt_dict, paired_alt_dict=normal_alt_dict)
     tp_list = homo_somatic + hete_somatic
     pos_list = sorted(fp_list + tp_list, key=lambda x: x[0])
 
     if gen_vcf:
         vcf_writer = VcfWriter(vcf_fn=output_vcf_fn, ref_fn=ref_fn, ctg_name=contig_name, show_ref_calls=True)
-        for pos, variant_type in pos_list + low_confident_truths:
+        for pos, variant_type in pos_list + homo_low_confident_truths + hete_low_confident_truths:
             genotype = '1/1' if (variant_type == 'homo_somatic' or variant_type == 'hete_somatic') else '0/0'
             filter_tag = "PASS" if genotype == '1/1' else "LowQual"
             if genotype == "1/1":
