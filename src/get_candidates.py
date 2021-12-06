@@ -45,6 +45,8 @@ def vcf_reader(vcf_fn, contig_name, bed_tree=None, add_hete_pos=False):
         pos = int(columns[1])
         ref_base = columns[3]
         alt_base = columns[4]
+        variant_set.add(pos)
+        variant_info[pos] = (ref_base, alt_base)
         if bed_tree and not is_region_in(tree=bed_tree, contig_name=contig_name,region_start=pos):
             continue
 
@@ -164,32 +166,33 @@ def filter_germline_candidates(truths, variant_info, alt_dict, paired_alt_dict):
     return filtered_truths
 
 
-def filter_somatic_candidates(truths, variant_info, alt_dict, paired_alt_dict, gen_vcf=False):
+def filter_somatic_candidates(truths, variant_info, alt_dict, paired_alt_dict, gen_vcf=False, INFO="Homo"):
     filtered_truths = []
     truth_not_pass_af = 0
     truth_filter_in_normal = 0
     truth_filter_with_low_af = 0
-    min_af_for_tumor = 0.04
+    min_af_for_tumor = 0.05
+    max_af_in_normal = 0.5
     # af_gap_for_errors = 0.15
     low_confident_truths = []
     skip_no_read_support = True
-    skip_high_af_in_normal = False
-    skip_low_af_in_tumor = False
+    skip_high_af_in_normal = True
+    skip_low_af_in_tumor = True
     for pos, variant_type in truths:
         if pos not in alt_dict:# or not len(alt_dict[pos].tumor_alt_dict):
             truth_not_pass_af += 1
             if gen_vcf:
-                low_confident_truths.append((pos, variant_type + 'no_read_support'))
+                low_confident_truths.append((pos, variant_type + INFO + '_no_read_support'))
             if skip_no_read_support:
                 continue
 
         if pos in paired_alt_dict:
             ref_base, alt_base = variant_info[pos]
             normal_af, vt, max_af = find_candidate_match(alt_info_dict=alt_dict[pos].alt_dict, ref_base=ref_base, alt_base=alt_base)
-            if normal_af is not None and normal_af > 0.5:
+            if normal_af is not None and normal_af > max_af_in_normal:
                 truth_filter_in_normal += 1
                 if gen_vcf:
-                    low_confident_truths.append((pos, variant_type + 'high_af_in_normal'))
+                    low_confident_truths.append((pos, variant_type + INFO + '_high_af_in_normal'))
                 if skip_high_af_in_normal:
                     continue
 
