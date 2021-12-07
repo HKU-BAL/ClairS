@@ -233,6 +233,8 @@ def decode_pileup_bases(pos, pileup_bases, reference_base, minimum_af_for_candid
     pass_indel_af = False
 
     for item, count in pileup_list:
+        if pass_snp_af or pass_indel_af:
+            break
         if item == reference_base:
             continue
         elif item[0] in 'ID':
@@ -382,8 +384,9 @@ def generate_tensor(ctg_name,
 
     matrix_depth = param.tumor_matrix_depth_dict[platform] if is_tumor else param.normal_matrix_depth_dict[platform]
 
-    min_af_for_samping = 0.1
-    max_af_for_sampling = 0.3
+    min_af_for_samping = 0.06
+    max_af_for_sampling = 0.5
+    chunk_read_size = 3
     tensor_string_list = []
     alt_info_list = []
     # gradient = each reads
@@ -397,6 +400,8 @@ def generate_tensor(ctg_name,
         paired_reads_num = len(normal_read_name_set)
         sampled_reads_num_list = []
         for read_num in range(len(tumor_reads_meet_alt_info_set)):
+            if read_num == 0 or paired_reads_num == 0:
+                continue
             tumor_af = read_num / (read_num + paired_reads_num)
             if tumor_af >= min_af_for_samping and tumor_af <= max_af_for_sampling:
                 sampled_reads_num_list.append(read_num)
@@ -623,7 +628,7 @@ def get_key_list(input_dict, normal_tensor_infos_dict, tumor_tensor_infos_dict, 
         # output_list.append((x, y))
     # return output_list
 
-def CreateTensorFullAlignment(args):
+def create_tensor(args):
     ctg_start = args.ctgStart
     ctg_end = args.ctgEnd
     full_aln_regions = args.full_aln_regions
@@ -758,8 +763,9 @@ def CreateTensorFullAlignment(args):
 
     phasing_option = " --output-extra HP" if phasing_info_in_bam else " "
     mq_option = ' --min-MQ {}'.format(min_mapping_quality)
-    output_mq = False
+    output_mq, output_read_name = False, True
     output_mq_option = '--output-MQ' if output_mq else ""
+    output_read_name_option = ' --output-QNAME ' if output_read_name else ""
     bq_option = ' --min-BQ {}'.format(min_base_quality)
     # pileup bed first
     bed_option = ' -l {}'.format(
@@ -770,8 +776,8 @@ def CreateTensorFullAlignment(args):
     reads_regions_option = ' -r {}'.format(" ".join(reads_regions)) if add_read_regions else ""
     # print (add_read_regions, ctg_start, ctg_end, reference_start)
 
-    samtools_command = "{} mpileup --reverse-del --output-QNAME".format(samtools_execute_command) + \
-                       output_mq_option + reads_regions_option + phasing_option + mq_option + bq_option + bed_option + flags_option + max_depth_option
+    samtools_command = "{} mpileup --reverse-del".format(samtools_execute_command) + \
+                       output_read_name_option + output_mq_option + reads_regions_option + phasing_option + mq_option + bq_option + bed_option + flags_option + max_depth_option
     samtools_mpileup_normal_process = subprocess_popen(
         shlex.split(samtools_command + ' ' + normal_bam_file_path))
 
@@ -1099,7 +1105,7 @@ def main():
 
     args = parser.parse_args()
 
-    CreateTensorFullAlignment(args)
+    create_tensor(args)
 
 
 if __name__ == "__main__":
