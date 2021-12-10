@@ -385,6 +385,7 @@ def generate_tensor(ctg_name,
     min_af_for_samping = 0.06
     max_af_for_sampling = 0.5
     chunk_read_size = 3
+    min_tumor_support_read_num = param.min_tumor_support_read_num
     tensor_string_list = []
     alt_info_list = []
     # gradient = each reads
@@ -403,6 +404,7 @@ def generate_tensor(ctg_name,
             tumor_af = read_num / (read_num + paired_reads_num)
             if tumor_af >= min_af_for_samping and tumor_af <= max_af_for_sampling:
                 sampled_reads_num_list.append(read_num)
+        sampled_reads_num_list = [read_num for read_num in sampled_reads_num_list if min_tumor_support_read_num is None or read_num >= min_tumor_support_read_num]
         sampled_reads_num_list = sampled_reads_num_list[::chunk_read_size]
         tumor_reads_meet_alt_info_list = list(tumor_reads_meet_alt_info_set)
         normal_read_name_list = list(normal_read_name_set)
@@ -982,7 +984,7 @@ def create_tensor(args):
         #         haplotag_dict[read_name] = haplotype
         #         # skip if two scores are the same
 
-        use_tensor_sample_mode = tensor_sample_mode and candidates_type_dict[pos] == 'homo_somatic' and pos in truths_variant_dict
+        use_tensor_sample_mode = tensor_sample_mode and (candidates_type_dict[pos] == 'homo_somatic' or candidates_type_dict[pos] == 'hete_somatic') and pos in truths_variant_dict
         max_depth = param.tumor_matrix_depth_dict[platform] if is_tumor else param.normal_matrix_depth_dict[platform]
         sorted_read_name_list = sorted_by_hap_read_name(pos, haplotag_dict, pileup_dict, hap_dict, max_depth, use_tensor_sample_mode)
         ref_seq = reference_sequence[
