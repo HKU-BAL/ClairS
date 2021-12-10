@@ -171,13 +171,16 @@ def filter_somatic_candidates(truths, variant_info, alt_dict, paired_alt_dict, g
     truth_not_pass_af = 0
     truth_filter_in_normal = 0
     truth_filter_with_low_af = 0
+    truth_filter_with_low_coverage = 0
     min_af_for_tumor = 0.05
     max_af_in_normal = 0.5
+    min_tumor_support_read_num = param.min_tumor_support_read_num
     # af_gap_for_errors = 0.15
     low_confident_truths = []
     skip_no_read_support = True
     skip_high_af_in_normal = True
     skip_low_af_in_tumor = True
+    skip_low_coverage_in_tumor = True
     for pos, variant_type in truths:
         if pos not in alt_dict:# or not len(alt_dict[pos].tumor_alt_dict):
             truth_not_pass_af += 1
@@ -199,19 +202,26 @@ def filter_somatic_candidates(truths, variant_info, alt_dict, paired_alt_dict, g
         if len(alt_dict[pos].tumor_alt_dict):
             ref_base, alt_base = variant_info[pos]
             # tumor_af, _, _ = find_candidate_match(alt_info_dict=alt_dict[pos].alt_dict, ref_base=ref_base,alt_base=alt_base)
-            tumor_af_from_tumor_reads, vt, max_af = find_candidate_match(alt_info_dict=alt_dict[pos].tumor_alt_dict, ref_base=ref_base, alt_base=alt_base)
-            if tumor_af_from_tumor_reads is None or tumor_af_from_tumor_reads < min_af_for_tumor:
+            tumor_reads_af, vt, max_af = find_candidate_match(alt_info_dict=alt_dict[pos].tumor_alt_dict, ref_base=ref_base, alt_base=alt_base)
+            if tumor_reads_af is None or tumor_reads_af < min_af_for_tumor:
                 truth_filter_with_low_af += 1
                 if gen_vcf:
                     low_confident_truths.append((pos, variant_type + INFO + '_low_af_in_tumor'))
                 if skip_low_af_in_tumor:
+                    continue
+            tumor_coverage = int(alt_dict[pos].depth) * tumor_reads_af
+            if tumor_coverage < min_tumor_support_read_num:
+                truth_filter_with_low_coverage += 1
+                if gen_vcf:
+                    low_confident_truths.append((pos, variant_type + INFO + '_low_coverage_in_tumor'))
+                if skip_low_coverage_in_tumor:
                     continue
         # if math.fabs(tumor_af - tumor_af_from_tumor_reads - normal_af) > af_gap_for_errors:
         #     continue
 
         filtered_truths.append([pos, variant_type])
 
-    print ('[INFO] {} truth variants filtered by high AF in normal BAM: {}, filtered by low AF {}:{}, filtered by no read support:{}'.format(INFO, truth_filter_in_normal, min_af_for_tumor, truth_filter_with_low_af, truth_not_pass_af))
+    print ('[INFO] {} truth variants filtered by high AF in normal BAM: {}, filtered by low AF {}:{}, filtered by no/low read support:{}/{}'.format(INFO, truth_filter_in_normal, min_af_for_tumor, truth_filter_with_low_af, truth_not_pass_af, truth_filter_with_low_coverage))
     return filtered_truths, low_confident_truths
 
 
