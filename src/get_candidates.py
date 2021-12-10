@@ -19,7 +19,7 @@ from collections import Counter, defaultdict
 from shared.interval_tree import bed_tree_from, is_region_in
 import shared.param as param
 
-from shared.utils import AltInfos
+from shared.utils import AltInfos, str2bool
 def subprocess_popen(args, stdin=None, stdout=PIPE, stderr=stderr, bufsize=8388608):
     return Popen(args, stdin=stdin, stdout=stdout, stderr=stderr, bufsize=bufsize, universal_newlines=True)
 
@@ -226,7 +226,7 @@ def get_candidates(args):
     tumor_reference_cans_fn = args.tumor_reference_cans
     add_hete_pos = args.add_hete_pos
     split_bed_size = param.split_bed_size
-    flankingBaseNum = args.flankingBaseNum if args.flankingBaseNum else param.flankingBaseNum
+    flanking_base_num = args.flanking_base_num if args.flanking_base_num else param.flankingBaseNum
     split_folder = args.split_folder
     output_vcf_fn = args.output_vcf_fn
     gen_vcf = output_vcf_fn is not None
@@ -337,7 +337,7 @@ def get_candidates(args):
         # a windows region for create tensor # samtools mpileup not include last position
         split_output = pos_list[idx * split_bed_size: (idx + 1) * split_bed_size]
 
-        split_output = [(item[0] - flankingBaseNum, item[0] + flankingBaseNum + 2, item[1]) for item in
+        split_output = [(item[0] - flanking_base_num, item[0] + flanking_base_num + 2, item[1]) for item in
                         split_output]
 
         output_path = os.path.join(split_folder, '{}.{}_{}'.format(contig_name, idx, region_num))
@@ -431,7 +431,7 @@ def main():
     parser.add_argument('--max_depth', type=int, default=144,
                         help="EXPERIMENTAL: Maximum full alignment depth to be processed. default: %(default)s")
 
-    parser.add_argument('--flankingBaseNum', type=int, default=None,
+    parser.add_argument('--flanking_base_num', type=int, default=None,
                         help="EXPERIMENTAL: Maximum full alignment depth to be processed. default: %(default)s")
 
     # options for debug purpose
@@ -439,7 +439,7 @@ def main():
                         help="DEBUG: Skip phasing and use the phasing info provided in the input BAM (HP tag), default: False")
 
     # options for debug purpose
-    parser.add_argument('--add_hete_pos', action='store_true',
+    parser.add_argument('--add_hete_pos', type=str2bool, default=0,
                         help="DEBUG: Skip phasing and use the phasing info provided in the input BAM (HP tag), default: False")
 
     parser.add_argument('--extend_bed', type=str, default=None,
