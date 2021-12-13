@@ -1,7 +1,6 @@
 import sys
 import gc
 import shlex
-import os
 import tables
 import numpy as np
 import heapq
@@ -14,7 +13,7 @@ from shared.interval_tree import bed_tree_from, is_region_in
 from shared.utils import subprocess_popen, IUPAC_base_to_ACGT_base_dict as BASE2BASE, IUPAC_base_to_num_dict as BASE2NUM
 
 FILTERS = tables.Filters(complib='blosc:lz4hc', complevel=5)
-shuffle_bin_size = 5000
+shuffle_bin_size = 3000
 PREFIX_CHAR_STR = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 
@@ -396,7 +395,7 @@ def bin_reader_generator_from(subprocess_process, Y, is_tree_empty, tree, miss_v
                 dup_pos_end_flag = True
         pre_pos = center_pos
         key = chrom + ":" + center_pos
-        yield (key, is_tumor, string, alt_info, seq, variant_type, dup_pos_end_flag)
+        yield (int(center_pos), key, is_tumor, string, alt_info, seq, variant_type, dup_pos_end_flag)
 
         # if len(X) == shuffle_bin_size:
         #     yield X, total
@@ -413,7 +412,7 @@ def heapq_merge_generator_from(normal_bin_reader_generator, tumor_bin_reader_gen
     X = defaultdict(defaultdict)
     batch_count = 0
     for tensor_infos in heapq.merge(normal_bin_reader_generator, tumor_bin_reader_generator):
-        key, is_tumor, string, alt_info, seq, somatic_flag, dup_pos_end_flag = tensor_infos
+        center_pos, key, is_tumor, string, alt_info, seq, somatic_flag, dup_pos_end_flag = tensor_infos
         if key not in tensor_infos_set and is_tumor:
             continue
         tensor_infos_set.add(key)
@@ -569,9 +568,9 @@ def get_training_array(normal_tensor_fn, tumor_tensor_fn, var_fn, bed_fn, bin_fn
             # use tumor alternative information instead of the normal one
             tumor_tensor, tumor_alt_info = tumor_infos[0], tumor_infos[1]
             pos_infos = key + ':' + seq + ':' + variant_type
-            if variant_type == 'homo_somatic':
+            if variant_type == 'homo_somatic' or variant_type == "hete_somatic":
                 label = [0, 0, 1]
-            elif variant_type == 'homo_germline':
+            elif variant_type == 'homo_germline' or variant_type == 'hete_germline':
                 label = [0, 1, 0]
             else:
                 label = [1, 0, 0]
@@ -598,10 +597,13 @@ def get_training_array(normal_tensor_fn, tumor_tensor_fn, var_fn, bed_fn, bin_fn
 
     table_file.close()
     print("[INFO] Compressed %d/%d tensor" % (total_compressed, total), file=sys.stderr)
-
-# import numpy as np
-# import tables
-# a = tables.open_tables(bin_fn)
-# nm = np.array(a.root.input_matrix[:100])
-#label = np.array(a.root.label[:100])
-# tm = np.array(a.root.tumor_matrix[:100])
+    #
+    # if 0:
+    #     import numpy as np
+    #     import tables
+    #     a = tables.open_file(bin_fn)
+    #     label = np.array(a.root.label[:100])
+    #     matrix = np.array(a.root.input_matrix[:100])
+    #     position = np.array(a.root.position[:100])
+    #     normal_info = np.array(a.root.normal_alt_info[:100])
+    #     tumor_info = np.array(a.root.tumor_alt_info[:100])
