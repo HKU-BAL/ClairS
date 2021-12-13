@@ -80,7 +80,7 @@ class VcfWriter(object):
             return
         FORMAT = "GT:GQ:DP:AF"
         FORMAT_V = "%s:%d:%d:%.4f" % (GT, GQ, DP, AF)
-        basic_vcf_format = "%s\t%d\t%s\t%s\t%s\t%d\t%s\t%s" % (
+        basic_vcf_format = "%s\t%d\t%s\t%s\t%s\t%.4f\t%s\t%s" % (
             CHROM,
             int(POS),
             ID,
