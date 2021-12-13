@@ -156,7 +156,13 @@ def filter_germline_candidates(truths, variant_info, alt_dict, paired_alt_dict):
         if pos in paired_alt_dict:
             ref_base, alt_base = variant_info[pos]
             pair_af, vt, max_af = find_candidate_match(alt_info_dict=paired_alt_dict[pos].alt_dict, ref_base=ref_base, alt_base=alt_base)
+            paired_alt_dict[pos].max_candidate_af = max_af
+            paired_alt_dict[pos].support_alternative_af = pair_af
+
             af, vt, max_af = find_candidate_match(alt_info_dict=alt_dict[pos].alt_dict, ref_base=ref_base, alt_base=alt_base)
+            alt_dict[pos].max_candidate_af = max_af
+            alt_dict[pos].support_alternative_af = pair_af
+
             if pair_af is None or af is None or pair_af - af > 0.1:
                 germline_filtered_by_af_distance += 1
                 continue
@@ -318,8 +324,8 @@ def get_candidates(args):
             elif pos in tumor_alt_dict:
                 ref_base = alt_base = tumor_alt_dict[pos].ref_base
             else:
-                ref_base="A"
-                alt_base="A"
+                alt_base = ref_base = normal_alt_dict[pos].ref_base if pos in normal_alt_dict else (tumor_alt_dict[pos] if pos in tumor_alt_dict else "N")
+
             vcf_writer.write_row(POS=pos,
                                  REF=ref_base,
                                  ALT=alt_base,
