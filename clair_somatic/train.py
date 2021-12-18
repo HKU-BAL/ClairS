@@ -71,25 +71,59 @@ class FocalLoss(nn.Module):
 
 #
 # class FocalLoss(nn.Module):
-#     """
-#     updated version of focal loss function, for multi class classification, we remove alpha parameter, which the loss
-#     more stable, and add gradient clipping to avoid gradient explosion and precision overflow.
-#     """
-#
-#     def __init__(self, alpha=None, gamma=2):
+#     def __init__(self, gamma=2, alpha=None, size_average=True):
 #         super(FocalLoss, self).__init__()
 #         self.gamma = gamma
+#         self.alpha = alpha
+#         if isinstance(alpha,(float,int)): self.alpha = torch.Tensor([alpha,1-alpha])
+#         if isinstance(alpha,list): self.alpha = torch.Tensor(alpha)
+#         self.size_average = size_average
 #
 #     def forward(self, input, target):
-#         y_pred, y_true = input, target
-#         y_pred = torch.nn.functional.softmax(y_pred, dim=1)
-#         y_pred = torch.clamp(y_pred, min=1e-9, max=1-1e-9)
-#         cross_entropy = -y_true * torch.log(y_pred)
-#         weight = ((1 - y_pred) ** self.gamma) * y_true
-#         FCLoss = cross_entropy * weight
+#         if input.dim() > 2:
+#             input = input.view(input.size(0),input.size(1),-1)  # N,C,H,W => N,C,H*W
+#             input = input.transpose(1,2)    # N,C,H*W => N,H*W,C
+#             input = input.contiguous().view(-1,input.size(2))   # N,H*W,C => N*H*W,C
+#         target = torch.argmax(target, axis=1)
+#         target = target.view(-1,1)
 #
-#         reduce_fl = torch.mean(torch.sum(FCLoss,dim=1))
-#         return reduce_fl
+#         logpt = F.log_softmax(input,dim=-1)
+#         logpt = logpt.gather(1,target)
+#         logpt = logpt.view(-1)
+#         pt = Variable(logpt.data.exp())
+#
+#         if self.alpha is not None:
+#             if self.alpha.type()!=input.data.type():
+#                 self.alpha = self.alpha.type_as(input.data)
+#             at = self.alpha.gather(0,target.data.view(-1))
+#             logpt = logpt * Variable(at)
+#
+#         loss = -1 * (1-pt)**self.gamma * logpt
+#         if self.size_average:
+#             return loss.mean()
+#         else:
+#             return loss.sum()
+
+class FocalLoss(nn.Module):
+    """
+    updated version of focal loss function, for multi class classification, we remove alpha parameter, which the loss
+    more stable, and add gradient clipping to avoid gradient explosion and precision overflow.
+    """
+
+    def __init__(self, alpha=None, gamma=2):
+        super(FocalLoss, self).__init__()
+        self.gamma = gamma
+
+    def forward(self, input, target):
+        y_pred, y_true = input, target
+        y_pred = torch.nn.functional.softmax(y_pred, dim=1)
+        y_pred = torch.clamp(y_pred, min=1e-9, max=1-1e-9)
+        cross_entropy = -y_true * torch.log(y_pred)
+        weight = ((1 - y_pred) ** self.gamma) * y_true
+        FCLoss = cross_entropy * weight
+
+        reduce_fl = torch.mean(torch.sum(FCLoss,dim=1))
+        return reduce_fl
 
 def cal_metrics(tp, fp, fn):
 
@@ -223,7 +257,6 @@ def train_model(args):
         depth=param.max_depth,
         width=param.no_of_positions,
         dim=param.channel_size,
-        # apply_softmax=True if apply_focal_loss else False
         apply_softmax=False
     ).to(device)
 
@@ -343,6 +376,8 @@ def train_model(args):
     print("[INFO] The training batch size: {}".format(batch_size))
     print("[INFO] The training learning_rate: {}".format(learning_rate))
     print("[INFO] The output model folder: {}".format(ochk_prefix))
+    print("[INFO] Apply focal loss in training: {}".format(apply_focal_loss))
+    print("[INFO] Add L2 regularization to model parameters: {}".format(apply_focal_loss))
 
     print('[INFO] Train steps:{}'.format(train_steps))
     print('[INFO] Validate steps:{}'.format(validate_steps))
@@ -365,22 +400,18 @@ def train_model(args):
             optimizer.zero_grad()
             loss = criterion(input=output_logit, target=label) if apply_focal_loss else criterion(output_logit, y_truth)
             # loss_2 = nn.CrossEntropyLoss().to(device)(output_logit, y_truth)
-            # loss_2 = nn.CrossEntropyLoss().to(device)(output_logit, y_truth)
-            # loss_2 = FocalLoss().to(device)(input=output_logit, target=label)
-            # a = float(loss.detach().cpu().numpy())
+            # loss_1 = nn.CrossEntropyLoss().to(device)(output_logit, y_truth)
+            # loss_2 = FocalLoss(gamma=0).to(device)(input=output_logit, target=label)
+            # a = float(loss_1.detach().cpu().numpy())
             # b = float(loss_2.detach().cpu().numpy())
             # print(" ", a, b, round(a, 3) == round(b, 3))
-            # reg_loss = None
-            # lmbd = 0.1
-            # for params in model.parameters():
-            #     if reg_loss is None:
-            #         reg_loss = 0.5 * torch.sum(params ** 2)
-            #     else:
-            #         reg_loss = reg_loss + 0.5 * params.norm(2) ** 2
 
-            # loss += lmbd * reg_loss
+            l2_regularization_loss = sum([l2_regularization_lambda * 0.5 * params.norm(2) ** 2 for params in model.parameters()]) if param.add_l2_regulation_loss else 0.0
+
+            loss += l2_regularization_loss
 
             loss.backward()
+            # torch.nn.utils.clip_grad_norm_(model.parameters(), param.grad_norm_clip) # apply gradient normalization
             optimizer.step()
 
             training_step += 1
