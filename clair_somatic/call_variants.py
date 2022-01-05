@@ -1064,7 +1064,7 @@ def output_with(
     #     alt_info_dict
     # )
 
-    somatic_arg_index = 2
+    somatic_arg_index = param.somatic_arg_index
     alternate_base = None
     arg_index = argmax(gt21_probabilities)
     is_reference = arg_index == 0
@@ -1082,6 +1082,8 @@ def output_with(
     if is_tumor:
         best_match_alt, tumor_supported_reads_count = rank_alt(tumor_alt_info_dict)
         _, normal_supported_reads_count = rank_alt(normal_alt_info_dict)
+        if best_match_alt == "":
+            return
         if best_match_alt[0] == 'X':
             alternate_base = best_match_alt[1]
             is_SNP = True
