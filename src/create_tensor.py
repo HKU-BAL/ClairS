@@ -669,8 +669,8 @@ def create_tensor(args):
             ctg_start = min(position, ctg_start)
             ctg_end = max(end, ctg_end)
 
-            if platform == "ilmn":
-                continue
+            # if platform == "ilmn":
+            #     continue
             # if len(row) > 3:  # hete snp positions
             #     center_pos = position + extend_bp + 1
             #     ref_base, alt_base, genotype, phase_set = row[3].split('-')
@@ -692,8 +692,8 @@ def create_tensor(args):
         # if '.' in full_aln_regions.split('/')[-1] and len(full_aln_regions.split('/')[-1].split('.')[-1].split('_')) > 0:
         #     ctg_start, ctg_end = full_aln_regions.split('/')[-1].split('.')[-1].split('_')
         #     ctg_start, ctg_end = int(ctg_start), int(ctg_end)
-    if platform == 'ilmn' and bam_file_path == "PIPE":
-        add_read_regions = False
+    # if platform == 'ilmn' and bam_file_path == "PIPE":
+    #     add_read_regions = False
 
     fai_fn = file_path_from(fasta_file_path, suffix=".fai", exit_on_not_found=True, sep='.')
 
@@ -720,7 +720,7 @@ def create_tensor(args):
         ctg_end = ctg_start + chunk_size
 
         # for illumina platform, the reads alignment is acquired after reads realignment from ReadsRealign.py
-        if platform == 'ilmn' and bam_file_path != "PIPE":
+        if bam_file_path != "PIPE":
             bam_file_path += '.{}_{}'.format(ctg_start, ctg_end)
             add_read_regions = False
         if bam_file_path == "PIPE":
@@ -790,8 +790,8 @@ def create_tensor(args):
     bq_option = ' --min-BQ {}'.format(min_base_quality)
     # pileup bed first
     bed_option = ' -l {}'.format(
-        extend_bed) if is_extend_bed_file_given and platform != 'ilmn' else ""
-    bed_option = ' -l {}'.format(full_aln_regions) if is_full_aln_regions_given and platform != 'ilmn' else bed_option
+        extend_bed) if is_extend_bed_file_given else ""
+    bed_option = ' -l {}'.format(full_aln_regions) if is_full_aln_regions_given else bed_option
     flags_option = ' --excl-flags {}'.format(param.SAMTOOLS_VIEW_FILTER_FLAG)
     max_depth_option = ' --max-depth {}'.format(args.max_depth) if args.max_depth > 0 else ""
     reads_regions_option = ' -r {}'.format(" ".join(reads_regions)) if add_read_regions else ""
