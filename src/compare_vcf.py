@@ -32,14 +32,17 @@ def compare_vcf(args):
     sample_name = args.sampleName
     ref_fn = args.ref_fn
     ctg_name = args.ctg_name
-    fp_bed_tree = {}
+    skip_genotyping = args.skip_genotyping
+    input_filter_tag = args.input_filter_tag
+    truth_filter_tag = args.truth_filter_tag
     fp_bed_tree = bed_tree_from(bed_file_path=bed_fn, contig_name=ctg_name)
+    # fp_bed_tree = {}
 
-    truth_vcf_reader = VcfReader(vcf_fn=truth_vcf_fn, ctg_name=ctg_name, show_ref=False,keep_row_str=True)
+    truth_vcf_reader = VcfReader(vcf_fn=truth_vcf_fn, ctg_name=ctg_name, show_ref=False,keep_row_str=True, filter_tag=truth_filter_tag)
     truth_vcf_reader.read_vcf()
     truth_variant_dict = truth_vcf_reader.variant_dict
 
-    input_vcf_reader = VcfReader(vcf_fn=input_vcf_fn, ctg_name=ctg_name, show_ref=False,keep_row_str=True)
+    input_vcf_reader = VcfReader(vcf_fn=input_vcf_fn, ctg_name=ctg_name, show_ref=False,keep_row_str=True, filter_tag=input_filter_tag)
     input_vcf_reader.read_vcf()
     input_variant_dict = input_vcf_reader.variant_dict
 
@@ -58,10 +61,13 @@ def compare_vcf(args):
     fn_set = set()
     fp_fn_set = set()
     tp_set = set()
-    for pos, vcf_infos in input_variant_dict.items():
+    for key, vcf_infos in input_variant_dict.items():
+        pos = key if ctg_name is not None else key[1]
+        contig = ctg_name if ctg_name is not None else key[0]
         pass_bed_region = len(fp_bed_tree) == 0 or is_region_in(tree=fp_bed_tree,
-                                                    contig_name=ctg_name,
-                                                    region_start=pos-1)
+                                                    contig_name=contig,
+                                                    region_start=pos-1,
+                                                    region_end=pos)
         if not pass_bed_region:
             pos_out_of_bed += 1
             # print(pos)
@@ -75,15 +81,15 @@ def compare_vcf(args):
         is_ins = len(ref_base) < len(alt_base)
         is_del = len(ref_base) > len(alt_base)
 
-        if pos not in truth_variant_dict and genotype != (0, 0):
+        if key not in truth_variant_dict and genotype != (0, 0):
             fp_snp = fp_snp + 1 if is_snp else fp_snp
             fp_ins = fp_ins + 1 if is_ins else fp_ins
             fp_del = fp_del + 1 if is_del else fp_del
             if fp_snp:
                 fp_set.add(pos)
 
-        if pos in truth_variant_dict:
-            vcf_infos = truth_variant_dict[int(pos)]
+        if key in truth_variant_dict:
+            vcf_infos = truth_variant_dict[key]
             truth_ref_base = vcf_infos.reference_bases
             truth_alt_base = vcf_infos.alternate_bases[0]
             truth_genotype = vcf_infos.genotype
@@ -94,7 +100,8 @@ def compare_vcf(args):
             if genotype == (0, 0) and truth_genotype == (0, 0):
                 continue
 
-            if truth_ref_base == ref_base and truth_alt_base == alt_base and truth_genotype == genotype:
+            genotype_match = skip_genotyping or (truth_genotype == genotype)
+            if truth_ref_base == ref_base and truth_alt_base == alt_base and genotype_match:
                 tp_snp = tp_snp + 1 if is_snp else tp_snp
                 tp_ins = tp_ins + 1 if is_ins else tp_ins
                 tp_del = tp_del + 1 if is_del else tp_del
@@ -114,9 +121,11 @@ def compare_vcf(args):
 
             truth_set.add(pos)
 
-    for pos, vcf_infos in truth_variant_dict.items():
+    for key, vcf_infos in truth_variant_dict.items():
+        pos = key if ctg_name is not None else key[1]
+        contig = ctg_name if ctg_name is not None else key[0]
         pass_bed_region = len(fp_bed_tree) == 0 or is_region_in(tree=fp_bed_tree,
-                                                              contig_name=ctg_name,
+                                                              contig_name=contig,
                                                               region_start=pos - 1,
                                                               region_end=pos)
         if not pass_bed_region or pos in truth_set:
@@ -138,8 +147,8 @@ def compare_vcf(args):
 
         if fn_snp:
             fn_set.add(pos)
-
-    print (len(fp_set), len(fn_set), len(fp_fn_set), len(tp_set), len(fp_set.intersection(fn_set)))
+    pos_intersection = len(set(truth_variant_dict.keys()).intersection(set(input_variant_dict.keys())))
+    print (pos_intersection, len(fp_set), len(fn_set), len(fp_fn_set), len(tp_set), len(fp_set.intersection(fn_set)))
     if output_dir is not None:
         if not os.path.exists(output_dir):
             subprocess.run("mkdir -p {}".format(output_dir), shell=True)
@@ -155,10 +164,10 @@ def compare_vcf(args):
                     vcf_infos = truth_variant_dict[pos]
                 else:
                     continue
-                ref_base = vcf_infos.reference_bases
-                alt_base = vcf_infos.alternate_bases[0]
-                genotype = vcf_infos.genotype_str
-                qual = float(vcf_infos.qual)
+                # ref_base = vcf_infos.reference_bases
+                # alt_base = vcf_infos.alternate_bases[0]
+                # genotype = vcf_infos.genotype_str
+                # qual = float(vcf_infos.qual)
                 vcf_writer.write_row(row_str=vcf_infos.row_str)
             vcf_writer.close()
 
@@ -180,7 +189,7 @@ def compare_vcf(args):
     del_pre, del_rec, del_f1 = cal_metrics(tp=tp_del, fp=fp_del, fn=fn_del)
 
     # print (tp_snp, tp_ins, tp_del, fp_snp, fp_ins, fp_del, fn_snp, fn_ins, fn_del, fp_snp_truth, fp_ins_truth, fp_del_truth)
-    print (ctg_name + '-' + input_vcf_fn.split('/')[-1])
+    print ((ctg_name + '-' if ctg_name is not None else "") + input_vcf_fn.split('/')[-1])
     print (len(input_variant_dict), len(truth_variant_dict), pos_out_of_bed)
 
     print (''.join([item.ljust(15) for item in ["type", 'total.truth', 'total.query', 'tp','fp', 'fn', 'precision', 'recall', "f1-score"]]), file=output_file)
@@ -225,6 +234,15 @@ def main():
 
     parser.add_argument('--output_dir', type=str, default=None,
                         help="Output VCF filename, required")
+
+    parser.add_argument('--skip_genotyping', action='store_true',
+                        help='Output VCF filename, required')
+
+    parser.add_argument('--input_filter_tag', type=str, default=None,
+                        help='Output VCF filename, required')
+
+    parser.add_argument('--truth_filter_tag', type=str, default=None,
+                        help='Output VCF filename, required')
 
     args = parser.parse_args()
     compare_vcf(args)
