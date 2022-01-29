@@ -2,7 +2,7 @@ import sys
 import os
 import math
 import tables
-import tensorflow as tf
+# import tensorflow as tf
 import numpy as np
 import logging
 import torch
@@ -452,13 +452,13 @@ def main():
     parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of the sequence to be processed")
 
-    parser.add_argument('--ctgStart', type=int, default=None,
+    parser.add_argument('--ctg_start', type=int, default=None,
                         help="The 1-based starting position of the sequence to be processed, optional, will process the whole --ctg_name if not set")
 
-    parser.add_argument('--ctgEnd', type=int, default=None,
+    parser.add_argument('--ctg_end', type=int, default=None,
                         help="The 1-based inclusive ending position of the sequence to be processed, optional, will process the whole --ctg_name if not set")
 
-    parser.add_argument('--sampleName', type=str, default="SAMPLE",
+    parser.add_argument('--sample_name', type=str, default="SAMPLE",
                         help="Define the sample name to be shown in the VCF file, optional")
 
     parser.add_argument('--qual', type=int, default=2,
