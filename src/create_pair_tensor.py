@@ -171,7 +171,7 @@ def get_tensor_info(base_info, bq, ref_base, read_mq=None):
     return read_channel, ins_base, query_base
 
 
-def decode_pileup_bases(pos, pileup_bases, reference_base, minimum_af_for_candidate,  minimum_snp_af_for_candidate, minimum_indel_af_for_candidate, has_pileup_candidates, candidates_type_dict,is_tumor,platform="ont"):
+def decode_pileup_bases(pos, pileup_bases, reference_base,  minimum_snp_af_for_candidate, minimum_indel_af_for_candidate, has_pileup_candidates, candidates_type_dict,is_tumor,platform="ont"):
     """
     Decode mpileup input string.
     pileup_bases: pileup base string for each position, include all mapping information.
@@ -326,7 +326,6 @@ def generate_tensor(ctg_name,
                     reference_start,
                     platform,
                     confident_bed_tree,
-                    add_no_phasing_data_training,
                     is_tumor,
                     candidates_type_dict,
                     use_tensor_sample_mode=False,
@@ -629,8 +628,8 @@ def get_key_list(input_dict, normal_tensor_infos_dict, tumor_tensor_infos_dict, 
     # return output_list
 
 def create_tensor(args):
-    ctg_start = args.ctgStart
-    ctg_end = args.ctgEnd
+    ctg_start = args.ctg_start
+    ctg_end = args.ctg_end
     full_aln_regions = args.full_aln_regions
     fasta_file_path = args.ref_fn
     ctg_name = args.ctg_name
@@ -644,21 +643,15 @@ def create_tensor(args):
     is_full_aln_regions_given = full_aln_regions is not None
     phasing_info_in_bam = args.phasing_info_in_bam
     phasing_window_size = args.phasing_window_size
-    extend_bp = param.extend_bp
-    unify_repre = args.unify_repre
-    minimum_af_for_candidate = args.min_af
     minimum_snp_af_for_candidate = args.snp_min_af
     minimum_indel_af_for_candidate = args.indel_min_af
-    min_coverage = args.minCoverage
+    min_coverage = args.min_coverage
     platform = args.platform
     confident_bed_fn = args.bed_fn
-    alt_fn = args.alt_fn
     extend_bed = args.extend_bed
     is_extend_bed_file_given = extend_bed is not None
-    min_mapping_quality = args.minMQ
-    min_base_quality = args.minBQ
-    unify_repre_fn = args.unify_repre_fn
-    add_no_phasing_data_training = args.add_no_phasing_data_training
+    min_mapping_quality = args.min_mq
+    min_base_quality = args.min_bq
     vcf_fn = args.vcf_fn
     is_known_vcf_file_provided = vcf_fn is not None
     tensor_sample_mode = args.tensor_sample_mode
@@ -769,8 +762,8 @@ def create_tensor(args):
     bq_option = ' --min-BQ {}'.format(min_base_quality)
     # pileup bed first
     bed_option = ' -l {}'.format(
-        extend_bed) if is_extend_bed_file_given and platform != 'ilmn' else ""
-    bed_option = ' -l {}'.format(full_aln_regions) if is_full_aln_regions_given and platform != 'ilmn' else bed_option
+        extend_bed) if is_extend_bed_file_given else ""
+    bed_option = ' -l {}'.format(full_aln_regions) if is_full_aln_regions_given else bed_option
     flags_option = ' --excl-flags {}'.format(param.SAMTOOLS_VIEW_FILTER_FLAG)
     max_depth_option = ' --max-depth {}'.format(args.max_depth) if args.max_depth > 0 else ""
     reads_regions_option = ' -r {}'.format(" ".join(reads_regions)) if add_read_regions else ""
@@ -837,7 +830,6 @@ def create_tensor(args):
             base_list, depth, pass_af, af = decode_pileup_bases(pos=pos,
                                                                 pileup_bases=pileup_bases,
                                                                 reference_base=reference_base,
-                                                                minimum_af_for_candidate=minimum_af_for_candidate,
                                                                 minimum_snp_af_for_candidate=minimum_snp_af_for_candidate,
                                                                 minimum_indel_af_for_candidate=minimum_indel_af_for_candidate,
                                                                 has_pileup_candidates=has_pileup_candidates,
@@ -909,7 +901,6 @@ def create_tensor(args):
                                                    reference_start=reference_start,
                                                    platform=platform,
                                                    confident_bed_tree=confident_bed_tree,
-                                                   add_no_phasing_data_training=add_no_phasing_data_training,
                                                    is_tumor=is_tumor,
                                                    candidates_type_dict=candidates_type_dict,
                                                    use_tensor_sample_mode=use_tensor_sample_mode,
@@ -948,7 +939,7 @@ def create_tensor(args):
     samtools_mpileup_normal_process.wait()
     samtools_mpileup_tumor_process.stdout.close()
     samtools_mpileup_tumor_process.wait()
-    if not unify_repre and tensor_can_output_path != "PIPE":
+    if tensor_can_output_path != "PIPE":
         tensor_can_fp.stdin.close()
         tensor_can_fp.wait()
         tensor_can_fpo.close()
@@ -981,9 +972,6 @@ def main():
     parser.add_argument('--vcf_fn', type=str, default=None,
                         help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file,  default: %(default)s")
 
-    parser.add_argument('--min_af', type=float, default=None,
-                        help="Minimum allele frequency for both SNP and Indel for a site to be considered as a condidate site, default: %(default)f")
-
     parser.add_argument('--snp_min_af', type=float, default=0.1,
                         help="Minimum snp allele frequency for a site to be considered as a candidate site, default: %(default)f")
 
@@ -993,33 +981,30 @@ def main():
     parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of sequence to be processed, required if --bed_fn is not defined")
 
-    parser.add_argument('--ctgStart', type=int, default=None,
+    parser.add_argument('--ctg_start', type=int, default=None,
                         help="The 1-based starting position of the sequence to be processed, optional, will process the whole --ctg_name if not set")
 
-    parser.add_argument('--ctgEnd', type=int, default=None,
+    parser.add_argument('--ctg_end', type=int, default=None,
                         help="The 1-based inclusive ending position of the sequence to be processed, optional, will process the whole --ctg_name if not set")
 
     parser.add_argument('--bed_fn', type=str, default=None,
-                        help="Call variant only in the provided regions. Will take an intersection if --ctg_name and/or (--ctgStart, --ctgEnd) are set")
+                        help="Call variant only in the provided regions. Will take an intersection if --ctg_name and/or (--ctg_start, --ctg_end) are set")
 
-    parser.add_argument('--gvcf', type=str2bool, default=False,
-                        help="Enable GVCF output, default: disabled")
-
-    parser.add_argument('--sampleName', type=str, default="SAMPLE",
+    parser.add_argument('--sample_name', type=str, default="SAMPLE",
                         help="Define the sample name to be shown in the GVCF file")
 
     parser.add_argument('--samtools', type=str, default="samtools",
                         help="Path to the 'samtools', samtools version >= 1.10 is required. default: %(default)s")
 
     # options for advanced users
-    parser.add_argument('--minCoverage', type=float, default=param.min_coverage,
+    parser.add_argument('--min_coverage', type=float, default=param.min_coverage,
                         help="EXPERIMENTAL: Minimum coverage required to call a variant, default: %(default)f")
 
-    parser.add_argument('--minMQ', type=int, default=param.min_mq,
-                        help="EXPERIMENTAL: If set, reads with mapping quality with <$minMQ are filtered, default: %(default)d")
+    parser.add_argument('--min_mq', type=int, default=param.min_mq,
+                        help="EXPERIMENTAL: If set, reads with mapping quality with <$min_mq are filtered, default: %(default)d")
 
-    parser.add_argument('--minBQ', type=int, default=param.min_bq,
-                        help="EXPERIMENTAL: If set, bases with base quality with <$minBQ are filtered, default: %(default)d")
+    parser.add_argument('--min_bq', type=int, default=param.min_bq,
+                        help="EXPERIMENTAL: If set, bases with base quality with <$min_bq are filtered, default: %(default)d")
 
     parser.add_argument('--max_depth', type=int, default=param.max_depth,
                         help="EXPERIMENTAL: Maximum full alignment depth to be processed. default: %(default)s")
@@ -1037,18 +1022,8 @@ def main():
     parser.add_argument('--alt_fn', type=str, default=None,
                         help="DEBUG: Output all alternative indel cigar for debug purpose")
 
-    parser.add_argument('--base_err', default=0.001, type=float,
-                        help='DEBUG: Estimated base error rate in gvcf option, default: %(default)f')
-
-    parser.add_argument('--gq_bin_size', default=5, type=int,
-                        help='DEBUG: Default gq bin size for merge non-variant block in gvcf option, default: %(default)d')
-
-    parser.add_argument('--bp_resolution', action='store_true',
-                        help="DEBUG: Enable bp resolution for GVCF, default: disabled")
-
     parser.add_argument('--truth_vcf_fn', type=str, default=None,
                         help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file,  default: %(default)s")
-
 
     # options for internal process control
     ## Path to the 'zstd' compression
