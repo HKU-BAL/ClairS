@@ -159,7 +159,7 @@ def get_tensor_info(base_info, bq, ref_base, read_mq=None):
     return read_channel, ins_base, query_base
 
 
-def decode_pileup_bases(pileup_bases, reference_base, minimum_af_for_candidate,minimum_snp_af_for_candidate, minimum_indel_af_for_candidate, has_pileup_candidates, read_name_list, is_tumor,platform="ont"):
+def decode_pileup_bases(pileup_bases, reference_base,minimum_snp_af_for_candidate, minimum_indel_af_for_candidate, has_pileup_candidates, read_name_list, is_tumor,platform="ont"):
     """
     Decode mpileup input string.
     pileup_bases: pileup base string for each position, include all mapping information.
@@ -213,13 +213,9 @@ def decode_pileup_bases(pileup_bases, reference_base, minimum_af_for_candidate,m
         elif len(key) > 1 and key[1] == '-':
             pileup_dict['D'] += count
 
-    minimum_snp_af_for_candidate = minimum_snp_af_for_candidate if minimum_snp_af_for_candidate > 0 else param.min_af
-    minimum_indel_af_for_candidate = minimum_indel_af_for_candidate if minimum_indel_af_for_candidate > 0 else param.min_af_dict[platform]
-
     denominator = depth if depth > 0 else 1
     pileup_list = sorted(list(pileup_dict.items()), key=lambda x: x[1], reverse=True)
 
-    pass_af = len(pileup_list) and (pileup_list[0][0] != reference_base)
     pass_snp_af = False
     pass_indel_af = False
 
@@ -305,8 +301,9 @@ def get_alt_info(center_pos, pileup_dict, ref_seq, reference_sequence, reference
     return alt_info
 
 def extract_candidates(args):
-    ctg_start = args.ctgStart
-    ctg_end = args.ctgEnd
+    
+    ctg_start = args.ctg_start
+    ctg_end = args.ctg_end
     full_aln_regions = args.full_aln_regions
     fasta_file_path = args.ref_fn
     ctg_name = args.ctg_name
@@ -321,13 +318,13 @@ def extract_candidates(args):
     phasing_info_in_bam = args.phasing_info_in_bam
     phasing_window_size = args.phasing_window_size
     extend_bp = param.extend_bp
-    minimum_af_for_candidate = args.min_af
     minimum_snp_af_for_candidate = args.snp_min_af
     minimum_indel_af_for_candidate = args.indel_min_af
+    minimum_snp_af_for_truth = args.min_truth_snp_af
+    minimum_indel_af_for_truth = args.min_truth_snp_af
     split_bed_size = param.split_bed_size
     candidates_folder = args.candidates_folder
     min_coverage = args.min_coverage
-    minimum_af_for_truth = args.min_truth_af
     platform = args.platform
     store_tumor_infos = args.store_tumor_infos
     alt_fn = args.alt_fn
@@ -335,8 +332,8 @@ def extract_candidates(args):
     is_confident_bed_file_given = confident_bed_fn is not None
     extend_bed = args.extend_bed
     is_extend_bed_file_given = extend_bed is not None
-    min_mapping_quality = args.minMQ
-    min_base_quality = args.minBQ
+    min_mapping_quality = args.min_mq
+    min_base_quality = args.min_bq
     flankingBaseNum = param.flankingBaseNum
     vcf_fn = args.vcf_fn
     genotyping_mode = vcf_fn is not None
@@ -379,6 +376,7 @@ def extract_candidates(args):
             with open(all_full_aln_regions_path, 'w') as output_file:
                 output_file.write('\n'.join(all_full_aln_regions) + '\n')
         return
+
     if full_aln_regions:
 
         """
@@ -481,8 +479,8 @@ def extract_candidates(args):
     # pileup bed first
     read_name_option = ' --output-QNAME' if store_tumor_infos else ' '
     bed_option = ' -l {}'.format(
-        confident_bed_fn) if is_confident_bed_file_given and platform != 'ilmn' else ""
-    bed_option = ' -l {}'.format(full_aln_regions) if is_full_aln_regions_given and platform != 'ilmn' else bed_option
+        confident_bed_fn) if is_confident_bed_file_given else ""
+    bed_option = ' -l {}'.format(full_aln_regions) if is_full_aln_regions_given else bed_option
     flags_option = ' --excl-flags {}'.format(param.SAMTOOLS_VIEW_FILTER_FLAG)
     max_depth_option = ' --max-depth {}'.format(args.max_depth) if args.max_depth > 0 else ""
     reads_regions_option = ' -r {}'.format(" ".join(reads_regions)) if add_read_regions else ""
@@ -518,10 +516,11 @@ def extract_candidates(args):
         # raw_mapping_quality = columns[7]
         reference_base = evc_base_from(reference_sequence[pos - reference_start].upper())  # ev
         is_truth_candidate = pos in truths_variant_dict
-        minimum_af = minimum_af_for_truth if is_truth_candidate and minimum_af_for_truth else minimum_af_for_candidate
-        base_list, depth, pass_af, af, af_infos, pileup_infos, tumor_pileup_infos = decode_pileup_bases(pileup_bases=pileup_bases,
+        minimum_snp_af_for_candidate = minimum_snp_af_for_truth if is_truth_candidate and minimum_snp_af_for_truth else minimum_snp_af_for_candidate
+        minimum_indel_af_for_candidate = minimum_indel_af_for_truth if is_truth_candidate and minimum_indel_af_for_truth else minimum_indel_af_for_candidate
+        base_list, depth, pass_af, af, af_infos, pileup_infos, tumor_pileup_infos = decode_pileup_bases(
+                                                            pileup_bases=pileup_bases,
                                                             reference_base=reference_base,
-                                                            minimum_af_for_candidate=minimum_af,
                                                             minimum_snp_af_for_candidate=minimum_snp_af_for_candidate,
                                                             minimum_indel_af_for_candidate=minimum_indel_af_for_candidate,
                                                             has_pileup_candidates=has_pileup_candidates,
@@ -584,10 +583,10 @@ def main():
     parser.add_argument('--unified_vcf_fn', type=str, default=None,
                         help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file,  default: %(default)s")
 
-    parser.add_argument('--min_af', type=float, default=0.00,
+    parser.add_argument('--min_truth_snp_af', type=float, default=None,
                         help="Minimum allele frequency for both SNP and Indel for a site to be considered as a condidate site, default: %(default)f")
 
-    parser.add_argument('--min_truth_af', type=float, default=None,
+    parser.add_argument('--min_truth_indel_af', type=float, default=None,
                         help="Minimum allele frequency for both SNP and Indel for a site to be considered as a condidate site, default: %(default)f")
 
     parser.add_argument('--snp_min_af', type=float, default=0.1,
@@ -599,19 +598,19 @@ def main():
     parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of sequence to be processed, required if --bed_fn is not defined")
 
-    parser.add_argument('--ctgStart', type=int, default=None,
+    parser.add_argument('--ctg_start', type=int, default=None,
                         help="The 1-based starting position of the sequence to be processed, optional, will process the whole --ctg_name if not set")
 
-    parser.add_argument('--ctgEnd', type=int, default=None,
+    parser.add_argument('--ctg_end', type=int, default=None,
                         help="The 1-based inclusive ending position of the sequence to be processed, optional, will process the whole --ctg_name if not set")
 
     parser.add_argument('--bed_fn', type=str, default=None,
-                        help="Call variant only in the provided regions. Will take an intersection if --ctg_name and/or (--ctgStart, --ctgEnd) are set")
+                        help="Call variant only in the provided regions. Will take an intersection if --ctg_name and/or (--ctg_start, --ctg_end) are set")
 
     parser.add_argument('--gvcf', type=str2bool, default=False,
                         help="Enable GVCF output, default: disabled")
 
-    parser.add_argument('--sampleName', type=str, default="SAMPLE",
+    parser.add_argument('--sample_name', type=str, default="SAMPLE",
                         help="Define the sample name to be shown in the GVCF file")
 
     parser.add_argument('--samtools', type=str, default="samtools",
@@ -621,11 +620,11 @@ def main():
     parser.add_argument('--min_coverage', type=float, default=param.min_coverage,
                         help="EXPERIMENTAL: Minimum coverage required to call a variant, default: %(default)f")
 
-    parser.add_argument('--minMQ', type=int, default=param.min_mq,
-                        help="EXPERIMENTAL: If set, reads with mapping quality with <$minMQ are filtered, default: %(default)d")
+    parser.add_argument('--min_mq', type=int, default=param.min_mq,
+                        help="EXPERIMENTAL: If set, reads with mapping quality with <$min_mq are filtered, default: %(default)d")
 
-    parser.add_argument('--minBQ', type=int, default=param.min_bq,
-                        help="EXPERIMENTAL: If set, bases with base quality with <$minBQ are filtered, default: %(default)d")
+    parser.add_argument('--min_bq', type=int, default=param.min_bq,
+                        help="EXPERIMENTAL: If set, bases with base quality with <$min_bq are filtered, default: %(default)d")
 
     parser.add_argument('--max_depth', type=int, default=param.max_depth,
                         help="EXPERIMENTAL: Maximum full alignment depth to be processed. default: %(default)s")
@@ -634,35 +633,26 @@ def main():
     parser.add_argument('--phasing_info_in_bam', action='store_true',
                         help="DEBUG: Skip phasing and use the phasing info provided in the input BAM (HP tag), default: False")
 
-    parser.add_argument('--output_depth', action='store_true',
+    parser.add_argument('--output_depth', type=str2bool, default=False,
                         help="DEBUG: Skip phasing and use the phasing info provided in the input BAM (HP tag), default: False")
 
-    parser.add_argument('--output_alt_info', action='store_true',
+    parser.add_argument('--output_alt_info', type=str2bool, default=False,
                         help="DEBUG: Skip phasing and use the phasing info provided in the input BAM (HP tag), default: False")
 
     parser.add_argument('--phasing_window_size', type=int, default=param.phasing_window_size,
                         help="DEBUG: The window size for read phasing")
 
-    parser.add_argument('--extend_bed', nargs='?', action="store", type=str, default=None,
+    parser.add_argument('--extend_bed', type=str, default=None,
                         help="DEBUG: Extend the regions in the --bed_fn by a few bp for tensor creation, default extend 16bp")
 
     parser.add_argument('--alt_fn', type=str, default=None,
                         help="DEBUG: Output all alternative indel cigar for debug purpose")
 
-    parser.add_argument('--base_err', default=0.001, type=float,
-                        help='DEBUG: Estimated base error rate in gvcf option, default: %(default)f')
-
-    parser.add_argument('--gq_bin_size', default=5, type=int,
-                        help='DEBUG: Default gq bin size for merge non-variant block in gvcf option, default: %(default)d')
-
-    parser.add_argument('--bp_resolution', action='store_true',
-                        help="DEBUG: Enable bp resolution for GVCF, default: disabled")
-
-    parser.add_argument('--store_tumor_infos', action='store_true',
+    parser.add_argument('--store_tumor_infos', type=str2bool, default=False,
                         help="DEBUG: Enable bp resolution for GVCF, default: disabled")
 
     parser.add_argument('--candidates_folder', type=str, default=None,
-                        help="Call variant only in the provided regions. Will take an intersection if --ctg_name and/or (--ctgStart, --ctgEnd) are set")
+                        help="Call variant only in the provided regions. Will take an intersection if --ctg_name and/or (--ctg_start, --ctg_end) are set")
 
     # options for internal process control
     ## Path to the 'zstd' compression
@@ -679,10 +669,6 @@ def main():
 
     ## The chuck ID to work on
     parser.add_argument('--chunk_id', type=int, default=None,
-                        help=SUPPRESS)
-
-    ## Only call variant in phased vcf file
-    parser.add_argument('--phased_vcf_fn', type=str, default=None,
                         help=SUPPRESS)
 
     ## Apply no phased data in training. Only works in data training, default: False
