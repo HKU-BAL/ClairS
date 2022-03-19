@@ -107,7 +107,7 @@ class VcfWriter(object):
         self.vcf_writer.write(vcf_format)
 
 class VcfReader(object):
-    def __init__(self, vcf_fn, ctg_name, ctg_start=None, ctg_end=None, is_var_format=False, is_happy_format=False, is_fp=None, show_ref=True, direct_open=False, keep_row_str=False):
+    def __init__(self, vcf_fn, ctg_name, ctg_start=None, ctg_end=None, is_var_format=False, is_happy_format=False, is_fp=None, show_ref=True, direct_open=False, keep_row_str=False,skip_genotype=False, filter_tag=None):
         self.vcf_fn = vcf_fn
         self.ctg_name = ctg_name
         self.ctg_start = ctg_start
@@ -119,6 +119,8 @@ class VcfReader(object):
         self.show_ref = show_ref
         self.direct_open = direct_open
         self.keep_row_str = keep_row_str
+        self.skip_genotype = skip_genotype
+        self.filter_tag = filter_tag #PASS;HighConf PASS;MedConf in hcc1395
     def read_vcf(self):
         is_ctg_region_provided = self.ctg_start is not None and self.ctg_end is not None
 
@@ -141,10 +143,16 @@ class VcfReader(object):
             tumor_in_last = True if len(header_last_column) and header_last_column[-1].rstrip().lower() == "tumor" else False
             # position in vcf is 1-based
             chromosome, position = columns[0], columns[1]
-            if chromosome != self.ctg_name:
+            if self.ctg_name is not None and chromosome != self.ctg_name:
                 continue
             if is_ctg_region_provided and not (self.ctg_start <= int(position) <= self.ctg_end):
                 continue
+
+            if self.filter_tag is not None:
+                FILTER = columns[6]
+                filter_list = self.filter_tag.split(',')
+                if sum([1 if filter == FILTER else 0 for filter in filter_list]) == 0:
+                    continue
             self.is_var_format = True if columns[2][0] in 'ACGT' else False
             self.is_var_format = False
             if self.is_var_format:
@@ -188,7 +196,8 @@ class VcfReader(object):
                 continue
             extra_infos = columns[-1].split(':')[-1] if have_extra_infos else ''
             row_str = row if self.keep_row_str else False
-            self.variant_dict[position] = Position(pos=position,
+            key = (chromosome, position) if self.ctg_name is None else position
+            self.variant_dict[key] = Position(pos=position,
                                                    ref_base=reference,
                                                    alt_base=alternate,
                                                    genotype1=int(genotype_1),
