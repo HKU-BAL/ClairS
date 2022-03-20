@@ -4,7 +4,7 @@ import shlex
 from sys import stdin, exit
 from argparse import ArgumentParser
 from collections import defaultdict
-
+from concurrent import futures
 
 from shared.utils import log_error, log_warning, file_path_from, subprocess_popen
 from shared.vcf import VcfReader, VcfWriter
@@ -38,11 +38,11 @@ def compare_vcf(args):
     fp_bed_tree = bed_tree_from(bed_file_path=bed_fn, contig_name=ctg_name)
     # fp_bed_tree = {}
 
-    truth_vcf_reader = VcfReader(vcf_fn=truth_vcf_fn, ctg_name=ctg_name, show_ref=False,keep_row_str=True, filter_tag=truth_filter_tag)
+    truth_vcf_reader = VcfReader(vcf_fn=truth_vcf_fn, ctg_name=ctg_name, show_ref=False, keep_row_str=True, skip_genotype=skip_genotyping, filter_tag=truth_filter_tag)
     truth_vcf_reader.read_vcf()
     truth_variant_dict = truth_vcf_reader.variant_dict
 
-    input_vcf_reader = VcfReader(vcf_fn=input_vcf_fn, ctg_name=ctg_name, show_ref=False,keep_row_str=True, filter_tag=input_filter_tag)
+    input_vcf_reader = VcfReader(vcf_fn=input_vcf_fn, ctg_name=ctg_name, show_ref=False, keep_row_str=True, skip_genotype=skip_genotyping, filter_tag=input_filter_tag)
     input_vcf_reader.read_vcf()
     input_variant_dict = input_vcf_reader.variant_dict
 
@@ -149,27 +149,6 @@ def compare_vcf(args):
             fn_set.add(pos)
     pos_intersection = len(set(truth_variant_dict.keys()).intersection(set(input_variant_dict.keys())))
     print (pos_intersection, len(fp_set), len(fn_set), len(fp_fn_set), len(tp_set), len(fp_set.intersection(fn_set)))
-    if output_dir is not None:
-        if not os.path.exists(output_dir):
-            subprocess.run("mkdir -p {}".format(output_dir), shell=True)
-        candidate_types = ['fp', 'fn', 'fp_fn', 'tp']
-        variant_sets = [fp_set, fn_set, fp_fn_set, tp_set]
-        for vcf_type, variant_set in zip(candidate_types, variant_sets):
-            vcf_fn = os.path.join(output_dir, '{}.vcf'.format(vcf_type))
-            vcf_writer = VcfWriter(vcf_fn=vcf_fn, ctg_name=ctg_name, write_header=False)
-            for pos in variant_set:
-                if pos in input_variant_dict:
-                    vcf_infos = input_variant_dict[pos]
-                elif pos in truth_variant_dict:
-                    vcf_infos = truth_variant_dict[pos]
-                else:
-                    continue
-                # ref_base = vcf_infos.reference_bases
-                # alt_base = vcf_infos.alternate_bases[0]
-                # genotype = vcf_infos.genotype_str
-                # qual = float(vcf_infos.qual)
-                vcf_writer.write_row(row_str=vcf_infos.row_str)
-            vcf_writer.close()
 
     truth_indel = truth_ins + truth_del
     query_indel = query_ins + query_del
@@ -200,6 +179,27 @@ def compare_vcf(args):
     print (''.join([str(item).ljust(15) for item in ["DEL", query_del, query_del, tp_del, fp_del, fn_del, del_pre, del_rec, del_f1]]), file=output_file)
     # print('\n', file=output_file)
 
+    if output_dir is not None:
+        if not os.path.exists(output_dir):
+            subprocess.run("mkdir -p {}".format(output_dir), shell=True)
+        candidate_types = ['fp', 'fn', 'fp_fn', 'tp']
+        variant_sets = [fp_set, fn_set, fp_fn_set, tp_set]
+        for vcf_type, variant_set in zip(candidate_types, variant_sets):
+            vcf_fn = os.path.join(output_dir, '{}.vcf'.format(vcf_type))
+            vcf_writer = VcfWriter(vcf_fn=vcf_fn, ctg_name=ctg_name, write_header=False)
+            for pos in variant_set:
+                if pos in input_variant_dict:
+                    vcf_infos = input_variant_dict[pos]
+                elif pos in truth_variant_dict:
+                    vcf_infos = truth_variant_dict[pos]
+                else:
+                    continue
+                # ref_base = vcf_infos.reference_bases
+                # alt_base = vcf_infos.alternate_bases[0]
+                # genotype = vcf_infos.genotype_str
+                # qual = float(vcf_infos.qual)
+                vcf_writer.write_row(row_str=vcf_infos.row_str)
+            vcf_writer.close()
     if output_fn:
         output_file.close()
 
