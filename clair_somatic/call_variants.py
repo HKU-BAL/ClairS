@@ -970,48 +970,7 @@ def batch_output_for_ensemble(X, batch_chr_pos_seq, alt_info_list, batch_Y, outp
             )
         )
 
-
-# def batch_output(batch_chr_pos_seq, alt_info_list, batch_Y, output_config, output_utilities):
-#     batch_size = len(batch_chr_pos_seq)
-#
-#     batch_gt21_probabilities, batch_genotype_probabilities = batch_Y[:,:param.label_shape_cum[0]], batch_Y[:,param.label_shape_cum[0]:param.label_shape_cum[1]]
-#     if len(batch_gt21_probabilities) != batch_size:
-#         sys.exit(
-#             "Inconsistent shape between input tensor and output predictions %d/%d" %
-#             (batch_size, len(batch_gt21_probabilities))
-#         )
-#     batch_variant_length_probabilities_1, batch_variant_length_probabilities_2 = [0] * batch_size, [0] * batch_size
-#
-#     if output_config.add_indel_length:
-#         batch_variant_length_probabilities_1, batch_variant_length_probabilities_2 = batch_Y[:,param.label_shape_cum[1]:param.label_shape_cum[2]], batch_Y[:,param.label_shape_cum[2]:param.label_shape_cum[3]]
-#     for (
-#             chr_pos_seq,
-#             alt_info,
-#             gt21_probabilities,
-#             genotype_probabilities,
-#             variant_length_probabilities_1,
-#             variant_length_probabilities_2
-#     ) in zip(
-#         batch_chr_pos_seq,
-#         alt_info_list,
-#         batch_gt21_probabilities,
-#         batch_genotype_probabilities,
-#         batch_variant_length_probabilities_1,
-#         batch_variant_length_probabilities_2
-#     ):
-#         output_with(
-#             chr_pos_seq,
-#             alt_info,
-#             gt21_probabilities,
-#             genotype_probabilities,
-#             variant_length_probabilities_1,
-#             variant_length_probabilities_2,
-#             output_config,
-#             output_utilities,
-#         )
-
-
-def output_with(
+def output_vcf_from_probability(
         chromosome,
         position,
         reference_base,
@@ -1181,203 +1140,7 @@ def output_with(
         # allele_frequency
     # ))
 
-
-def compute_PL(genotype_string, genotype_probabilities, gt21_probabilities, reference_base, alternate_base):
-    '''
-    PL computation
-    for bi-allelic: AA(00), AB(01), BB(11)
-    for tri-allielic: AA(00),AB(01), BB(11), AC(02), BC(12), CC(22)
-    '''
-    alt_array = alternate_base.split(',')
-    alt_num = len(alt_array)
-
-    genotypes = {1: [[0, 0], [0, 1], [1, 1]], 2: [[0, 0], [0, 1], [1, 1], [0, 2], [1, 2], [2, 2]]}
-    likelihoods = []
-    reference_base = BASE2ACGT[reference_base] if len(reference_base) == 1 else reference_base
-    all_base = [reference_base]
-    all_base.extend(alt_array)
-    for encoded_genotype in genotypes[alt_num]:
-        # obtain the genotype probability from the 21 gt
-
-        partial_label_1 = partial_label_from(reference_base, all_base[encoded_genotype[0]])
-        partial_label_2 = partial_label_from(reference_base, all_base[encoded_genotype[1]])
-        gt21_label = mix_two_partial_labels(partial_label_1, partial_label_2)
-        try:
-            gt21_prob_index = gt21_enum_from_label(gt21_label)
-        except:
-            #skip N positions
-            return [990 * len(genotypes[alt_num])]
-        genotype_prob_21 = gt21_probabilities[gt21_prob_index]
-
-        # obtain the genotype probability from 3 zygosity
-        _genotype = genotype_enum_for_task(genotype_enum_from(encoded_genotype[0], encoded_genotype[1]))
-        genotype_prob_zygosity = genotype_probabilities[_genotype]
-
-        # chain probability
-        _p = genotype_prob_21 * genotype_prob_zygosity
-        # _p = genotype_prob_21
-        likelihoods.append(_p)
-        pass
-
-    # genotype likelihood normalization
-    # p/sum(p)
-
-    sum_p = sum(likelihoods)
-    LOG_10 = math.log(10.0)
-    likelihoods = [x / sum_p for x in likelihoods]
-    # phred transformation
-
-    # avoid domain error
-    add_val = 1e-8
-    likelihoods = [x+add_val for x in likelihoods]
-    # -10*log10(x/sum_p) = -10*(log10(x) - log10(sum_p))
-
-    PLs = [-10 * (log(x) / LOG_10) for x in likelihoods]
-    min_PL = min(PLs)
-
-    PLs = [int(math.ceil(x - min_PL)) for x in PLs]
-    return PLs
-
-# def call_variants(args, output_config, output_utilities):
-#     use_gpu = args.use_gpu
-#     if use_gpu:
-#         gpus = tf.config.experimental.list_physical_devices('GPU')
-#         tf.config.experimental.set_virtual_device_configuration(gpus[0], [
-#             tf.config.experimental.VirtualDeviceConfiguration(memory_limit=1024)])
-#     else:
-#         os.environ["CUDA_VISIBLE_DEVICES"] = ""
-#     global param
-#
-#     m.load_weights(args.chkpnt_fn)
-#
-#     output_utilities.gen_output_file()
-#     output_utilities.output_header()
-#     chunk_id = args.chunk_id - 1 if args.chunk_id else None  # 1-base to 0-base
-#     chunk_num = args.chunk_num
-#     full_alignment_mode = not args.pileup
-#
-#     tensor_generator = utils.tensor_generator_from(args.tensor_fn, param.predictBatchSize, args.pileup, args.platform)
-#     logging.info("Calling variants ...")
-#     variant_call_start_time = time()
-#
-#     is_finish_loaded_all_mini_batches = False
-#     batch_output_method = batch_output_for_ensemble if output_config.is_output_for_ensemble else batch_output
-#     mini_batches_loaded = []
-#     mini_batches_to_output = []
-#
-#     def load_mini_batch():
-#         try:
-#             mini_batches_loaded.append(next(tensor_generator))
-#         except StopIteration:
-#             return
-#
-#     total = 0 #start, end
-#     if not args.is_from_tables:
-#         apply_threading = True
-#         if apply_threading:
-#             while True:
-#                 thread_pool = []
-#
-#                 if len(mini_batches_to_output) > 0:
-#                     mini_batch = mini_batches_to_output.pop(0)
-#                     X, position, alt_info_list = mini_batch
-#                     prediction = m.predict_on_batch(X)
-#                     total += len(X)
-#                     thread_pool.append(Thread(
-#                         target=batch_output_method,
-#                         args=(position, alt_info_list, prediction, output_config, output_utilities)
-#                     ))
-#
-#                 if not is_finish_loaded_all_mini_batches:
-#                     thread_pool.append(Thread(target=load_mini_batch))
-#
-#                 for t in thread_pool:
-#                     t.start()
-#                 for t in thread_pool:
-#                     t.join()
-#
-#                 is_finish_loaded_all_mini_batches = len(mini_batches_loaded) == 0
-#                 while len(mini_batches_loaded) > 0:
-#                     mini_batch = mini_batches_loaded.pop(0)
-#                     mini_batches_to_output.append(mini_batch)
-#
-#                 is_nothing_to_predict_and_output = (
-#                         len(thread_pool) <= 0 and len(mini_batches_to_output) <= 0
-#                 )
-#                 if is_finish_loaded_all_mini_batches and is_nothing_to_predict_and_output:
-#                     break
-#         else:
-#             while True:
-#                 if len(mini_batches_to_output) > 0:
-#                     mini_batch = mini_batches_to_output.pop(0)
-#                     X, position, alt_info_list = mini_batch
-#                     prediction = m.predict_on_batch(X)
-#                     total += len(X)
-#                     batch_output_method(position, alt_info_list, prediction, output_config, output_utilities)
-#
-#                 if not is_finish_loaded_all_mini_batches:
-#                     load_mini_batch()
-#
-#                 is_finish_loaded_all_mini_batches = len(mini_batches_loaded) == 0
-#                 while len(mini_batches_loaded) > 0:
-#                     mini_batch = mini_batches_loaded.pop(0)
-#                     mini_batches_to_output.append(mini_batch)
-#
-#                 is_nothing_to_predict_and_output = len(mini_batches_to_output) <= 0
-#                 if is_finish_loaded_all_mini_batches and is_nothing_to_predict_and_output:
-#                     break
-#
-#         if chunk_id is not None:
-#             logging.info("Total processed positions in {} (chunk {}/{}) : {}".format(args.ctg_name, chunk_id+1, chunk_num, total))
-#         elif full_alignment_mode:
-#             try:
-#                 chunk_infos = args.call_fn.split('.')[-2]
-#                 c_id, c_num = chunk_infos.split('_')
-#                 c_id = int(c_id) + 1 # 0-index to 1-index
-#                 logging.info("Total processed positions in {} (chunk {}/{}) : {}".format(args.ctgName, c_id, c_num, total))
-#             except:
-#                 logging.info("Total processed positions in {} : {}".format(args.ctgName, total))
-#         else:
-#             logging.info("Total processed positions in {} : {}".format(args.ctgName, total))
-#         if full_alignment_mode and total == 0:
-#             logging.info(log_error("[ERROR] No full-alignment output for file {}/{}".format(args.ctgName, args.call_fn)))
-#     else:
-#         dataset = tables.open_file(args.tensor_fn, 'r').root
-#         batch_size = param.predictBatchSize
-#         dataset_size = len(dataset.label)
-#         chunk_start_pos = 0
-#         # process by chunk windows
-#         if chunk_id is not None and chunk_num is not None:
-#             chunk_dataset_size = dataset_size // chunk_num if dataset_size % chunk_num == 0 else dataset_size // chunk_num + 1
-#             chunk_start_pos = chunk_id * chunk_dataset_size
-#             dataset_size = chunk_dataset_size
-#         num_epoch = dataset_size // batch_size if dataset_size % batch_size == 0 else dataset_size // batch_size + 1
-#
-#         for idx in range(num_epoch):
-#             position_matrix = dataset.position_matrix[
-#                               chunk_start_pos + idx * batch_size:chunk_start_pos + (idx + 1) * batch_size]
-#             position = list(
-#                 dataset.position[chunk_start_pos + idx * batch_size:chunk_start_pos + (idx + 1) * batch_size].flatten())
-#             alt_info_list = list(
-#                 dataset.alt_info[chunk_start_pos + idx * batch_size:chunk_start_pos + (idx + 1) * batch_size].flatten())
-#
-#             prediction = m.predict_on_batch(position_matrix)
-#             batch_output_method(position, alt_info_list, prediction, output_config, output_utilities)
-#             total += len(position_matrix)
-#
-#     logging.info("Total time elapsed: %.2f s" % (time() - variant_call_start_time))
-#
-#     output_utilities.close_opened_files()
-#     # remove file if on variant in output
-#     if os.path.exists(args.call_fn):
-#         for row in open(args.call_fn, 'r'):
-#             if row[0] != '#':
-#                 return
-#         logging.info("[INFO] No vcf output for file {}, remove empty file".format(args.call_fn))
-#         os.remove(args.call_fn)
-
-
-def call_variants(args):
+def call_variants_from_probability(args):
     # args.predict_fn = "/mnt/bal36/zxzheng/TMP/tmp_alt"
     # args.call_fn ="/mnt/bal36/zxzheng/TMP/tmp.vcf"
     output_config = OutputConfig(
@@ -1394,14 +1157,6 @@ def call_variants(args):
         pileup=args.pileup
     )
 
-    # output_utilities = output_utilties_from(
-    #     sample_name=args.sample_name,
-    #     is_debug=args.debug,
-    #     is_output_for_ensemble=args.output_for_ensemble,
-    #     reference_file_path=args.ref_fn,
-    #     output_file_path=args.call_fn,
-    #     output_probabilities=args.output_probabilities
-    # )
     call_fn = args.call_fn
     if call_fn != "PIPE":
         call_dir = os.path.dirname(call_fn)
@@ -1413,8 +1168,7 @@ def call_variants(args):
                            show_ref_calls=args.show_ref,
                            sample_name=args.sample_name,
                            )
-    chunk_id = args.chunk_id - 1 if args.chunk_id else None  # 1-base to 0-base
-    chunk_num = args.chunk_num
+
     logging.info("Calling variants ...")
     variant_call_start_time = time()
     prediction_path = args.predict_fn
@@ -1437,7 +1191,7 @@ def call_variants(args):
         row = row.rstrip().split('\t')
         chromosome, position, reference_base, normal_alt_info, tumor_alt_info, prediction = row[:6]
         gt21_probabilities = [float(item) for item in prediction.split()]
-        output_with(
+        output_vcf_from_probability(
             chromosome,
             position,
             reference_base,
@@ -1470,126 +1224,6 @@ def DataGenerator(dataset, num_epoch, batch_size, chunk_start_pos, chunk_end_pos
         position = dataset.position[start_pos:end_pos]  # .flatten()
         alt_info_list = dataset.alt_info[start_pos:end_pos]  # .flatten()
         yield position_matrix, position, alt_info_list
-#
-#
-# def predict(args, output_config, output_utilities):
-#     chunk_id = args.chunk_id - 1 if args.chunk_id else None  # 1-base to 0-base
-#     chunk_num = args.chunk_num
-#     predict_fn = args.predict_fn
-#     use_gpu = args.use_gpu
-#     logging.info("[INFO] Make prediction ...")
-#     variant_call_start_time = time()
-#     add_indel_length = args.add_indel_length
-#
-#     if use_gpu:
-#         gpus = tf.config.experimental.list_physical_devices('GPU')
-#         tf.config.experimental.set_virtual_device_configuration(gpus[0], [
-#             tf.config.experimental.VirtualDeviceConfiguration(memory_limit=1024)])
-#     else:
-#         os.environ["CUDA_VISIBLE_DEVICES"] = ""
-#
-#     global param
-#     if args.pileup:
-#         import shared.param_p as param
-#         from clair3.model import Clair3_P
-#         m = Clair3_P(add_indel_length=args.add_indel_length, predict=True)
-#     else:
-#         import shared.param_f as param
-#         from clair3.model import Clair3_F
-#         m = Clair3_F(add_indel_length=args.add_indel_length, predict=True)
-#
-#     batch_output_method = batch_output_for_ensemble if output_config.is_output_for_ensemble else batch_output
-#     m.load_weights(args.chkpnt_fn)
-#
-#     total = 0
-#     if not args.is_from_tables:
-#         output_utilities.output_header()
-#         is_finish_loaded_all_mini_batches = False
-#         mini_batches_loaded = []
-#         mini_batches_to_output = []
-#
-#         def load_mini_batch():
-#             try:
-#                 mini_batches_loaded.append(next(tensor_generator))
-#             except StopIteration:
-#                 return
-#
-#         tensor_generator = utils.tensor_generator_from(args.tensor_fn, param.predictBatchSize, args.pileup,
-#                                                        args.platform)
-#         while True:
-#             thread_pool = []
-#             if len(mini_batches_to_output) > 0:
-#                 mini_batch = mini_batches_to_output.pop(0)
-#                 X, position, alt_info_list = mini_batch
-#                 prediction = m.predict_on_batch(X)
-#                 total += len(X)
-#                 thread_pool.append(Thread(
-#                     target=batch_output_method,
-#                     args=(position, alt_info_list, prediction, output_config, output_utilities)
-#                 ))
-#
-#             if not is_finish_loaded_all_mini_batches:
-#                 thread_pool.append(Thread(target=load_mini_batch))
-#
-#             for t in thread_pool:
-#                 t.start()
-#             for t in thread_pool:
-#                 t.join()
-#
-#             is_finish_loaded_all_mini_batches = len(mini_batches_loaded) == 0
-#             while len(mini_batches_loaded) > 0:
-#                 mini_batch = mini_batches_loaded.pop(0)
-#                 mini_batches_to_output.append(mini_batch)
-#
-#             is_nothing_to_predict_and_output = (
-#                     len(thread_pool) <= 0 and len(mini_batches_to_output) <= 0
-#             )
-#             if is_finish_loaded_all_mini_batches and is_nothing_to_predict_and_output:
-#                 break
-#         logging.info("Total process positions: {}".format(total))
-#
-#     else:
-#         if not os.path.exists(args.tensor_fn):
-#             logging.info("skip {}, not existing chunk_id".format(args.tensor_fn))
-#             return
-#         dataset = tables.open_file(args.tensor_fn, 'r').root
-#         batch_size = param.predictBatchSize
-#         dataset_size = len(dataset.label)
-#         chunk_start_pos, chunk_end_pos = 0, dataset_size
-#         tensor_shape = param.ont_input_shape if args.platform == 'ont' else param.input_shape
-#         # process by chunk windows
-#         if chunk_id is not None and chunk_num is not None:
-#             chunk_dataset_size = dataset_size // chunk_num if dataset_size % chunk_num == 0 else dataset_size // chunk_num + 1
-#             chunk_start_pos = chunk_id * chunk_dataset_size
-#             dataset_size = min(chunk_dataset_size, dataset_size - chunk_start_pos)
-#             chunk_end_pos = min(chunk_start_pos + dataset_size, chunk_end_pos)
-#         num_epoch = dataset_size // batch_size if dataset_size % batch_size == 0 else dataset_size // batch_size + 1
-#         label_size = sum(param.label_shape) if add_indel_length else sum(param.label_shape[:2])
-#         prediction_memmap = np.lib.format.open_memmap(predict_fn + '.prediction', dtype=np.float, mode='w+',
-#                                                       shape=(dataset_size, label_size))
-#         position_memmap = np.lib.format.open_memmap(predict_fn + '.position', dtype='S100', mode='w+',
-#                                                     shape=(dataset_size, 1))
-#         alt_info_memmap = np.lib.format.open_memmap(predict_fn + '.alt_info', dtype='S2000', mode='w+',
-#                                                     shape=(dataset_size, 1))
-#         TensorShape = (tf.TensorShape([None] + tensor_shape), tf.TensorShape([None, 1]), tf.TensorShape([None, 1]))
-#         TensorDtype = (tf.int32, tf.string, tf.string)
-#
-#         predict_dataset = tf.data.Dataset.from_generator(
-#             lambda: DataGenerator(dataset, num_epoch, batch_size, chunk_start_pos, chunk_end_pos), TensorDtype,
-#             TensorShape).prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
-#         dataset_iter = iter(predict_dataset)
-#         for idx in range(num_epoch):
-#             position_matrix, position, alt_info_list = next(dataset_iter)
-#             prediction = m.predict_on_batch(position_matrix)
-#             start_pos = idx * batch_size
-#             end_pos = min((idx + 1) * batch_size, dataset_size)
-#             prediction_memmap[start_pos:end_pos] = prediction
-#             position_memmap[start_pos:end_pos] = position.numpy()
-#             alt_info_memmap[start_pos:end_pos] = alt_info_list.numpy()
-#
-#             total += len(position_matrix)
-#         logging.info("Total processed positions/bin file size: {}/{}".format(total, len(dataset.label)))
-#     logging.info("Total time elapsed: %.2f s" % (time() - variant_call_start_time))
 
 
 def main():
@@ -1616,10 +1250,10 @@ def main():
     parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of the sequence to be processed")
 
-    parser.add_argument('--ctgStart', type=int, default=None,
+    parser.add_argument('--ctg_start', type=int, default=None,
                         help="The 1-based starting position of the sequence to be processed, optional, will process the whole --ctgName if not set")
 
-    parser.add_argument('--ctgEnd', type=int, default=None,
+    parser.add_argument('--ctg_end', type=int, default=None,
                         help="The 1-based inclusive ending position of the sequence to be processed, optional, will process the whole --ctg_name if not set")
 
     parser.add_argument('--sample_name', type=str, default="SAMPLE",
@@ -1693,7 +1327,7 @@ def main():
     #     parser.print_help()
     #     sys.exit(1)
 
-    call_variants(args)
+    call_variants_from_probability(args)
 
 
 if __name__ == "__main__":
