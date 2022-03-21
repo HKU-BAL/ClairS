@@ -308,13 +308,16 @@ def predict(args):
     chunk_num = args.chunk_num
     predict_fn = args.predict_fn
     use_gpu = args.use_gpu
-    logging.info("[INFO] Make prediction ...")
+    logging.info("[INFO] Make prediction")
     variant_call_start_time = time()
     add_indel_length = args.add_indel_length
     chkpnt_fn = args.chkpnt_fn
     tensor_fn = args.tensor_fn
     platform = args.platform
-    use_gpu = use_gpu and torch.cuda.is_available()
+    if use_gpu and not torch.cuda.is_available():
+        print("[WARNING] --use_gpu is enabled, but cuda is not found")
+        use_gpu = False
+        torch.set_num_threads(1)
     if use_gpu:
         device = 'cuda'
     else:
@@ -507,20 +510,12 @@ def main():
     parser.add_argument('--chunk_id', type=int, default=None,
                         help=SUPPRESS)
 
-    ## Enable debug mode, default: False, optional
-    parser.add_argument('--debug', action='store_true',
-                        help=SUPPRESS)
-
-    ## Generating outputs for ensemble model calling
-    parser.add_argument('--output_for_ensemble', action='store_true',
-                        help=SUPPRESS)
-
     ## Use bin file from pytables to speed up calling.
     parser.add_argument('--is_from_tables', type=str2bool, default=False,
                         help=SUPPRESS)
 
     ## Output reference calls
-    parser.add_argument('--showRef', action='store_true',
+    parser.add_argument('--show_ref', action='store_true',
                         help=SUPPRESS)
 
     args = parser.parse_args()
