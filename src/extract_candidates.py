@@ -159,7 +159,7 @@ def get_tensor_info(base_info, bq, ref_base, read_mq=None):
     return read_channel, ins_base, query_base
 
 
-def decode_pileup_bases(pileup_bases, reference_base,minimum_snp_af_for_candidate, minimum_indel_af_for_candidate, has_pileup_candidates, read_name_list, is_tumor,platform="ont"):
+def decode_pileup_bases(pileup_bases, reference_base,minimum_snp_af_for_candidate, minimum_indel_af_for_candidate, alternative_base_num, has_pileup_candidates, read_name_list, is_tumor,platform="ont"):
     """
     Decode mpileup input string.
     pileup_bases: pileup base string for each position, include all mapping information.
@@ -202,6 +202,8 @@ def decode_pileup_bases(pileup_bases, reference_base,minimum_snp_af_for_candidat
 
     tumor_alt_dict = dict(Counter([''.join(item).upper() for item, read_name in zip(base_list, read_name_list) if read_name.startswith('t')])) if is_tumor else None
     depth = 0
+
+
     for key, count in base_counter.items():
         if key[0].upper() in 'ACGT':
             pileup_dict[key[0].upper()] += count
@@ -225,7 +227,7 @@ def decode_pileup_bases(pileup_bases, reference_base,minimum_snp_af_for_candidat
         elif item[0] in 'ID':
             pass_indel_af = (pass_indel_af or (float(count) / denominator >= minimum_indel_af_for_candidate))
             continue
-        pass_snp_af = pass_snp_af or (float(count) / denominator >= minimum_snp_af_for_candidate)
+        pass_snp_af = pass_snp_af or (float(count) / denominator >= minimum_snp_af_for_candidate) or (alternative_base_num is not None and count >= alternative_base_num)
 
     af = (float(pileup_list[1][1]) / denominator) if len(pileup_list) > 1 else 0.0
     af = (float(pileup_list[0][1]) / denominator) if len(pileup_list) >= 1 and pileup_list[0][
@@ -322,6 +324,7 @@ def extract_candidates(args):
     minimum_indel_af_for_candidate = args.indel_min_af
     minimum_snp_af_for_truth = args.min_truth_snp_af
     minimum_indel_af_for_truth = args.min_truth_snp_af
+    alternative_base_num=args.alternative_base_num
     split_bed_size = param.split_bed_size
     candidates_folder = args.candidates_folder
     min_coverage = args.min_coverage
@@ -426,8 +429,7 @@ def extract_candidates(args):
                                                      contig_name=ctg_name,
                                                      return_bed_region=True)
 
-            chunk_size = (bed_end - bed_start) // chunk_num + 1 if (bed_end - bed_start) % chunk_num else (
-                                                                                                                      bed_end - bed_start) // chunk_num
+            chunk_size = (bed_end - bed_start) // chunk_num + 1 if (bed_end - bed_start) % chunk_num else (bed_end - bed_start) // chunk_num
             ctg_start = bed_start + 1 + chunk_size * chunk_id  # 0-base to 1-base
             ctg_end = ctg_start + chunk_size
         else:
@@ -523,6 +525,7 @@ def extract_candidates(args):
                                                             reference_base=reference_base,
                                                             minimum_snp_af_for_candidate=minimum_snp_af_for_candidate,
                                                             minimum_indel_af_for_candidate=minimum_indel_af_for_candidate,
+                                                            alternative_base_num=alternative_base_num,
                                                             has_pileup_candidates=has_pileup_candidates,
                                                             read_name_list=read_name_list,
                                                             is_tumor=is_tumor
@@ -627,6 +630,9 @@ def main():
                         help="EXPERIMENTAL: If set, bases with base quality with <$min_bq are filtered, default: %(default)d")
 
     parser.add_argument('--max_depth', type=int, default=param.max_depth,
+                        help="EXPERIMENTAL: Maximum full alignment depth to be processed. default: %(default)s")
+
+    parser.add_argument('--alternative_base_num', type=int, default=param.alternative_base_num,
                         help="EXPERIMENTAL: Maximum full alignment depth to be processed. default: %(default)s")
 
     # options for debug purpose
