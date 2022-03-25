@@ -70,11 +70,11 @@ class Position(object):
         # only proceed when variant exists in candidate windows which greatly improves efficiency
         self.update_info = True
         self.read_name_dict = dict(zip(self.read_name_list, self.base_list))
-        # self.mapping_quality = [_normalize_mq(phredscore2raw_score(item)) for item in self.raw_mapping_quality]
+        self.mapping_quality = [_normalize_mq(phredscore2raw_score(item)) for item in self.raw_mapping_quality]
         self.base_quality = [_normalize_bq(phredscore2raw_score(item)) for item in self.raw_base_quality]
 
-        for read_name, base_info, bq in zip(self.read_name_list, self.base_list, self.base_quality,):
-            read_channel, ins_base, query_base = get_tensor_info(base_info, bq, self.ref_base)#, mq)
+        for read_name, base_info, bq, mq in zip(self.read_name_list, self.base_list, self.base_quality, self.mapping_quality):
+            read_channel, ins_base, query_base = get_tensor_info(base_info, bq, self.ref_base, mq)
             self.read_info[read_name] = (read_channel, ins_base)
 
 
@@ -164,7 +164,7 @@ def get_tensor_info(base_info, bq, ref_base, read_mq=None):
     if len(indel) and indel[0] in '+-':
         if indel[0] == "+":
             ins_base = indel[1:].upper()
-    read_channel[:4] = REF_BASE, ALT_BASE, strand, bq #read_mq,
+    read_channel[:5] = REF_BASE, ALT_BASE, strand, bq, read_mq,
     query_base = "" if base_upper not in "ACGT" else base_upper
     return read_channel, ins_base, query_base
 
@@ -378,13 +378,13 @@ def generate_tensor(ctg_name,
     for read_idx, p, ins_base, center_p in insert_tuple:
 
         for ins_idx in range(min(len(ins_base), no_of_positions - p)):
-            tensor[read_idx][ins_idx + p][5] = ACGT_NUM[ins_base[ins_idx]]
+            tensor[read_idx][ins_idx + p][6] = ACGT_NUM[ins_base[ins_idx]]
 
     matrix_depth = param.tumor_matrix_depth_dict[platform] if is_tumor else param.normal_matrix_depth_dict[platform]
 
     min_af_for_samping = 0.06
-    max_af_for_sampling = 0.5
-    chunk_read_size = 3
+    max_af_for_sampling = 1.0
+    chunk_read_size = 4
     min_tumor_support_read_num = param.min_tumor_support_read_num
     tensor_string_list = []
     alt_info_list = []
@@ -462,8 +462,8 @@ def generate_tensor(ctg_name,
                 hap_type = 100 if is_tumor else 50
                 for p in range(no_of_positions):
                     if tmp_tensor[row_idx][p][2] != 0:  # skip all del #*
-                        tmp_tensor[row_idx][p][4] = af_num
-                        tmp_tensor[row_idx][p][6] = hap_type
+                        tmp_tensor[row_idx][p][5] = af_num
+                        tmp_tensor[row_idx][p][7] = hap_type
 
             # print (len(tmp_tensor))
             alt_info = []
@@ -599,8 +599,8 @@ def get_normal_set(alt_fn):
     return normal_pos_set
 
 def create_tensor(args):
-    ctg_start = args.ctgStart
-    ctg_end = args.ctgEnd
+    ctg_start = args.ctg_start
+    ctg_end = args.ctg_end
     full_aln_regions = args.full_aln_regions
     fasta_file_path = args.ref_fn
     ctg_name = args.ctg_name
@@ -624,8 +624,8 @@ def create_tensor(args):
     alt_fn = args.alt_fn
     extend_bed = args.extend_bed
     is_extend_bed_file_given = extend_bed is not None
-    min_mapping_quality = args.minMQ
-    min_base_quality = args.minBQ
+    min_mapping_quality = args.min_mq
+    min_base_quality = args.min_bq
     unify_repre_fn = args.unify_repre_fn
     add_no_phasing_data_training = args.add_no_phasing_data_training
     vcf_fn = args.vcf_fn
@@ -784,7 +784,7 @@ def create_tensor(args):
 
     phasing_option = " --output-extra HP" if phasing_info_in_bam else " "
     mq_option = ' --min-MQ {}'.format(min_mapping_quality)
-    output_mq, output_read_name = False, True
+    output_mq, output_read_name = True, True
     output_mq_option = '--output-MQ' if output_mq else ""
     output_read_name_option = ' --output-QNAME ' if output_read_name else ""
     bq_option = ' --min-BQ {}'.format(min_base_quality)
@@ -853,8 +853,8 @@ def create_tensor(args):
                 continue
             pileup_bases = columns[4]
             raw_base_quality = columns[5]
-            read_name_list = columns[6].split(',')
-            # raw_mapping_quality = columns[7]
+            raw_mapping_quality = columns[6]
+            read_name_list = columns[7].split(',')
             reference_base = evc_base_from(reference_sequence[pos - reference_start].upper())
             base_list, depth, pass_af, af = decode_pileup_bases(pos=pos,
                                                                 pileup_bases=pileup_bases,
@@ -865,17 +865,6 @@ def create_tensor(args):
                                                                 has_pileup_candidates=has_pileup_candidates,
                                                                 candidates_type_dict=candidates_type_dict,
                                                                 is_tumor=is_tumor)
-
-            if phasing_info_in_bam:
-                phasing_info = columns[8].split(',')
-                # https://github.com/HKU-BAL/Clair3/issues/32, skip adding phase info when BAM phase info lacks
-                # add read name list size check in following steps
-                if len(read_name_list) != len(phasing_info):
-                    continue
-                else:
-                    for hap_idx, hap in enumerate(phasing_info):
-                        if hap in '12' and read_name_list[hap_idx] not in hap_dict:
-                            hap_dict[read_name_list[hap_idx]] = int(hap)
 
             if len(read_name_list) != len(base_list):
                 continue
@@ -895,19 +884,11 @@ def create_tensor(args):
                                         read_name_list=read_name_list,
                                         base_list=base_list,
                                         raw_base_quality=raw_base_quality,
-                                        # raw_mapping_quality=raw_mapping_quality,
+                                        raw_mapping_quality=raw_mapping_quality,
                                         af=af,
                                         depth=depth)
 
             overlap_hete_region = hete_snp_tree.at(pos)
-            if need_phasing and len(overlap_hete_region):
-                for read_name, base_info, in zip(read_name_list, base_list):
-                    query_base, indel_base = base_info
-                    query_base = query_base.upper()
-                    ins_base = "" if indel_base == "" or indel_base[0] != '+' else indel_base.upper()
-                    for region in overlap_hete_region:
-                        hete_center = region.begin + param.extend_bp
-                        phasing_read_seq[read_name].read_seq[hete_center] += query_base + ins_base
 
             if current_pos_index < len(need_phasing_pos_list) and pos - need_phasing_pos_list[
                 current_pos_index] > extend_bp_distance:
@@ -940,49 +921,6 @@ def create_tensor(args):
     for pos in samtools_pileup_generator:
         if pos not in pileup_dict:
             continue
-        # if need_phasing:
-        #     """
-        #     Haplotag reads haplotype when create full alignment tensor, which is faster than whatshap haplotag while
-        #     occupy more memory. Whole haplotag logic follow whatshap haplotag function.
-        #     """
-        #
-        #     from Levenshtein import distance as edit_distance
-        #     need_phasing_read_set = set(pileup_dict[pos].read_name_list)
-        #     for read_name in need_phasing_read_set:
-        #         haplotype_costs = defaultdict(int)
-        #         if haplotag_dict[read_name] != 0 or len(phasing_read_seq[read_name].read_seq) == 0:
-        #             continue
-        #         for overlp_pos, query_seq in phasing_read_seq[read_name].read_seq.items():
-        #             if query_seq == "":
-        #                 continue
-        #             ref_seq = hete_snp_pos_dict[overlp_pos].ref_seq
-        #             alt_seq = hete_snp_pos_dict[overlp_pos].alt_seq
-        #             distance_ref = edit_distance(query_seq, ref_seq)
-        #             distance_alt = edit_distance(query_seq, alt_seq)
-        #             hap_match = 0
-        #             if distance_alt > distance_ref:
-        #                 hap_match = 1
-        #             elif distance_alt < distance_ref:
-        #                 hap_match = 2
-        #             else:
-        #                 # skip read with unkown hap type
-        #                 continue
-        #             hete_hap_type = hete_snp_pos_dict[overlp_pos].genotype
-        #             if hap_match == hete_hap_type:
-        #                 haplotype_costs[hete_snp_pos_dict[overlp_pos].phase_set] += 1
-        #             else:
-        #                 haplotype_costs[hete_snp_pos_dict[overlp_pos].phase_set] -= 1
-        #
-        #         haplotype_costs = sorted(list(haplotype_costs.items()), key=lambda x: -abs(x[1]))
-        #         if len(haplotype_costs) == 0 or haplotype_costs[0][1] == 0:
-        #             # no hap support or having same score
-        #             continue
-        #         # release memory resource
-        #         del phasing_read_seq[read_name]
-        #         phaseset, quality = haplotype_costs[0]
-        #         haplotype = 1 if quality > 0 else 2
-        #         haplotag_dict[read_name] = haplotype
-        #         # skip if two scores are the same
 
         use_tensor_sample_mode = tensor_sample_mode and (candidates_type_dict[pos] == 'homo_somatic' or candidates_type_dict[pos] == 'hete_somatic') and pos in truths_variant_dict
         max_depth = param.tumor_matrix_depth_dict[platform] if is_tumor else param.normal_matrix_depth_dict[platform]
@@ -990,11 +928,6 @@ def create_tensor(args):
         ref_seq = reference_sequence[
                   pos - reference_start - flanking_base_num: pos - reference_start + flanking_base_num + 1].upper()
 
-        # if alt_fn and normal_pos_set is not None and int(pos) not in normal_pos_set:
-        #     continue
-        # if pos not in truths_variant_dict:
-        #     continue
-        # print (1)
         if not unify_repre:
             tensor, alt_info = generate_tensor(ctg_name=ctg_name,
                                                center_pos=pos,
@@ -1075,19 +1008,19 @@ def main():
     parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of sequence to be processed, required if --bed_fn is not defined")
 
-    parser.add_argument('--ctgStart', type=int, default=None,
+    parser.add_argument('--ctg_start', type=int, default=None,
                         help="The 1-based starting position of the sequence to be processed, optional, will process the whole --ctg_name if not set")
 
-    parser.add_argument('--ctgEnd', type=int, default=None,
+    parser.add_argument('--ctg_end', type=int, default=None,
                         help="The 1-based inclusive ending position of the sequence to be processed, optional, will process the whole --ctg_name if not set")
 
     parser.add_argument('--bed_fn', type=str, default=None,
-                        help="Call variant only in the provided regions. Will take an intersection if --ctg_name and/or (--ctgStart, --ctgEnd) are set")
+                        help="Call variant only in the provided regions. Will take an intersection if --ctg_name and/or (--ctg_start, --ctg_end) are set")
 
     parser.add_argument('--gvcf', type=str2bool, default=False,
                         help="Enable GVCF output, default: disabled")
 
-    parser.add_argument('--sampleName', type=str, default="SAMPLE",
+    parser.add_argument('--sample_name', type=str, default="SAMPLE",
                         help="Define the sample name to be shown in the GVCF file")
 
     parser.add_argument('--samtools', type=str, default="samtools",
@@ -1097,11 +1030,11 @@ def main():
     parser.add_argument('--minCoverage', type=float, default=param.min_coverage,
                         help="EXPERIMENTAL: Minimum coverage required to call a variant, default: %(default)f")
 
-    parser.add_argument('--minMQ', type=int, default=param.min_mq,
-                        help="EXPERIMENTAL: If set, reads with mapping quality with <$minMQ are filtered, default: %(default)d")
+    parser.add_argument('--min_mq', type=int, default=param.min_mq,
+                        help="EXPERIMENTAL: If set, reads with mapping quality with <$min_mq are filtered, default: %(default)d")
 
-    parser.add_argument('--minBQ', type=int, default=param.min_bq,
-                        help="EXPERIMENTAL: If set, bases with base quality with <$minBQ are filtered, default: %(default)d")
+    parser.add_argument('--min_bq', type=int, default=param.min_bq,
+                        help="EXPERIMENTAL: If set, bases with base quality with <$min_bq are filtered, default: %(default)d")
 
     parser.add_argument('--max_depth', type=int, default=param.max_depth,
                         help="EXPERIMENTAL: Maximum full alignment depth to be processed. default: %(default)s")
@@ -1147,10 +1080,6 @@ def main():
 
     ## The chuck ID to work on
     parser.add_argument('--chunk_id', type=int, default=None,
-                        help=SUPPRESS)
-
-    ## Only call variant in phased vcf file
-    parser.add_argument('--phased_vcf_fn', type=str, default=None,
                         help=SUPPRESS)
 
     ## Apply no phased data in training. Only works in data training, default: False
