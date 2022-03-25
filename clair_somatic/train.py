@@ -348,6 +348,7 @@ def train_model(args):
     print("[INFO] The training learning_rate: {}".format(learning_rate))
     print("[INFO] The output model folder: {}".format(ochk_prefix))
     print("[INFO] Apply focal loss in training: {}".format(apply_focal_loss))
+    print("[INFO] Discard germline in training: {}".format(discard_germline))
     print("[INFO] Add L2 regularization to model parameters: {}".format(apply_focal_loss))
 
     print('[INFO] Train steps:{}'.format(train_steps))
