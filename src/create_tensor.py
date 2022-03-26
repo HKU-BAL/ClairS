@@ -538,8 +538,8 @@ def generate_tensor(ctg_name,
             hap_type = 100 if is_tumor else 50
             for p in range(no_of_positions):
                 if tensor[row_idx][p][2] != 0:  # skip all del #*
-                    tensor[row_idx][p][4] = af_num
-                    tensor[row_idx][p][6] = hap_type
+                    tensor[row_idx][p][5] = af_num
+                    tensor[row_idx][p][7] = hap_type
 
 
         alt_info = []
@@ -618,7 +618,7 @@ def create_tensor(args):
     minimum_af_for_candidate = args.min_af
     minimum_snp_af_for_candidate = args.snp_min_af
     minimum_indel_af_for_candidate = args.indel_min_af
-    min_coverage = args.minCoverage
+    min_coverage = args.min_coverage
     platform = args.platform
     confident_bed_fn = args.bed_fn
     alt_fn = args.alt_fn
@@ -1027,7 +1027,7 @@ def main():
                         help="Path to the 'samtools', samtools version >= 1.10 is required. default: %(default)s")
 
     # options for advanced users
-    parser.add_argument('--minCoverage', type=float, default=param.min_coverage,
+    parser.add_argument('--min_coverage', type=float, default=param.min_coverage,
                         help="EXPERIMENTAL: Minimum coverage required to call a variant, default: %(default)f")
 
     parser.add_argument('--min_mq', type=int, default=param.min_mq,
