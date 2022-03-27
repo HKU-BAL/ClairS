@@ -1332,4 +1332,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-# /mnt/bal36/zxzheng/env/miniconda3/envs/clair3/bin/pypy3 ${CS} call_variants --predict_fn /mnt/bal36/zxzheng/TMP/tmp_alt --call_fn /mnt/bal36/zxzheng/TMP/tmp.vcf

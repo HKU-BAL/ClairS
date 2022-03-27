@@ -315,7 +315,6 @@ def find_tumor_alt_match(center_pos, sorted_read_name_list, pileup_dict, truths_
                 matched_read_name_set.add(read_name)
     return matched_read_name_set, normal_read_name_set
 
-#--bam_fn /mnt/bal36/zxzheng/somatic/ont/test_chr20-22/downsample/pair/tumor_chr20_0.17.bam --ref_fn /mnt/bal36/zxzheng/testData/ont/data/GRCh38_no_alt_analysis_set.fasta --ctg_name chr20 --samtools /autofs/bal33/zxzheng/env/conda/envs/samtools/bin/samtools --min_af 0.15 --full_aln_regions /mnt/bal36/zxzheng/somatic/ont/test_chr20-22/build/candidates/chr20.40_229 --tensor_can_fn /mnt/bal36/zxzheng/somatic/ont/test_chr20-22/build/0.17_chr20.40_229 --alt_fn /mnt/bal36/zxzheng/somatic/ont/test_chr20-22/build/normal_alt_output/0.17_chr20.40_229 --platform ont --tensor_sample_mode 1 --truth_vcf_fn /mnt/bal36/zxzheng/somatic/ont/test_chr20-22/build/unified_vcf/unified_hg004_chr20 --test_pos False
 def generate_tensor(ctg_name,
                     center_pos,
                     sorted_read_name_list,

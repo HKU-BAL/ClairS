@@ -481,21 +481,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-    # for pos, variant_type in fp_list + tp_list:
-    #
-    #     vcf_format = "%s\t%d\t.\t%s\t%s\t%d\t%s\t%s\tGT:GQ:DP:AF:VT\t%s:%d:%d:%.4f:%s" % (
-    #         contig_name,
-    #         int(pos),
-    #         "A",
-    #         "A",
-    #         10,
-    #         'PASS',
-    #         '.',
-    #         "0/0",
-    #         10,
-    #         10,
-    #         0.5,
-    #         variant_type)
-    #     print(vcf_format)
-"#CHROM  POS     ID      REF     ALT     QUAL    FILTER  INFO    FORMAT  SAMPLE"

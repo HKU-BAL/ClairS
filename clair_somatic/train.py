@@ -550,5 +550,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# time /mnt/bal36/zxzheng/env/miniconda3/envs/clair3/bin/python3 /mnt/bal36/zxzheng/somatic/Clair-somatic/clair-somatic.py Train_torch --bin_fn /mnt/bal36/zxzheng/somatic/ont/12345/build/bins --ochk_prefix /mnt/bal36/zxzheng/somatic/ont/12345/train/torch_test_test_writer --platform ont --use_resnet 0 --add_writer 1 --ctg_name chr1,chr2,chr3,chr4,chr5
