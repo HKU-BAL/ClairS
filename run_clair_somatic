@@ -1,0 +1,803 @@
+#!/usr/bin/env python
+import os
+import sys
+import argparse
+import shlex
+import subprocess
+
+from collections import defaultdict, namedtuple
+from argparse import SUPPRESS
+from distutils.version import LooseVersion
+
+import shared.param as param
+from shared.interval_tree import bed_tree_from
+from shared.utils import file_path_from, folder_path_from, subprocess_popen, str2bool, \
+    legal_range_from, log_error, log_warning
+
+version = "0.1"
+
+major_contigs = {"chr" + str(a) for a in list(range(1, 23)) + ["X", "Y"]}.union(
+    {str(a) for a in list(range(1, 23)) + ["X", "Y"]})
+major_contigs_order = ["chr" + str(a) for a in list(range(1, 23)) + ["X", "Y"]] + [str(a) for a in
+                                                                                   list(range(1, 23)) + ["X", "Y"]]
+
+file_directory = os.path.dirname(os.path.realpath(__file__))
+main_entry = os.path.join(file_directory, "clair-somatic.py")
+MAX_STEP = 3
+OutputPath = namedtuple('OutputPath', [
+    'log_path',
+    'tmp_file_path',
+    'split_bed_path',
+    'candidates_path',
+    'tensor_can_path',
+    'vcf_output_path',
+])
+
+
+def create_output_folder(args):
+    # create temp file folder
+    args.output_dir = folder_path_from(args.output_dir, create_not_found=True)
+    log_path = folder_path_from(os.path.join(args.output_dir, 'logs'), create_not_found=True)
+    tmp_file_path = folder_path_from(os.path.join(args.output_dir, 'tmp'), create_not_found=True)
+    split_bed_path = folder_path_from(os.path.join(tmp_file_path, 'split_beds'),
+                                      create_not_found=True) if args.bed_fn or args.vcf_fn else None
+    candidates_path = folder_path_from(os.path.join(tmp_file_path, 'candidates'), create_not_found=True)
+    tensor_can_path = folder_path_from(os.path.join(tmp_file_path, 'tensor_can'), create_not_found=True)
+    vcf_output_path = folder_path_from(os.path.join(tmp_file_path, 'vcf_output'), create_not_found=True)
+    output_path = OutputPath(log_path=log_path,
+                             tmp_file_path=tmp_file_path,
+                             split_bed_path=split_bed_path,
+                             candidates_path=candidates_path,
+                             tensor_can_path=tensor_can_path,
+                             vcf_output_path=vcf_output_path)
+    return output_path
+
+def check_version(tool, pos=None, is_pypy=False):
+    try:
+        if is_pypy:
+            proc = subprocess.run("{} -c 'import sys; print (sys.version)'".format(tool), stdout=subprocess.PIPE,
+                                  shell=True)
+        else:
+            proc = subprocess.run([tool, "--version"], stdout=subprocess.PIPE)
+        if proc.returncode != 0:
+            return None
+        first_line = proc.stdout.decode().split("\n", 1)[0]
+        version = first_line.split()[pos]
+        version = LooseVersion(version)
+    except Exception:
+        return None
+
+    return version
+
+def check_skip_steps_legal(args):
+    skip_steps = args.skip_steps
+    skip_steps_list = skip_steps.rstrip().split(",")
+    if len(skip_steps_list) == 0:
+        sys.exit(log_error("[ERROR] --check_skip_steps option provided but no skip steps index found"))
+    for step in skip_steps_list:
+        if int(step) < 1 or int(step) > MAX_STEP:
+            sys.exit(log_error("[ERROR] --check_skip_steps option provided skip steps index is not avaliable, should be 1-index"))
+
+def check_python_path():
+    python_path = subprocess.run("which python", stdout=subprocess.PIPE, shell=True).stdout.decode().rstrip()
+    sys.exit(log_error("[ERROR] Current python execution path: {}".format(python_path)))
+
+
+def check_tools_version(args):
+
+    required_tool_version = {
+        'python': LooseVersion('3.6.10'),
+        'pypy': LooseVersion('3.6'),
+        'samtools': LooseVersion('1.10'),
+        'whatshap': LooseVersion('1.0'),
+        'parallel': LooseVersion('20191122'),
+    }
+
+    tool_version = {
+        'python': LooseVersion(sys.version.split()[0]),
+        'pypy': check_version(tool=args.pypy, pos=0, is_pypy=True),
+        'samtools': check_version(tool=args.samtools, pos=1),
+
+    }
+
+    for tool, version in tool_version.items():
+        required_version = required_tool_version[tool]
+        if version is None:
+            print(log_error("[ERROR] {} not found, please check you are in clair3 virtual environment".format(tool)))
+            check_python_path()
+        elif version < required_version:
+            print(log_error("[ERROR] Tool version not match, please check you are in clair3 virtual environment"))
+            print(' '.join([str(item).ljust(10) for item in ["Tool", "Version", "Required"]]))
+            error_info = ' '.join([str(item).ljust(10) for item in [tool, version, '>=' + str(required_version)]])
+            print(error_info)
+            check_python_path()
+    return
+
+
+def check_contig_in_bam(bam_fn, sorted_contig_list, samtools, allow_none=False):
+    if allow_none and bam_fn is None:
+        return sorted_contig_list, True
+    bai_process = subprocess_popen(shlex.split("{} idxstats {}".format(samtools, bam_fn)))
+    contig_with_read_support_set = set()
+    for row_id, row in enumerate(bai_process.stdout):
+        row = row.split('\t')
+        if len(row) != 4:
+            continue
+        contig_name, contig_length, mapped_reads, unmapped_reads = row
+        if contig_name not in sorted_contig_list:
+            continue
+        if int(mapped_reads) > 0:
+            contig_with_read_support_set.add(contig_name)
+    for contig_name in sorted_contig_list:
+        if contig_name not in contig_with_read_support_set:
+            print(log_warning(
+                "[WARNING] Contig name {} provided but no mapped reads in BAM, skip!".format(contig_name)))
+    filtered_sorted_contig_list = [item for item in sorted_contig_list if item in contig_with_read_support_set]
+
+    found_contig = True
+    if len(filtered_sorted_contig_list) == 0:
+        found_contig = False
+        print(log_warning(
+            "[WARNING] No mapped reads support in BAM for provided contigs set {}".format(
+                ' '.join(sorted_contig_list))))
+    return filtered_sorted_contig_list, found_contig
+
+
+def check_threads(args):
+    threads = args.threads
+    sched_getaffinity_list = list(os.sched_getaffinity(0))
+    num_cpus = len(sched_getaffinity_list)
+
+    if threads > num_cpus:
+        print(log_warning(
+            '[WARNING] Current maximum threads {} is larger than support cpu count {},'.format(
+                threads, num_cpus)))
+        print(log_warning('Set --threads={} for better parallelism.'.format(num_cpus)))
+        args.threads = num_cpus
+    return args
+
+def split_extend_vcf(vcf_fn, output_fn):
+    expand_region_size = param.no_of_positions
+    output_ctg_dict = defaultdict(list)
+    unzip_process = subprocess_popen(shlex.split("gzip -fdc %s" % (vcf_fn)))
+
+    for row_id, row in enumerate(unzip_process.stdout):
+        if row[0] == '#':
+            continue
+        columns = row.strip().split(maxsplit=3)
+        ctg_name = columns[0]
+
+        center_pos = int(columns[1])
+        ctg_start, ctg_end = center_pos - 1, center_pos
+        if ctg_start < 0:
+            sys.exit(
+                log_error("[ERROR] Invalid VCF input in {}-th row {} {} {}".format(row_id + 1, ctg_name, center_pos)))
+        if ctg_start - expand_region_size < 0:
+            continue
+        expand_ctg_start = ctg_start - expand_region_size
+        expand_ctg_end = ctg_end + expand_region_size
+
+        output_ctg_dict[ctg_name].append(
+            ' '.join([ctg_name, str(expand_ctg_start), str(expand_ctg_end)]))
+
+    for key, value in output_ctg_dict.items():
+        ctg_output_fn = os.path.join(output_fn, key)
+        with open(ctg_output_fn, 'w') as output_file:
+            output_file.write('\n'.join(value))
+
+    unzip_process.stdout.close()
+    unzip_process.wait()
+
+    know_vcf_contig_set = set(list(output_ctg_dict.keys()))
+
+    return know_vcf_contig_set
+
+
+def split_extend_bed(bed_fn, output_fn, contig_set=None):
+    expand_region_size = param.no_of_positions
+    output_ctg_dict = defaultdict(list)
+    unzip_process = subprocess_popen(shlex.split("gzip -fdc %s" % (bed_fn)))
+    for row_id, row in enumerate(unzip_process.stdout):
+        if row[0] == '#':
+            continue
+        columns = row.strip().split()
+        ctg_name = columns[0]
+        if contig_set and ctg_name not in contig_set:
+            continue
+
+        ctg_start, ctg_end = int(columns[1]), int(columns[2])
+
+        if ctg_end < ctg_start or ctg_start < 0 or ctg_end < 0:
+            sys.exit(log_error(
+                "[ERROR] Invalid BED input in {}-th row {} {} {}".format(row_id + 1, ctg_name, ctg_start, ctg_end)))
+        expand_ctg_start = max(0, ctg_start - expand_region_size)
+        expand_ctg_end = max(0, ctg_end + expand_region_size)
+        output_ctg_dict[ctg_name].append(
+            ' '.join([ctg_name, str(expand_ctg_start), str(expand_ctg_end)]))
+
+    for key, value in output_ctg_dict.items():
+        ctg_output_fn = os.path.join(output_fn, key)
+        with open(ctg_output_fn, 'w') as output_file:
+            output_file.write('\n'.join(value))
+
+    unzip_process.stdout.close()
+    unzip_process.wait()
+
+
+
+def check_contigs_intersection(args, fai_fn):
+
+    MIN_CHUNK_LENGTH = 200000
+    MAX_CHUNK_LENGTH = 20000000
+    # contig_name_list = os.path.join(args.output_dir, 'tmp','CONTIGS')
+    # chunk_list = os.path.join(args.output_dir, 'tmp', 'CHUNK_LIST')
+    is_include_all_contigs = args.include_all_ctgs
+    is_bed_file_provided = args.bed_fn is not None
+    is_known_vcf_file_provided = args.vcf_fn is not None
+    is_ctg_name_list_provided = args.ctg_name is not None
+
+    split_bed_path = os.path.join(args.output_dir, 'tmp', 'split_beds')
+    tree = bed_tree_from(bed_file_path=args.bed_fn)
+    know_vcf_contig_set = split_extend_vcf(vcf_fn=args.vcf_fn, output_fn=split_bed_path) if is_known_vcf_file_provided else set()
+    contig_set = set(args.ctg_name.split(',')) if is_ctg_name_list_provided else set()
+
+    if not args.include_all_ctgs:
+        print("[INFO] --include_all_ctgs not enabled, use chr{1..22,X,Y} and {1..22,X,Y} by default")
+    else:
+        print("[INFO] --include_all_ctgs enabled")
+
+    if is_ctg_name_list_provided and is_bed_file_provided:
+        print(log_warning("[WARNING] both --ctg_name and --bed_fn provided, will only proceed contigs in intersection"))
+
+    if is_ctg_name_list_provided and is_known_vcf_file_provided:
+        print(log_warning("[WARNING] both --ctg_name and --vcf_fn provided, will only proceed contigs in intersection"))
+
+    if is_ctg_name_list_provided:
+        contig_set = contig_set.intersection(
+            set(tree.keys())) if is_bed_file_provided else contig_set
+        contig_set = contig_set.intersection(
+            know_vcf_contig_set) if is_known_vcf_file_provided else contig_set
+    else:
+        contig_set = contig_set.union(
+            set(tree.keys())) if is_bed_file_provided else contig_set
+
+        contig_set = contig_set.union(
+            know_vcf_contig_set) if is_known_vcf_file_provided else contig_set
+
+    # if each split region is too small(long) for given default chunk num, will increase(decrease) the total chunk num
+    default_chunk_num = 0
+    DEFAULT_CHUNK_SIZE = args.chunk_size
+    contig_length_list = []
+    contig_chunk_num = {}
+
+    with open(fai_fn, 'r') as fai_fp:
+        for row in fai_fp:
+            columns = row.strip().split("\t")
+            contig_name, contig_length = columns[0], int(columns[1])
+            if not is_include_all_contigs and (
+            not (is_bed_file_provided or is_ctg_name_list_provided or is_known_vcf_file_provided)) and str(
+                    contig_name) not in major_contigs:
+                continue
+
+            if is_bed_file_provided and contig_name not in tree:
+                continue
+            if is_ctg_name_list_provided and contig_name not in contig_set:
+                continue
+            if is_known_vcf_file_provided and contig_name not in contig_set:
+                continue
+
+            contig_set.add(contig_name)
+            contig_length_list.append(contig_length)
+            chunk_num = int(
+                contig_length / float(DEFAULT_CHUNK_SIZE)) + 1 if contig_length % DEFAULT_CHUNK_SIZE else int(
+                contig_length / float(DEFAULT_CHUNK_SIZE))
+            contig_chunk_num[contig_name] = max(chunk_num, 1)
+
+    if default_chunk_num > 0:
+        min_chunk_length = min(contig_length_list) / float(default_chunk_num)
+        max_chunk_length = max(contig_length_list) / float(default_chunk_num)
+
+    contigs_order = major_contigs_order + list(contig_set)
+
+    sorted_contig_list = sorted(list(contig_set), key=lambda x: contigs_order.index(x))
+
+    found_contig = True
+    if not len(contig_set):
+        if is_bed_file_provided:
+            all_contig_in_bed = ' '.join(list(tree.keys()))
+            print(log_warning("[WARNING] No contig intersection found by --bed_fn, contigs in BED {}: {}".format(bed_fn, all_contig_in_bed)))
+        if is_known_vcf_file_provided:
+            all_contig_in_vcf = ' '.join(list(know_vcf_contig_set))
+            print(log_warning("[WARNING] No contig intersection found by --vcf_fn, contigs in VCF {}: {}".format(vcf_fn, all_contig_in_vcf)))
+        if is_ctg_name_list_provided:
+            all_contig_in_ctg_name = ' '.join(args.ctg_name.split(','))
+            print(log_warning("[WARNING] No contig intersection found by --ctg_name, contigs in contigs list: {}".format(all_contig_in_ctg_name)))
+        found_contig = False
+    else:
+        for c in sorted_contig_list:
+            if c not in contig_chunk_num:
+                print(log_warning(("[WARNING] Contig {} given but not found in reference fai file".format(c))))
+
+        # check contig in bam have support reads
+        sorted_contig_list, tumor_found_contig = check_contig_in_bam(bam_fn=args.tumor_bam_fn, sorted_contig_list=sorted_contig_list,
+                                                               samtools=args.samtools)
+
+        sorted_contig_list, normal_found_contig = check_contig_in_bam(bam_fn=args.normal_bam_fn, sorted_contig_list=sorted_contig_list,
+                                                               samtools=args.samtools, allow_none=True)
+        found_contig = tumor_found_contig and normal_found_contig
+
+    if not found_contig:
+        return
+
+    print('[INFO] Call variant in contigs: {}'.format(' '.join(sorted_contig_list)))
+    print('[INFO] Chunk number for each contig: {}'.format(
+        ' '.join([str(contig_chunk_num[c]) for c in sorted_contig_list])))
+
+    if default_chunk_num > 0 and max_chunk_length > MAX_CHUNK_LENGTH:
+        print(log_warning(
+            '[WARNING] Current maximum chunk size {} is larger than default maximum chunk size {}, You may set a larger chunk_num by setting --chunk_num=$ for better parallelism.'.format(
+                min_chunk_length, MAX_CHUNK_LENGTH)))
+
+    elif default_chunk_num > 0 and min_chunk_length < MIN_CHUNK_LENGTH:
+        print(log_warning(
+            '[WARNING] Current minimum chunk size {} is smaller than default minimum chunk size {}, You may set a smaller chunk_num by setting --chunk_num=$.'.format(
+                min_chunk_length, MIN_CHUNK_LENGTH)))
+
+    if default_chunk_num == 0 and max(contig_length_list) < DEFAULT_CHUNK_SIZE / 5:
+        print(log_warning(
+            '[WARNING] Current maximum contig length {} is much smaller than default chunk size {}, You may set a smaller chunk size by setting --chunk_size=$ for better parallelism.'.format(
+                max(contig_length_list), DEFAULT_CHUNK_SIZE)))
+
+    if is_bed_file_provided:
+        split_extend_bed(bed_fn=args.bed_fn, output_fn=split_bed_path, contig_set=contig_set)
+
+    # with open(contig_name_list, 'w') as output_file:
+    #     output_file.write('\n'.join(sorted_contig_list))
+
+    chunk_list = []
+    # with open(chunk_list, 'w') as output_file:
+    for contig_name in sorted_contig_list:
+        chunk_num = contig_chunk_num[contig_name]
+        for chunk_id in range(1, chunk_num + 1):
+            # output_file.write(contig_name + ' ' + str(chunk_id) + ' ' + str(chunk_num) + '\n')
+            chunk_list.append((contig_name, chunk_id, chunk_num))
+    args.chunk_list = chunk_list
+    return args
+
+def check_args(args):
+
+    args.normal_bam_fn = file_path_from(file_name=args.normal_bam_fn, exit_on_not_found=True, allow_none=True)
+    normal_bai_fn = file_path_from(file_name=args.normal_bam_fn, suffix=".bai", exit_on_not_found=True, sep='.', allow_none=True)
+    args.tumor_bam_fn = file_path_from(file_name=args.tumor_bam_fn, exit_on_not_found=True)
+    tumor_bai_fn = file_path_from(file_name=args.tumor_bam_fn, suffix=".bai", exit_on_not_found=True, sep='.')
+    args.ref_fn = file_path_from(file_name=args.ref_fn, exit_on_not_found=True)
+    fai_fn = file_path_from(file_name=args.ref_fn, suffix=".fai", exit_on_not_found=True, sep='.')
+    args.bed_fn = file_path_from(file_name=args.bed_fn, exit_on_not_found=True, allow_none=True)
+    args.vcf_fn = file_path_from(file_name=args.vcf_fn, exit_on_not_found=True, allow_none=True)
+    args.model_dir = file_path_from(file_name=args.model_dir, is_directory=True)
+
+    if args.snp_min_af is None:
+        args.snp_min_af = 0.08
+    if args.indel_min_af is None:
+        args.indel_min_af = 1.0
+    if args.qual is None:
+        args.qual = 2
+    if args.chunk_size is None:
+        args.chunk_size = 1000000
+    if args.platform != 'ont' and args.platform != 'hifi' and args.platform != 'ilmn':
+        print(log_error('[ERROR] Invalid platform input, optional: {ont, hifi, ilmn}'))
+    if args.skip_steps is not None:
+        check_skip_steps_legal(args)
+
+    legal_range_from(param_name="threads", x=args.threads, min_num=1, exit_out_of_range=True)
+    legal_range_from(param_name="qual", x=args.qual, min_num=0, exit_out_of_range=True)
+    legal_range_from(param_name="snp_min_af", x=args.snp_min_af, min_num=0, max_num=1, exit_out_of_range=True)
+    legal_range_from(param_name="indel_min_af", x=args.indel_min_af, min_num=0, max_num=1, exit_out_of_range=True)
+    # print (args)
+    args.output_path = create_output_folder(args)
+    # check_tools_version(args=args)
+    args = check_threads(args=args)
+    args = check_contigs_intersection(args=args, fai_fn=fai_fn)
+
+    return args
+
+
+def print_args(args):
+
+    # set default options
+    try:
+        conda_prefix = os.environ['CONDA_PREFIX']
+    except:
+        sys.exit(log_error("[ERROR] Conda prefix not found, please activate clair3 conda environment first"))
+
+    if args.model_dir is None:
+        args.model_dir = os.path.join(conda_prefix, 'bin')
+
+    print("")
+    print("[INFO] CLAIR SOMATIC VERSION: {}".format(version))
+    print("[INFO] NORMAL BAM FILE PATH: {}".format(args.normal_bam_fn))
+    print("[INFO] TUMOR BAM FILE PATH: {}".format(args.tumor_bam_fn))
+    print("[INFO] REFERENCE FILE PATH: {}".format(args.ref_fn))
+    print("[INFO] MODEL FOLDER: {}".format(args.model_dir))
+    print("[INFO] OUTPUT FOLDER: {}".format(args.output_dir))
+    print("[INFO] PLATFORM: {}".format(args.platform))
+    print("[INFO] THREADS: {}".format(args.threads))
+    print("[INFO] BED FILE PATH: {}".format(args.bed_fn))
+    print("[INFO] VCF FILE PATH: {}".format(args.vcf_fn))
+    print("[INFO] CONTIGS: {}".format(args.ctg_name))
+    print("[INFO] CONDA PREFIX: {}".format(conda_prefix))
+    print("[INFO] SAMTOOLS PATH: {}".format(args.samtools))
+    print("[INFO] PYTHON PATH: {}".format(args.python))
+    print("[INFO] PYPY PATH: {}".format(args.pypy))
+    print("[INFO] CHUNK SIZE: {}".format(args.chunk_size))
+    print("[INFO] SNP THRESHOLD: {}".format(args.snp_min_af))
+    print("[INFO] INDEL THRESHOLD: {}".format(args.indel_min_af))
+    print("[INFO] SKIP STEPS: {}".format(args.skip_steps))
+    print("[INFO] ENABLE USE GPU: {}".format(args.use_gpu))
+    print("[INFO] ENABLE COMMAND DRY RUN: {}".format(args.dry_run))
+    print("[INFO] ENABLE CALLING SNP CANDIDATES ONLY: {}".format(args.call_snp_only))
+    print("[INFO] ENABLE PRINTING REFERENCE CALLS: {}".format(args.print_ref_calls))
+    print("[INFO] ENABLE INCLUDE ALL CTGS CALLING: {}".format(args.include_all_ctgs))
+    print("[INFO] ENABLE REMOVING INTERMEDIATE FILES: {}".format(args.remove_intermediate_dir))
+    print("")
+
+    return args
+
+
+def somatic_calling(args):
+
+    echo_list = []
+    # STEP 1: EXTRACT CANDIDATES
+    echo_list.append("[INFO] STEP 1: Extract Tumor Candidates")
+    ec_command = 'time ' + args.parallel
+    ec_command += ' --joblog ' + args.output_dir + '/logs/parallel_1_extract_tumor_candidates.log'
+    ec_command += ' -j ' + str(args.threads)
+    ec_command += ' ' + args.pypy + ' ' + main_entry + ' extract_candidates'
+    ec_command += ' --bam_fn ' + args.tumor_bam_fn
+    ec_command += ' --ref_fn ' + args.ref_fn
+    ec_command += ' --samtools ' + args.samtools
+    ec_command += ' --snp_min_af ' + str(args.snp_min_af)
+    ec_command += ' --indel_min_af ' + str(args.indel_min_af)
+    ec_command += ' --chunk_id {1} '
+    ec_command += ' --chunk_num ' + str(args.chunk_num)
+    ec_command += ' --ctg_name ' + str(args.ctg_name)
+    ec_command += ' --bed_fn ' + str(args.bed_fn)
+    ec_command += ' --extend_bed ' + str(args.bed_fn)
+    ec_command += ' --candidates_folder ' + args.output_dir + '/tmp/candidates'
+    ec_command += ' --test_pos False '
+    ec_command += ' --output_depth True '
+    ec_command += ' ::: ' + " ".join([str(i+1) for i in range(args.chunk_num)])
+    ec_command += ' |& tee ' + args.output_dir + '/logs/1_EC.log'
+    ec_command += ' && cat {}/tmp/candidates/FULL_ALN_FILE_* > {}/tmp/candidates/FULL_ALN_FILES '.format(args.output_dir, args.output_dir)
+
+    # STEP 2: CREATE PAIR TENSOR
+    echo_list.append("[INFO] STEP 2: Create Pair Tensor")
+    cpt_command = 'time ' + args.parallel
+    cpt_command += ' --joblog ' + args.output_dir + '/logs/parallel_2_create_pair_tensor.log'
+    cpt_command += ' -j ' + str(args.threads)
+    cpt_command += ' ' + args.pypy + ' ' + main_entry + ' create_pair_tensor'
+    cpt_command += ' --normal_bam_fn ' + args.normal_bam_fn
+    cpt_command += ' --tumor_bam_fn ' + args.tumor_bam_fn
+    cpt_command += ' --ref_fn ' + args.ref_fn
+    cpt_command += ' --ctg_name ' + str(args.ctg_name)
+    cpt_command += ' --samtools ' + args.samtools
+    cpt_command += ' --full_aln_regions {1}'
+    cpt_command += ' --tensor_can_fn ' + args.output_dir + '/tmp/tensor_can/{1/} '
+    cpt_command += ' --platform ' + args.platform
+    cpt_command += ' --test_pos False '
+    cpt_command += ' :::: ' + args.output_dir + '/tmp/candidates/FULL_ALN_FILES'
+    cpt_command += ' |& tee ' + args.output_dir + '/logs/2_CPT.log'
+
+    # STEP 3: PREDICT
+    echo_list.append("[INFO] STEP 3: Model Prediction")
+    predict_command = 'time ' + args.parallel
+    predict_command += ' --joblog ' + args.output_dir + '/logs/parallel_3_predict.log'
+    predict_command += ' -j ' + str(args.threads)
+    predict_command += ' ' + args.python + ' ' + main_entry + ' predict'
+    predict_command += ' --tensor_fn ' + args.output_dir + '/tmp/tensor_can/{1/} '
+    predict_command += ' --call_fn ' + args.output_dir + '/tmp/vcf_output/{1/}.vcf'
+    predict_command += ' --chkpnt_fn ' + args.model_dir
+    predict_command += ' --use_gpu ' + str(args.use_gpu)
+    predict_command += ' --platform ' + args.platform
+    predict_command += ' :::: ' + args.output_dir + '/tmp/candidates/FULL_ALN_FILES'
+    predict_command += ' |& tee ' + args.output_dir + '/logs/3_PREDICT.log'
+
+    # STEP 4: MERGE VCF
+    echo_list.append("[INFO] STEP 4: Merge VCF")
+    mv_command = 'time ' + args.pypy + ' ' + main_entry + ' sort_vcf'
+    mv_command += ' --ref_fn ' + args.ref_fn
+    mv_command += ' --input_dir ' + args.output_dir + '/tmp/vcf_output'
+    mv_command += ' --output_fn ' + args.output_dir + 'somatic_output.vcf'
+
+    commands_list = [ec_command, cpt_command, predict_command, mv_command]
+    # EXECUTE COMMAND
+    skip_steps = args.skip_steps.rstrip().split(',') if args.skip_steps else None
+    for i, (command, echo) in enumerate(zip(commands_list, echo_list)):
+
+        print(echo)
+        print(command)
+        print("")
+        if not args.dry_run:
+            if skip_steps is not None and str(i+1) in skip_steps:
+                print("[INFO] --skip_steps is enabled , skip running step {}!".format(i+1))
+                print("")
+                continue
+            try:
+                return_code = subprocess.check_call(command, shell=True)
+            except subprocess.CalledProcessError as e:
+                sys.stderr.write("ERROR in STEP {}, THE FOLLOWING COMMAND FAILED: {}\n".format(i+1, command))
+                exit(1)
+
+        print("")
+
+    print("[INFO] Finish calling, output file: {}/somatic_output.vcf.gz".format(args.output_dir))
+
+
+def somatic_parser():
+
+    parser = argparse.ArgumentParser(
+        description='Run clair-somatic for somatic variant calling. Example run: clair-somatic -n NORMAL_BAM -t TUMOR_BAM -f REF -o OUTPUT_DIR -@ THREADS -p PLATFORM')
+
+    # print version
+    parser.add_argument('-v', '--version', action='version',
+                        version='%(prog)s {}'.format(version))
+
+    required_params = parser.add_argument_group('Required parameters')
+    required_params.add_argument(
+        '-t',
+        "--tumor_bam_fn",
+        type=str,
+        required=True,
+        default=None,
+        help="Tumor BAM file input. The input file must be samtools indexed."
+    )
+
+    required_params.add_argument(
+        "-f",
+        "--ref_fn",
+        type=str,
+        required=True,
+        default=None,
+        help="FASTA reference file input. The input file must be samtools indexed."
+    )
+
+    required_params.add_argument(
+        "-o",
+        "--output_dir",
+        type=str,
+        required=True,
+        default=None,
+        help="VCF output directory."
+    )
+
+    required_params.add_argument(
+        "-@",
+        "--threads",
+        required=True,
+        type=int,
+        default=None,
+        help="Max #threads to be used."
+    )
+
+    required_params.add_argument(
+        "-p",
+        "--platform",
+        required=True,
+        type=str,
+        default=None,
+        help="Select the sequencing platform of the input. Possible options: {ont,hifi,ilmn}."
+    )
+
+    optional_params = parser.add_argument_group('Optional parameters')
+    optional_params.add_argument(
+        "-n",
+        "--normal_bam_fn",
+        type=str,
+        default=None,
+        help="Normal BAM file input. The input file must be samtools indexed."
+    )
+
+    optional_params.add_argument(
+        "-m",
+        "--model_dir",
+        type=str,
+        default=None,
+        help="The folder path containing a somatic model."
+    )
+
+    optional_params.add_argument(
+        "-c",
+        "--ctg_name",
+        type=str,
+        default=None,
+        help="The name of the contigs to be processed. Split by ',' for multiple contigs"
+    )
+
+    region_group = optional_params.add_mutually_exclusive_group(required=False)
+
+    region_group.add_argument(
+        "-r",
+        "--region",
+        type=str,
+        default=None,
+        help="Region in [ctg_name:start-end] format(1-index). Default is None."
+    )
+
+    region_group.add_argument(
+        "-b",
+        "--bed_fn",
+        type=str,
+        default=None,
+        help="Path to BED file. Call variants only in the provided bed regions."
+    )
+
+    region_group.add_argument(
+        "-V",
+        "--vcf_fn",
+        type=str,
+        default=None,
+        help="Candidate sites VCF file input, variants will only be called at the sites in the VCF file if provided."
+    )
+
+    optional_params.add_argument(
+        '-q',
+        "--qual",
+        type=int,
+        default=None,
+        help="If set, variants with >$qual will be marked PASS, or LowQual otherwise."
+    )
+
+    optional_params.add_argument(
+        "--snp_min_af",
+        type=float,
+        default=None,
+        help="Minimum SNP AF required for a candidate variant. Lowering the value might increase a bit of sensitivity in trade of speed and accuracy, default: 0.08"
+    )
+
+    optional_params.add_argument(
+        "--indel_min_af",
+        type=float,
+        default=None,
+        help="Minimum Indel AF required for a candidate variant. Lowering the value might increase a bit of sensitivity in trade of speed and accuracy, default: ont:0.08"
+    )
+
+    optional_params.add_argument(
+        "--chunk_size",
+        type=int,
+        default=None,
+        help="The size of each chuck for parallel processing, default: 5000000."
+    )
+
+    optional_params.add_argument(
+        "-g",
+        "--use_gpu",
+        default=False,
+        action='store_true',
+        help="If set then will use GPUs for inference. CUDA required."
+    )
+
+    optional_params.add_argument(
+        "-s",
+        "--sample_name",
+        type=str,
+        default="Sample",
+        help="Define the sample name to be shown in the VCF file."
+    )
+
+    optional_params.add_argument(
+        "--output_prefix",
+        type=str,
+        default="somatic",
+        help="Prefix for output VCF filename."
+    )
+
+    optional_params.add_argument(
+        "--remove_intermediate_dir",
+        default=False,
+        action='store_true',
+        help="Remove intermediate directory. Default: False"
+    )
+
+    optional_params.add_argument(
+        "--include_all_ctgs",
+        default=False,
+        action='store_true',
+        help="Call variants on all contigs, otherwise call in chr{1..22,X,Y} and {1..22,X,Y}, default: disable."
+    )
+
+    optional_params.add_argument(
+        "--call_snp_only",
+        default=False,
+        action='store_true',
+        help="Call candidates pass SNP minimum AF only, ignore Indel candidates, default: disable."
+    )
+
+    optional_params.add_argument(
+        "--print_ref_calls",
+        default=False,
+        action='store_true',
+        help="Show reference calls (0/0) in VCF file, default: disable."
+    )
+
+    optional_params.add_argument(
+        '-d',
+        "--dry_run",
+        default=False,
+        action='store_true',
+        help="If true then only the commands will be printed."
+    )
+
+    optional_params.add_argument(
+        "--python",
+        type=str,
+        default="python3",
+        help="Path of python, python3 >= 3.6 is required."
+    )
+
+    optional_params.add_argument(
+        "--pypy",
+        type=str,
+        default="pypy3",
+        help="Path of pypy3, pypy3 >= 3.6 is required."
+    )
+
+    optional_params.add_argument(
+        "--samtools",
+        type=str,
+        default="samtools",
+        help="Path of samtools, samtools version >= 1.10 is required."
+    )
+
+    optional_params.add_argument(
+        "--parallel",
+        type=str,
+        default="parallel",
+        help="Path of samtools, samtools version >= 1.10 is required."
+    )
+
+    # options for internal process control
+    ##List of (ctg_name, chunk_id, chunk_num)
+    optional_params.add_argument(
+        "--chunk_list",
+        type=str,
+        default=None,
+        help=SUPPRESS
+    )
+
+    optional_params.add_argument(
+        "--chunk_num",
+        type=int,
+        default=30,
+        help=SUPPRESS
+    )
+
+    optional_params.add_argument(
+        "--output_path",
+        type=str,
+        default=None,
+        help=SUPPRESS
+    )
+
+    optional_params.add_argument(
+        "--skip_steps",
+        type=str,
+        default=None,
+        help=SUPPRESS
+    )
+
+    return parser
+
+def main():
+    """
+    Main interface for clair-somatic.
+    """
+
+    parser = somatic_parser()
+    args = parser.parse_args()
+    args = check_args(args)
+    args = print_args(args)
+    somatic_calling(args)
+
+
+if __name__ == '__main__':
+    main()
