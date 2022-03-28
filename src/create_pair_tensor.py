@@ -72,11 +72,11 @@ class Position(object):
         # only proceed when variant exists in candidate windows which greatly improves efficiency
         self.update_info = True
         self.read_name_dict = dict(zip(self.read_name_list, self.base_list))
-        # self.mapping_quality = [_normalize_mq(phredscore2raw_score(item)) for item in self.raw_mapping_quality]
+        self.mapping_quality = [_normalize_mq(phredscore2raw_score(item)) for item in self.raw_mapping_quality]
         self.base_quality = [_normalize_bq(phredscore2raw_score(item)) for item in self.raw_base_quality]
 
-        for read_name, base_info, bq in zip(self.read_name_list, self.base_list, self.base_quality,):
-            read_channel, ins_base, query_base = get_tensor_info(base_info, bq, self.ref_base)#, mq)
+        for read_name, base_info, bq, mq in zip(self.read_name_list, self.base_list, self.base_quality, self.mapping_quality):
+            read_channel, ins_base, query_base = get_tensor_info(base_info, bq, self.ref_base, mq)
             self.read_info[read_name] = (read_channel, ins_base)
 
 
@@ -166,7 +166,7 @@ def get_tensor_info(base_info, bq, ref_base, read_mq=None):
     if len(indel) and indel[0] in '+-':
         if indel[0] == "+":
             ins_base = indel[1:].upper()
-    read_channel[:4] = REF_BASE, ALT_BASE, strand, bq #read_mq,
+    read_channel[:5] = REF_BASE, ALT_BASE, strand, bq, read_mq,
     query_base = "" if base_upper not in "ACGT" else base_upper
     return read_channel, ins_base, query_base
 
@@ -350,7 +350,6 @@ def generate_tensor(ctg_name,
     tensor_shape = param.ont_input_shape if platform == 'ont' else param.input_shape
     reference_base = ref_seq[flanking_base_num]
     tensor_depth = len(sorted_read_name_list)
-    # TODO skip if no coverage?
     if tensor_depth == 0:
         return None, None
     tensor = [[[0] * tensor_shape[2] for _ in range(tensor_shape[1])] for _ in range(tensor_depth)]
@@ -379,13 +378,14 @@ def generate_tensor(ctg_name,
     for read_idx, p, ins_base, center_p in insert_tuple:
 
         for ins_idx in range(min(len(ins_base), no_of_positions - p)):
-            tensor[read_idx][ins_idx + p][5] = ACGT_NUM[ins_base[ins_idx]]
+            tensor[read_idx][ins_idx + p][6] = ACGT_NUM[ins_base[ins_idx]]
 
     matrix_depth = param.tumor_matrix_depth_dict[platform] if is_tumor else param.normal_matrix_depth_dict[platform]
 
     min_af_for_samping = 0.06
-    max_af_for_sampling = 0.5
-    chunk_read_size = 3
+    max_af_for_sampling = 1.0
+    chunk_read_size = 4
+    min_tumor_support_read_num = param.min_tumor_support_read_num
     tensor_string_list = []
     alt_info_list = []
     # gradient = each reads
@@ -404,6 +404,7 @@ def generate_tensor(ctg_name,
             tumor_af = read_num / (read_num + paired_reads_num)
             if tumor_af >= min_af_for_samping and tumor_af <= max_af_for_sampling:
                 sampled_reads_num_list.append(read_num)
+        sampled_reads_num_list = [read_num for read_num in sampled_reads_num_list if min_tumor_support_read_num is None or read_num >= min_tumor_support_read_num]
         sampled_reads_num_list = sampled_reads_num_list[::chunk_read_size]
         tumor_reads_meet_alt_info_list = list(tumor_reads_meet_alt_info_set)
         normal_read_name_list = list(normal_read_name_set)
@@ -461,8 +462,8 @@ def generate_tensor(ctg_name,
                 hap_type = 100 if is_tumor else 50
                 for p in range(no_of_positions):
                     if tmp_tensor[row_idx][p][2] != 0:  # skip all del #*
-                        tmp_tensor[row_idx][p][4] = af_num
-                        tmp_tensor[row_idx][p][6] = hap_type
+                        tmp_tensor[row_idx][p][5] = af_num
+                        tmp_tensor[row_idx][p][7] = hap_type
 
             # print (len(tmp_tensor))
             alt_info = []
@@ -537,8 +538,8 @@ def generate_tensor(ctg_name,
             hap_type = 100 if is_tumor else 50
             for p in range(no_of_positions):
                 if tensor[row_idx][p][2] != 0:  # skip all del #*
-                    tensor[row_idx][p][4] = af_num
-                    tensor[row_idx][p][6] = hap_type
+                    tensor[row_idx][p][5] = af_num
+                    tensor[row_idx][p][7] = hap_type
 
 
         alt_info = []
@@ -647,8 +648,8 @@ def create_tensor(args):
     minimum_indel_af_for_candidate = args.indel_min_af
     min_coverage = args.min_coverage
     platform = args.platform
-    confident_bed_fn = args.bed_fn
-    extend_bed = args.extend_bed
+    confident_bed_fn = file_path_from(args.bed_fn, allow_none=True, exit_on_not_found=False)
+    extend_bed = file_path_from(args.extend_bed, allow_none=True, exit_on_not_found=False)
     is_extend_bed_file_given = extend_bed is not None
     min_mapping_quality = args.min_mq
     min_base_quality = args.min_bq
@@ -756,7 +757,7 @@ def create_tensor(args):
 
     phasing_option = " --output-extra HP" if phasing_info_in_bam else " "
     mq_option = ' --min-MQ {}'.format(min_mapping_quality)
-    output_mq, output_read_name = False, True
+    output_mq, output_read_name = True, True
     output_mq_option = '--output-MQ' if output_mq else ""
     output_read_name_option = ' --output-QNAME ' if output_read_name else ""
     bq_option = ' --min-BQ {}'.format(min_base_quality)
@@ -824,8 +825,8 @@ def create_tensor(args):
                 continue
             pileup_bases = columns[4]
             raw_base_quality = columns[5]
-            read_name_list = columns[6].split(',')
-            # raw_mapping_quality = columns[7]
+            raw_mapping_quality = columns[6]
+            read_name_list = columns[7].split(',')
             reference_base = evc_base_from(reference_sequence[pos - reference_start].upper())
             base_list, depth, pass_af, af = decode_pileup_bases(pos=pos,
                                                                 pileup_bases=pileup_bases,
@@ -854,6 +855,7 @@ def create_tensor(args):
                                         read_name_list=read_name_list,
                                         base_list=base_list,
                                         raw_base_quality=raw_base_quality,
+                                        raw_mapping_quality=raw_mapping_quality,
                                         af=af,
                                         depth=depth)
 
@@ -1040,22 +1042,6 @@ def main():
 
     ## The chuck ID to work on
     parser.add_argument('--chunk_id', type=int, default=None,
-                        help=SUPPRESS)
-
-    ## Only call variant in phased vcf file
-    parser.add_argument('--phased_vcf_fn', type=str, default=None,
-                        help=SUPPRESS)
-
-    ## Apply no phased data in training. Only works in data training, default: False
-    parser.add_argument('--add_no_phasing_data_training', action='store_true',
-                        help=SUPPRESS)
-
-    ## Output representation unification infos, which refines training labels
-    parser.add_argument('--unify_repre', action='store_true',
-                        help=SUPPRESS)
-
-    ## Path of representation unification output
-    parser.add_argument('--unify_repre_fn', type=str, default=None,
                         help=SUPPRESS)
 
     ## Provide the regions to be included in full-alignment based calling
