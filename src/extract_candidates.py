@@ -203,7 +203,6 @@ def decode_pileup_bases(pileup_bases, reference_base,minimum_snp_af_for_candidat
     tumor_alt_dict = dict(Counter([''.join(item).upper() for item, read_name in zip(base_list, read_name_list) if read_name.startswith('t')])) if is_tumor else None
     depth = 0
 
-
     for key, count in base_counter.items():
         if key[0].upper() in 'ACGT':
             pileup_dict[key[0].upper()] += count
@@ -331,9 +330,9 @@ def extract_candidates(args):
     platform = args.platform
     store_tumor_infos = args.store_tumor_infos
     alt_fn = args.alt_fn
-    confident_bed_fn = args.bed_fn
+    confident_bed_fn = file_path_from(args.bed_fn, allow_none=True, exit_on_not_found=False)
     is_confident_bed_file_given = confident_bed_fn is not None
-    extend_bed = args.extend_bed
+    extend_bed = file_path_from(args.extend_bed, allow_none=True, exit_on_not_found=False)
     is_extend_bed_file_given = extend_bed is not None
     min_mapping_quality = args.min_mq
     min_base_quality = args.min_bq
@@ -484,6 +483,7 @@ def extract_candidates(args):
         confident_bed_fn) if is_confident_bed_file_given else ""
     bed_option = ' -l {}'.format(full_aln_regions) if is_full_aln_regions_given else bed_option
     flags_option = ' --excl-flags {}'.format(param.SAMTOOLS_VIEW_FILTER_FLAG)
+    # add max-depth cut-off for somatic?
     max_depth_option = ' --max-depth {}'.format(args.max_depth) if args.max_depth > 0 else ""
     reads_regions_option = ' -r {}'.format(" ".join(reads_regions)) if add_read_regions else ""
     # print (add_read_regions, ctg_start, ctg_end, reference_start)
@@ -499,7 +499,7 @@ def extract_candidates(args):
         output_alt_fn = alt_fn
         alt_fp = open(output_alt_fn, 'w')
 
-    is_tumor = alt_fn.split('/')[-2].startswith('tumor')
+    is_tumor = alt_fn.split('/')[-2].startswith('tumor') if alt_fn else False
     has_pileup_candidates = len(need_phasing_pos_set)
     candidates_list = []
     for row in samtools_mpileup_process.stdout:  # chr position N depth seq BQ read_name mapping_quality phasing_info
