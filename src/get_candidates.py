@@ -8,6 +8,7 @@ from subprocess import check_output, PIPE, Popen
 import argparse
 import random
 import shlex
+import math
 from subprocess import PIPE
 from shared.vcf import VcfWriter
 from shared.bed import BedWriter
@@ -130,7 +131,7 @@ def find_candidate_match(alt_info_dict, ref_base, alt_base):
     return None, "", None
 
 
-def filter_germline_candidates(truths, variant_info, alt_dict, paired_alt_dict):
+def filter_germline_candidates(truths, variant_info, alt_dict, paired_alt_dict, INFO):
     filtered_truths = []
     truth_not_pass_af = 0
     germline_filtered_by_af_distance = 0
@@ -153,6 +154,7 @@ def filter_germline_candidates(truths, variant_info, alt_dict, paired_alt_dict):
             # print(vcf_format)
             continue
 
+        # discard the germline variants, if normal and tumor have large distinct
         if pos in paired_alt_dict:
             ref_base, alt_base = variant_info[pos]
             pair_af, vt, max_af = find_candidate_match(alt_info_dict=paired_alt_dict[pos].alt_dict, ref_base=ref_base, alt_base=alt_base)
@@ -162,13 +164,19 @@ def filter_germline_candidates(truths, variant_info, alt_dict, paired_alt_dict):
             af, vt, max_af = find_candidate_match(alt_info_dict=alt_dict[pos].alt_dict, ref_base=ref_base, alt_base=alt_base)
             alt_dict[pos].max_candidate_af = max_af
             alt_dict[pos].support_alternative_af = pair_af
-
-            if pair_af is None or af is None or pair_af - af > 0.1:
+            # pair_af: af in normal, af: af in tumor
+            if pair_af is None or af is None or math.fabs(pair_af - af) > 0.1:
                 germline_filtered_by_af_distance += 1
                 continue
 
             filtered_truths.append([pos, variant_type])
-    print (truth_not_pass_af, germline_filtered_by_af_distance)
+    # print (truth_not_pass_af, germline_filtered_by_af_distance)
+
+    print(
+        '[INFO] {} truth germline variants filtered by no read suuport in normal BAM: {}, filtered by large AF distance between normal and tumor: {}:'.format(
+            INFO, truth_not_pass_af, germline_filtered_by_af_distance))
+
+
     return filtered_truths
 
 
@@ -178,8 +186,8 @@ def filter_somatic_candidates(truths, variant_info, alt_dict, paired_alt_dict, g
     truth_filter_in_normal = 0
     truth_filter_with_low_af = 0
     truth_filter_with_low_coverage = 0
-    min_af_for_tumor = 0.05
-    max_af_in_normal = 0.5
+    min_af_for_tumor = 0.03
+    max_af_in_normal = 0.1
     min_tumor_support_read_num = param.min_tumor_support_read_num
     # af_gap_for_errors = 0.15
     low_confident_truths = []
@@ -197,6 +205,7 @@ def filter_somatic_candidates(truths, variant_info, alt_dict, paired_alt_dict, g
 
         if pos in paired_alt_dict:
             ref_base, alt_base = variant_info[pos]
+            # very high af with same alt_base in normal is not suitable as candidate for training
             normal_af, vt, max_af = find_candidate_match(alt_info_dict=alt_dict[pos].alt_dict, ref_base=ref_base, alt_base=alt_base)
             if normal_af is not None and normal_af > max_af_in_normal:
                 truth_filter_in_normal += 1
@@ -260,6 +269,7 @@ def get_candidates(args):
     tumor_ref_cans_list = [pos for pos in tumor_alt_dict if pos not in variant_set_2 and pos not in variant_set_1]
     intersection_pos_set = homo_variant_set_1.intersection(homo_variant_set_2)
 
+    #
     same_alt_pos_set = set()
     for pos in intersection_pos_set:
         if homo_variant_info_1[pos] != homo_variant_info_2[pos]:
@@ -278,16 +288,18 @@ def get_candidates(args):
     hete_germline = [(item, 'hete_germline') for item in hete_list_with_same_repre]
     ref_list = normal_ref_cans_list + tumor_ref_cans_list if consider_normal_af else tumor_ref_cans_list
     references = [(item, 'ref') for item in ref_list]
-    homo_germline = filter_germline_candidates(truths=homo_germline, variant_info=variant_info_2, alt_dict=tumor_alt_dict, paired_alt_dict=normal_alt_dict)
+    homo_germline = filter_germline_candidates(truths=homo_germline, variant_info=variant_info_2, alt_dict=tumor_alt_dict, paired_alt_dict=normal_alt_dict, INFO="Homo")
+    # need add hete, otherwise, in real case, the performance of hetero variants are too bad
+    hete_germline = filter_germline_candidates(truths=hete_germline, variant_info=variant_info_2, alt_dict=tumor_alt_dict, paired_alt_dict=normal_alt_dict, INFO="Hetero")
 
-    add_germline = False
+    add_germline = True
     if not add_germline or gen_vcf:
         # exclude germline variants if we exclude germline variants into training
         # exclude gerlmine variants when create VCF and fp BED region
         homo_germline = []
         hete_germline = []
     if maximum_non_variant_ratio is not None:
-        # random sample reference calls in training mode
+        # random sample reference calls in training mode, with seed
         random.seed(0)
         references = random.sample(references, int(len(references) * maximum_non_variant_ratio))
     fp_list = homo_germline + references + hete_germline
