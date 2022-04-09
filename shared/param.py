@@ -6,26 +6,28 @@ zstd='/mnt/bal36/zxzheng/env/miniconda3/envs/clair3/bin/zstd'
 default_optimizer = "Radam"
 default_loss_function = "FocalLoss"
 
-tensor_max_depth = 128
+tensor_max_depth = 168
 center_padding_depth = 2
 max_depth = tensor_max_depth + center_padding_depth
-normal_tumor_ratio = 0.33
+normal_tumor_ratio = 1
+normal_pro = normal_tumor_ratio/(1+normal_tumor_ratio)
 min_af = 0.1
-min_af_dict = {'ont':0.15, 'hifi':min_af, 'ilmn':min_af }
-max_normal_depth = int(tensor_max_depth * 0.33)
+min_af_dict = {'ont':0.15, 'hifi':min_af, 'ilmn':min_af}
+max_normal_depth = int(tensor_max_depth * normal_pro)
 max_tumor_depth = tensor_max_depth - max_normal_depth
 support_platform = {'ont', 'hifi','ilmn'}
 matrix_depth_dict = {'ont': max_depth, 'hifi': max_depth, 'ilmn': max_depth}
 normal_matrix_depth_dict = {'ont': max_normal_depth, 'hifi': max_normal_depth, 'ilmn': max_normal_depth}
 tumor_matrix_depth_dict = {'ont': max_tumor_depth, 'hifi': max_tumor_depth, 'ilmn': max_tumor_depth}
-min_tumor_support_read_num = 2
+min_tumor_support_read_num = 3
+alternative_base_num = 3
 
 # Full alignment input feature list
 channel = (
 'reference_base', 'alternative_base', 'base_quality', 'strand_info', 'variant_type', 'insert_base',
-'phasing_info')  # phasing info if add_phasing, 'mapping_quality',
+'phasing_info', "mapping_quality")  # phasing info if add_phasing, 'mapping_quality',
 channel_size = len(channel)
-flankingBaseNum = 16
+flankingBaseNum = 10
 no_of_positions = 2 * flankingBaseNum + 1
 input_shape = [matrix_depth_dict['hifi'], no_of_positions, channel_size]
 ont_input_shape = [matrix_depth_dict['ont'], no_of_positions, channel_size]
@@ -33,9 +35,9 @@ ont_input_shape = [matrix_depth_dict['ont'], no_of_positions, channel_size]
 label_shape = [3]
 label_size = sum(label_shape)
 apply_focal_loss = True
-discard_germline = True
+discard_germline = False
 add_l2_regulation_loss = True
-somatic_arg_index = 1
+somatic_arg_index = 1 if discard_germline else 2
 # label_size = 2
 label_shape_cum = list(accumulate(label_shape))
 expandReferenceRegion = 1000
@@ -52,7 +54,7 @@ min_phasing_read_coverage = 2
 split_region_size = 1000
 extend_bp = 100
 
-min_mq = 10
+min_mq = 20
 min_bq = 0
 min_coverage = 4
 split_bed_size = 10000
