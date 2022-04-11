@@ -402,12 +402,12 @@ def extract_candidates(args):
 
             if platform == "ilmn":
                 continue
-            if len(row) > 3:  # hete snp positions
+            if len(row) > 3:  # hetero snp positions
                 center_pos = position + extend_bp + 1
                 ref_base, alt_base, genotype, phase_set = row[3].split('-')
-                hete_snp_pos_dict[center_pos] = Position(pos=center_pos, ref_base=ref_base, alt_base=alt_base,
+                hetero_snp_pos_dict[center_pos] = Position(pos=center_pos, ref_base=ref_base, alt_base=alt_base,
                                                          genotype=int(genotype), phase_set=phase_set)
-                hete_snp_tree.addi(begin=center_pos - extend_bp, end=center_pos + extend_bp + 1)
+                hetero_snp_tree.addi(begin=center_pos - extend_bp, end=center_pos + extend_bp + 1)
             else:
                 center = position + (end - position) // 2 - 1
                 need_phasing_pos_set.add(center)
@@ -554,7 +554,7 @@ def extract_candidates(args):
                     ['\t'.join([ctg_name, str(x-flankingBaseNum-1), str(x+flankingBaseNum+1)]) for x in
                      split_output]) + '\n')  # bed format
 
-        all_full_aln_regions_path = os.path.join(candidates_folder, 'FULL_ALN_FILE_{}_{}'.format(ctg_name, chunk_id))
+        all_full_aln_regions_path = os.path.join(candidates_folder, 'CANDIDATES_FILES_{}_{}'.format(ctg_name, chunk_id))
         with open(all_full_aln_regions_path, 'w') as output_file:
             output_file.write('\n'.join(all_full_aln_regions) + '\n')
 
