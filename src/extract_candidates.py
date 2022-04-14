@@ -540,7 +540,7 @@ def extract_candidates(args):
             candidates_list.append(pos)
 
     if candidates_folder is not None and len(candidates_list):
-        all_full_aln_regions = []
+        all_candidates_regions = []
         region_num = len(candidates_list) // split_bed_size + 1 if len(
             candidates_list) % split_bed_size else len(candidates_list) // split_bed_size
 
@@ -548,15 +548,15 @@ def extract_candidates(args):
             # a windows region for create tensor # samtools mpileup not include last position
             split_output = candidates_list[idx * split_bed_size: (idx + 1) * split_bed_size]
             output_path = os.path.join(candidates_folder, '{}.{}_{}_{}'.format(ctg_name, chunk_id, idx, region_num))
-            all_full_aln_regions.append(output_path)
+            all_candidates_regions.append(output_path)
             with open(output_path, 'w') as output_file:
                 output_file.write('\n'.join(
                     ['\t'.join([ctg_name, str(x-flankingBaseNum-1), str(x+flankingBaseNum+1)]) for x in
                      split_output]) + '\n')  # bed format
 
-        all_full_aln_regions_path = os.path.join(candidates_folder, 'CANDIDATES_FILES_{}_{}'.format(ctg_name, chunk_id))
-        with open(all_full_aln_regions_path, 'w') as output_file:
-            output_file.write('\n'.join(all_full_aln_regions) + '\n')
+        all_candidates_regions_path = os.path.join(candidates_folder, 'CANDIDATES_FILES_{}_{}'.format(ctg_name, chunk_id))
+        with open(all_candidates_regions_path, 'w') as output_file:
+            output_file.write('\n'.join(all_candidates_regions) + '\n')
 
     samtools_mpileup_process.stdout.close()
     samtools_mpileup_process.wait()
