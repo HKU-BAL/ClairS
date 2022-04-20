@@ -468,7 +468,7 @@ def somatic_calling(args):
     ec_command += ' --output_depth True '
     ec_command += ' ::: ' + " ".join([str(i+1) for i in range(args.chunk_num)])
     ec_command += ' |& tee ' + args.output_dir + '/logs/1_EC.log'
-    ec_command += ' && cat {}/tmp/candidates/FULL_ALN_FILE_* > {}/tmp/candidates/FULL_ALN_FILES '.format(args.output_dir, args.output_dir)
+    ec_command += ' && cat {}/tmp/candidates/CANDIDATE_FILE_* > {}/tmp/candidates/CANDIDATE_FILES '.format(args.output_dir, args.output_dir)
 
     # STEP 2: CREATE PAIR TENSOR
     echo_list.append("[INFO] STEP 2: Create Pair Tensor")
@@ -485,7 +485,7 @@ def somatic_calling(args):
     cpt_command += ' --tensor_can_fn ' + args.output_dir + '/tmp/tensor_can/{1/} '
     cpt_command += ' --platform ' + args.platform
     cpt_command += ' --test_pos False '
-    cpt_command += ' :::: ' + args.output_dir + '/tmp/candidates/FULL_ALN_FILES'
+    cpt_command += ' :::: ' + args.output_dir + '/tmp/candidates/CANDIDATE_FILES'
     cpt_command += ' |& tee ' + args.output_dir + '/logs/2_CPT.log'
 
     # STEP 3: PREDICT
@@ -499,7 +499,7 @@ def somatic_calling(args):
     predict_command += ' --chkpnt_fn ' + args.model_dir
     predict_command += ' --use_gpu ' + str(args.use_gpu)
     predict_command += ' --platform ' + args.platform
-    predict_command += ' :::: ' + args.output_dir + '/tmp/candidates/FULL_ALN_FILES'
+    predict_command += ' :::: ' + args.output_dir + '/tmp/candidates/CANDIDATE_FILES'
     predict_command += ' |& tee ' + args.output_dir + '/logs/3_PREDICT.log'
 
     # STEP 4: MERGE VCF
