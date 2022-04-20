@@ -507,7 +507,7 @@ def somatic_calling(args):
     mv_command = 'time ' + args.pypy + ' ' + main_entry + ' sort_vcf'
     mv_command += ' --ref_fn ' + args.ref_fn
     mv_command += ' --input_dir ' + args.output_dir + '/tmp/vcf_output'
-    mv_command += ' --output_fn ' + args.output_dir + 'somatic_output.vcf'
+    mv_command += ' --output_fn ' + args.output_dir + '/somatic_output.vcf'
 
     commands_list = [ec_command, cpt_command, predict_command, mv_command]
     # EXECUTE COMMAND
