@@ -220,7 +220,7 @@ def main():
     parser.add_argument('--tensor_sample_mode', type=str2bool, default=0,
                         help="Add all tumor tensor and only sampling in tensor generation")
 
-    parser.add_argument('--normal_coverage_proportion', type=float, default=0.5,
+    parser.add_argument('--normal_coverage_proportion', type=float, default=1,
                         help="Normal synthetic normal and tumor pair proportion")
 
     args = parser.parse_args()
