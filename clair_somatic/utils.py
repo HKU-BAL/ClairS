@@ -568,9 +568,9 @@ def get_training_array(normal_tensor_fn, tumor_tensor_fn, var_fn, bed_fn, bin_fn
             # use tumor alternative information instead of the normal one
             tumor_tensor, tumor_alt_info = tumor_infos[0], tumor_infos[1]
             pos_infos = key + ':' + seq + ':' + variant_type
-            if variant_type == 'homo_somatic' or variant_type == "hete_somatic":
+            if variant_type == 'homo_somatic' or variant_type == "hetero_somatic":
                 label = [0, 0, 1]
-            elif variant_type == 'homo_germline' or variant_type == 'hete_germline':
+            elif variant_type == 'homo_germline' or variant_type == 'hetero_germline':
                 label = [0, 1, 0]
             else:
                 label = [1, 0, 0]
