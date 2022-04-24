@@ -33,7 +33,7 @@ Phred_Trans = (-10 * log(e, 10))
 
 OutputConfig = namedtuple('OutputConfig', [
     'is_show_reference',
-    'is_debug',
+    'is_show_germline',
     'is_haploid_precise_mode_enabled',
     'is_haploid_sensitive_mode_enabled',
     'is_output_for_ensemble',
@@ -63,7 +63,7 @@ def hetero_SNP_bases_from(hetero_SNP_probabilities):
     return output_bases[0], output_bases[1]
 
 
-def filtration_value_from(quality_score_for_pass, quality_score, is_reference=False):
+def filtration_value_from(quality_score_for_pass, quality_score, is_reference=False, is_germline=False):
     """
     filter qual if set quality score, variant quliaty lower than specific quality socre will be
     marked ass LowQual otherwise PASS. Default there is no quality score cut off.
@@ -71,7 +71,8 @@ def filtration_value_from(quality_score_for_pass, quality_score, is_reference=Fa
     """
     if is_reference:
         return 'RefCall'
-
+    elif is_germline:
+        return 'Germline'
     if quality_score_for_pass is None:
         return "PASS"
     if quality_score >= quality_score_for_pass:
@@ -172,7 +173,6 @@ def deletion_bases_using_alt_info_from(
 
 def output_utilties_from(
         sample_name,
-        is_debug,
         is_output_for_ensemble,
         reference_file_path,
         output_file_path,
@@ -1024,23 +1024,62 @@ def output_vcf_from_probability(
     # )
 
     somatic_arg_index = param.somatic_arg_index
-    alternate_base = None
+    alternate_base = reference_base
     arg_index = argmax(gt21_probabilities)
     is_reference = arg_index == 0
     is_germline = arg_index == 1
     is_tumor = arg_index == somatic_arg_index
     maximum_probability = gt21_probabilities[arg_index]
-    def rank_alt(alt_info_dict):
-        if len(alt_info_dict) == 0:
-            return "", 0
-        alt_type_list = sorted(alt_info_dict.items(), key=lambda x: x[1], reverse=True)
+    def rank_somatic_alt(tumor_alt_info_dict, normal_alt_info_dict, tumor_read_depth, normal_read_depth):
+        support_alt_dict = {}
+        for tumor_alt, tumor_count in tumor_alt_info_dict.items():
+            tumor_af = tumor_count / float(tumor_read_depth)
+            normal_count = normal_alt_info_dict[tumor_alt] if tumor_alt in normal_alt_info_dict else 0
+            normal_af = normal_count /float(normal_read_depth)
+            if tumor_af - normal_af > 0:
+                support_alt_dict[tumor_alt] = tumor_af - normal_af
+        if len(support_alt_dict) == 0:
+            return "", 0, 0
+        alt_type_list = sorted(support_alt_dict.items(), key=lambda x: x[1], reverse=True)
         best_match_alt = alt_type_list[0][0]
-        supported_reads_count = alt_type_list[0][1]
-        return best_match_alt, supported_reads_count
-    
+        tumor_supported_reads_count = tumor_alt_info_dict[best_match_alt]
+        normal_supported_reads_count = normal_alt_info_dict[best_match_alt] if best_match_alt in normal_alt_info_dict else 0
+        return best_match_alt, tumor_supported_reads_count, normal_supported_reads_count
+
+    def rank_germline_alt(tumor_alt_info_dict, normal_alt_info_dict, tumor_read_depth, normal_read_depth):
+        support_alt_dict = {}
+        for tumor_alt, tumor_count in tumor_alt_info_dict.items():
+            tumor_af = tumor_count / float(tumor_read_depth)
+            normal_count = normal_alt_info_dict[tumor_alt] if tumor_alt in normal_alt_info_dict else 0
+            normal_af = normal_count / float(normal_read_depth)
+            support_alt_dict[tumor_alt] = tumor_af + normal_af
+        if len(support_alt_dict) == 0:
+            return "", 0, 0
+        alt_type_list = sorted(support_alt_dict.items(), key=lambda x: x[1], reverse=True)
+        best_match_alt = alt_type_list[0][0]
+        tumor_supported_reads_count = tumor_alt_info_dict[best_match_alt]
+        normal_supported_reads_count = normal_alt_info_dict[
+            best_match_alt] if best_match_alt in normal_alt_info_dict else 0
+        return best_match_alt, tumor_supported_reads_count, normal_supported_reads_count
+
+
     if is_tumor:
-        best_match_alt, tumor_supported_reads_count = rank_alt(tumor_alt_info_dict)
-        _, normal_supported_reads_count = rank_alt(normal_alt_info_dict)
+        best_match_alt, tumor_supported_reads_count, normal_supported_reads_count = rank_somatic_alt(tumor_alt_info_dict, normal_alt_info_dict, tumor_read_depth, normal_read_depth)
+
+        if best_match_alt == "":
+            return
+        if best_match_alt[0] == 'X':
+            alternate_base = best_match_alt[1]
+            is_SNP = True
+        elif best_match_alt[0] == 'I':
+            alternate_base = best_match_alt[1:]
+            is_INS = True
+        elif best_match_alt[0] == 'D':
+            alternate_base = reference_base
+            reference_base = best_match_alt[1:]
+
+    if is_germline and output_config.is_show_germline:
+        best_match_alt, tumor_supported_reads_count, normal_supported_reads_count = rank_germline_alt(tumor_alt_info_dict, normal_alt_info_dict, tumor_read_depth, normal_read_depth)
         if best_match_alt == "":
             return
         if best_match_alt[0] == 'X':
@@ -1054,6 +1093,9 @@ def output_vcf_from_probability(
             reference_base = best_match_alt[1:]
 
     if (not output_config.is_show_reference and is_reference) or (not is_reference and reference_base == alternate_base):
+        return
+
+    if (not output_config.is_show_germline and is_germline):
         return
 
     if reference_base is None or alternate_base is None:
@@ -1104,10 +1146,11 @@ def output_vcf_from_probability(
     filtration_value = filtration_value_from(
         quality_score_for_pass=output_config.quality_score_for_pass,
         quality_score=quality_score,
-        is_reference=is_reference
+        is_reference=is_reference,
+        is_germline=is_germline
     )
 
-    information_string = "P" if output_config.pileup else 'F'
+    information_string = "."
 
     read_depth = normal_read_depth + tumor_read_depth
 
@@ -1145,7 +1188,7 @@ def call_variants_from_probability(args):
     # args.call_fn ="/mnt/bal36/zxzheng/TMP/tmp.vcf"
     output_config = OutputConfig(
         is_show_reference=args.show_ref,
-        is_debug=args.debug,
+        is_show_germline=args.show_germline,
         is_haploid_precise_mode_enabled=args.haploid_precise,
         is_haploid_sensitive_mode_enabled=args.haploid_sensitive,
         is_output_for_ensemble=args.output_for_ensemble,
@@ -1305,10 +1348,6 @@ def main():
     parser.add_argument('--chunk_id', type=int, default=None,
                         help=SUPPRESS)
 
-    ## Enable debug mode, default: False, optional
-    parser.add_argument('--debug', action='store_true',
-                        help=SUPPRESS)
-
     ## Generating outputs for ensemble model calling
     parser.add_argument('--output_for_ensemble', action='store_true',
                         help=SUPPRESS)
@@ -1321,6 +1360,8 @@ def main():
     parser.add_argument('--show_ref', action='store_true',
                         help=SUPPRESS)
 
+    parser.add_argument('--show_germline', action='store_true',
+                        help=SUPPRESS)
     args = parser.parse_args()
 
     # if len(sys.argv[1:]) == 0:
