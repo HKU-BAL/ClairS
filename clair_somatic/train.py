@@ -15,7 +15,7 @@ from torch.optim.lr_scheduler import StepLR
 from torch.utils.tensorboard import SummaryWriter
 import torch.nn.functional as F
 from torch.autograd import Variable
-from torchsummary import summary
+from torchinfo import summary
 from tqdm import tqdm
 
 from shared.utils import str2bool
@@ -171,6 +171,7 @@ def train_model(args):
     l2_regularization_lambda = param.l2_regularization_lambda
 
     use_resnet = args.use_resnet
+    use_resnet = True
     platform = args.platform
     ctg_name_string = args.ctg_name
     chkpnt_fn = args.chkpnt_fn
@@ -198,46 +199,57 @@ def train_model(args):
         # free_memory = (reserved - allocated) / (1024 ** 3)  # free inside reserved
         # if free_memory >= 1:
         device = 'cuda'
-    model = model_path.CvT(
-        num_classes=2 if discard_germline else 3,
-        s1_emb_dim=16,  # stage 1 - dimension
-        s1_emb_kernel=3,  # stage 1 - conv kernel
-        s1_emb_stride=2,  # stage 1 - conv stride
-        s1_proj_kernel=3,  # stage 1 - attention ds-conv kernel size
-        s1_kv_proj_stride=2,  # stage 1 - attention key / value projection stride
-        s1_heads=1,  # stage 1 - heads
-        s1_depth=1,  # stage 1 - depth
-        s1_mlp_mult=4,  # stage 1 - feedforward expansion factor
-        s2_emb_dim=64,  # stage 2 - (same as above)
-        s2_emb_kernel=3,
-        s2_emb_stride=2,
-        s2_proj_kernel=3,
-        s2_kv_proj_stride=2,
-        s2_heads=3,
-        s2_depth=2,
-        s2_mlp_mult=4,
-        s3_emb_dim=128,  # stage 3 - (same as above)
-        s3_emb_kernel=3,
-        s3_emb_stride=2,
-        s3_proj_kernel=3,
-        s3_kv_proj_stride=2,
-        s3_heads=4,
-        s3_depth=3,
-        s3_mlp_mult=4,
-        dropout=0.,
-        depth=param.max_depth,
-        width=param.no_of_positions,
-        dim=param.channel_size,
-        apply_softmax=False
-    ).to(device)
+    if args.pileup:
+        model = model_path.bigru().to(device)
+        from src.create_tensor_pileup import channel
+        pileup_tensor_shape = [param.no_of_positions, len(channel) * 2] # normal and tumor
+        tensor_shape = pileup_tensor_shape
+        input = torch.ones(size=[100]+ tensor_shape).to(device)
 
-    if use_resnet:
-        model = model_path.ResNet().to(device)
+    else:
+        #use torchinfo
+        model = model_path.CvT(
+            num_classes=2 if discard_germline else 3,
+            s1_emb_dim=16,  # stage 1 - dimension
+            s1_emb_kernel=3,  # stage 1 - conv kernel
+            s1_emb_stride=2,  # stage 1 - conv stride
+            s1_proj_kernel=3,  # stage 1 - attention ds-conv kernel size
+            s1_kv_proj_stride=2,  # stage 1 - attention key / value projection stride
+            s1_heads=1,  # stage 1 - heads
+            s1_depth=1,  # stage 1 - depth
+            s1_mlp_mult=4,  # stage 1 - feedforward expansion factor
+            s2_emb_dim=64,  # stage 2 - (same as above)
+            s2_emb_kernel=3,
+            s2_emb_stride=2,
+            s2_proj_kernel=3,
+            s2_kv_proj_stride=2,
+            s2_heads=3,
+            s2_depth=2,
+            s2_mlp_mult=4,
+            s3_emb_dim=128,  # stage 3 - (same as above)
+            s3_emb_kernel=3,
+            s3_emb_stride=2,
+            s3_proj_kernel=3,
+            s3_kv_proj_stride=2,
+            s3_heads=4,
+            s3_depth=3,
+            s3_mlp_mult=4,
+            dropout=0.,
+            depth=param.max_depth,
+            width=param.no_of_positions,
+            dim=param.channel_size,
+            apply_softmax=False
+        ).to(device)
+        input = torch.ones(size=(100, param.channel_size, param.max_depth, param.no_of_positions)).to(device)
+        tensor_shape = param.ont_input_shape if platform == 'ont' else param.input_shape
+
+        if use_resnet:
+            model = model_path.ResNet().to(device)
+
     if chkpnt_fn is not None:
         model = torch.load(chkpnt_fn)
-    input = torch.ones(size=(100, param.channel_size, param.max_depth, param.no_of_positions)).to(device)
+
     output = model(input)
-    tensor_shape = param.ont_input_shape if platform == 'ont' else param.input_shape
 
     batch_size, chunk_size = param.trainBatchSize, param.chunk_size
     assert batch_size % chunk_size == 0
@@ -291,6 +303,8 @@ def train_model(args):
         validate_chunk_num = len(validate_shuffle_chunk_list)
     train_data_size = train_chunk_num * chunk_size
     validate_data_size = validate_chunk_num * chunk_size
+
+
     def DataGenerator(x, shuffle_chunk_list, train_flag=True):
 
         batch_num = len(shuffle_chunk_list) // chunks_per_batch
@@ -323,12 +337,15 @@ def train_model(args):
                 label_for_tumor = np.array(label_for_tumor, dtype=np.float32)
 
                 # input_matrix = np.maximum(input_matrix * 2.55, 255.0)
-                input_tensor = torch.from_numpy(np.transpose(input_matrix, (0,3,1,2))/100.0).to(device)
+                if not args.pileup:
+                    input_tensor = torch.from_numpy(np.transpose(input_matrix, (0,3,1,2))/100.0).to(device)
+                else:
+                    input_tensor = torch.from_numpy(input_matrix).to(device)
                 # tumor_tensor = torch.from_numpy(tumor_matrix)
                 label_tensor = torch.from_numpy(label_for_tumor).to(device)
                 yield input_tensor, label_tensor
 
-    print (summary(model, input_size=(param.channel_size,param.max_depth,param.no_of_positions), device=device))
+    print (summary(model, input_size=tuple([100]+ tensor_shape), device=device))
     train_dataset_loder = DataGenerator(table_dataset_list, train_shuffle_chunk_list, True)
     validate_dataset_loder = DataGenerator(validate_table_dataset_list if validation_fn else table_dataset_list, validate_shuffle_chunk_list, False)
 
