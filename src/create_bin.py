@@ -2,13 +2,15 @@ import sys
 import logging
 from argparse import ArgumentParser, SUPPRESS
 
-import clair_somatic.utils as utils
 
 logging.basicConfig(format='%(message)s', level=logging.INFO)
 
 def Run(args):
 
-    
+    if args.pileup:
+        import clair_somatic.utils_pileup as utils
+    else:
+        import clair_somatic.utils as utils
     utils.setup_environment()
     logging.info("Loading the dataset ...")
     
