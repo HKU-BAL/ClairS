@@ -581,8 +581,8 @@ class TensorStdout(object):
         self.stdin.close()
 
 
-def update_hete_ref(pos, reference_sequence, reference_start, extend_bp, alt_base):
-    # if need phasing option enables, will store reference squence near hete snp candidate.
+def update_hetero_ref(pos, reference_sequence, reference_start, extend_bp, alt_base):
+    # if need phasing option enables, will store reference sequence near hetero snp candidate.
     ref_start = pos - extend_bp
     ref_end = pos + extend_bp + 1
     ref_seq = reference_sequence[ref_start - reference_start: ref_end - reference_start]
@@ -631,7 +631,7 @@ def get_key_list(input_dict, normal_tensor_infos_dict, tumor_tensor_infos_dict, 
 def create_tensor(args):
     ctg_start = args.ctg_start
     ctg_end = args.ctg_end
-    full_aln_regions = args.full_aln_regions
+    candidates_bed_regions = args.candidates_bed_regions
     fasta_file_path = args.ref_fn
     ctg_name = args.ctg_name
     need_phasing = args.need_phasing
@@ -641,7 +641,7 @@ def create_tensor(args):
     chunk_id = args.chunk_id - 1 if args.chunk_id else None  # 1-base to 0-base
     chunk_num = args.chunk_num
     tensor_can_output_path = args.tensor_can_fn
-    is_full_aln_regions_given = full_aln_regions is not None
+    is_candidates_bed_regions_given = candidates_bed_regions is not None
     phasing_info_in_bam = args.phasing_info_in_bam
     phasing_window_size = args.phasing_window_size
     minimum_snp_af_for_candidate = args.snp_min_af
@@ -658,8 +658,8 @@ def create_tensor(args):
     tensor_sample_mode = args.tensor_sample_mode
     global test_pos
     test_pos = None
-    hete_snp_pos_dict = defaultdict()
-    hete_snp_tree = IntervalTree()
+    hetero_snp_pos_dict = defaultdict()
+    hetero_snp_tree = IntervalTree()
     candidates_pos_set = set()
     candidates_type_dict = defaultdict(str)
     add_read_regions = True
@@ -673,7 +673,7 @@ def create_tensor(args):
         unified_vcf_reader.read_vcf()
         truths_variant_dict = unified_vcf_reader.variant_dict
 
-    if full_aln_regions:
+    if candidates_bed_regions:
 
         """
         If given full alignment bed regions, all candidate positions will be directly selected from each row, define as 
@@ -682,7 +682,7 @@ def create_tensor(args):
         haplotag, which is faster than whatshap haplotag with more memory occupation.
         """
 
-        candidate_file_path_process = subprocess_popen(shlex.split("gzip -fdc %s" % (full_aln_regions)))
+        candidate_file_path_process = subprocess_popen(shlex.split("gzip -fdc %s" % (candidates_bed_regions)))
         candidate_file_path_output = candidate_file_path_process.stdout
 
         ctg_start, ctg_end = float('inf'), 0
@@ -707,7 +707,7 @@ def create_tensor(args):
     if is_known_vcf_file_provided:
         known_variants_list = vcf_candidates_from(vcf_fn=vcf_fn, contig_name=ctg_name)
         known_variants_set = set(known_variants_list)
-    if not full_aln_regions and chunk_id is not None:
+    if not candidates_bed_regions and chunk_id is not None:
 
         """
         Whole genome calling option, acquire contig start end position from reference fasta index(.fai), then split the
@@ -764,9 +764,10 @@ def create_tensor(args):
     # pileup bed first
     bed_option = ' -l {}'.format(
         extend_bed) if is_extend_bed_file_given else ""
-    bed_option = ' -l {}'.format(full_aln_regions) if is_full_aln_regions_given else bed_option
+    bed_option = ' -l {}'.format(candidates_bed_regions) if is_candidates_bed_regions_given else bed_option
     flags_option = ' --excl-flags {}'.format(param.SAMTOOLS_VIEW_FILTER_FLAG)
     max_depth_option = ' --max-depth {}'.format(args.max_depth) if args.max_depth > 0 else ""
+    max_depth_option =  ""
     reads_regions_option = ' -r {}'.format(" ".join(reads_regions)) if add_read_regions else ""
     # print (add_read_regions, ctg_start, ctg_end, reference_start)
 
@@ -842,6 +843,12 @@ def create_tensor(args):
 
             if not reference_base in 'ACGT':
                 continue
+
+            for b_idx, base in enumerate(base_list):
+                if base[0] == '#' or (base[0] >= 'a' and base[0] <= 'z'):
+                    read_name_list[b_idx] += '_1' # reverse
+                else:
+                    read_name_list[b_idx] += '_0' # forward
 
             if not is_known_vcf_file_provided and not has_pileup_candidates and reference_base in 'ACGT' and (
                     pass_af and depth >= min_coverage):
@@ -1045,7 +1052,7 @@ def main():
                         help=SUPPRESS)
 
     ## Provide the regions to be included in full-alignment based calling
-    parser.add_argument('--full_aln_regions', type=str, default=None,
+    parser.add_argument('--candidates_bed_regions', type=str, default=None,
                         help=SUPPRESS)
 
     ## Use Clair3's own phasing module for read level phasing when creating tensor, compared to using Whatshap, speed is faster but has higher memory footprint, default: False
