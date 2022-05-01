@@ -725,6 +725,13 @@ def somatic_parser():
     )
 
     optional_params.add_argument(
+        "--print_germline_calls",
+        default=False,
+        action='store_true',
+        help="Show germline calls (0/0) in VCF file, default: disable."
+    )
+
+    optional_params.add_argument(
         '-d',
         "--dry_run",
         default=False,
