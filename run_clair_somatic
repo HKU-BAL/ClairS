@@ -351,16 +351,18 @@ def check_contigs_intersection(args, fai_fn):
     if is_bed_file_provided:
         split_extend_bed(bed_fn=args.bed_fn, output_fn=split_bed_path, contig_set=contig_set)
 
-    # with open(contig_name_list, 'w') as output_file:
-    #     output_file.write('\n'.join(sorted_contig_list))
+    contig_path = os.path.join(args.output_dir, 'tmp', 'CONTIGS')
+    with open(contig_path, 'w') as output_file:
+        output_file.write('\n'.join(sorted_contig_list))
 
     chunk_list = []
-    # with open(chunk_list, 'w') as output_file:
-    for contig_name in sorted_contig_list:
-        chunk_num = contig_chunk_num[contig_name]
-        for chunk_id in range(1, chunk_num + 1):
-            # output_file.write(contig_name + ' ' + str(chunk_id) + ' ' + str(chunk_num) + '\n')
-            chunk_list.append((contig_name, chunk_id, chunk_num))
+    chunk_list_path = os.path.join(args.output_dir, 'tmp', 'CHUNK_LIST')
+    with open(chunk_list_path, 'w') as output_file:
+        for contig_name in sorted_contig_list:
+            chunk_num = contig_chunk_num[contig_name]
+            for chunk_id in range(1, chunk_num + 1):
+                output_file.write(contig_name + ' ' + str(chunk_id) + ' ' + str(chunk_num) + '\n')
+                chunk_list.append((contig_name, chunk_id, chunk_num))
     args.chunk_list = chunk_list
     return args
 
@@ -447,26 +449,27 @@ def print_args(args):
 def somatic_calling(args):
 
     echo_list = []
+
     # STEP 1: EXTRACT CANDIDATES
     echo_list.append("[INFO] STEP 1: Extract Tumor Candidates")
     ec_command = 'time ' + args.parallel
     ec_command += ' --joblog ' + args.output_dir + '/logs/parallel_1_extract_tumor_candidates.log'
-    ec_command += ' -j ' + str(args.threads)
+    ec_command += ' -C " " -j ' + str(args.threads)
     ec_command += ' ' + args.pypy + ' ' + main_entry + ' extract_candidates'
     ec_command += ' --bam_fn ' + args.tumor_bam_fn
     ec_command += ' --ref_fn ' + args.ref_fn
     ec_command += ' --samtools ' + args.samtools
     ec_command += ' --snp_min_af ' + str(args.snp_min_af)
     ec_command += ' --indel_min_af ' + str(args.indel_min_af)
-    ec_command += ' --chunk_id {1} '
-    ec_command += ' --chunk_num ' + str(args.chunk_num)
-    ec_command += ' --ctg_name ' + str(args.ctg_name)
+    ec_command += ' --chunk_id {2} '
+    ec_command += ' --chunk_num {3} '
+    ec_command += ' --ctg_name {1} '
     ec_command += ' --bed_fn ' + str(args.bed_fn)
     ec_command += ' --extend_bed ' + str(args.bed_fn)
     ec_command += ' --candidates_folder ' + args.output_dir + '/tmp/candidates'
     ec_command += ' --test_pos False '
     ec_command += ' --output_depth True '
-    ec_command += ' ::: ' + " ".join([str(i+1) for i in range(args.chunk_num)])
+    ec_command += ' :::: ' + os.path.join(args.output_dir, 'tmp', 'CHUNK_LIST')
     ec_command += ' |& tee ' + args.output_dir + '/logs/1_EC.log'
     ec_command += ' && cat {}/tmp/candidates/CANDIDATE_FILE_* > {}/tmp/candidates/CANDIDATE_FILES '.format(args.output_dir, args.output_dir)
 
@@ -506,6 +509,7 @@ def somatic_calling(args):
     echo_list.append("[INFO] STEP 4: Merge VCF")
     mv_command = 'time ' + args.pypy + ' ' + main_entry + ' sort_vcf'
     mv_command += ' --ref_fn ' + args.ref_fn
+    mv_command += ' --contigs_fn ' + os.path.join(args.output_dir, 'tmp', 'CONTIGS')
     mv_command += ' --input_dir ' + args.output_dir + '/tmp/vcf_output'
     mv_command += ' --output_fn ' + args.output_dir + '/somatic_output.vcf'
 
@@ -515,11 +519,12 @@ def somatic_calling(args):
     for i, (command, echo) in enumerate(zip(commands_list, echo_list)):
 
         print(echo)
+        print("[INFO] RUN THE FOLLOWING COMMAND:")
         print(command)
         print("")
         if not args.dry_run:
             if skip_steps is not None and str(i+1) in skip_steps:
-                print("[INFO] --skip_steps is enabled , skip running step {}!".format(i+1))
+                print("[INFO] --skip_steps is enabled, skip running step {}!".format(i+1))
                 print("")
                 continue
             try:
