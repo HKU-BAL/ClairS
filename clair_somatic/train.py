@@ -204,7 +204,7 @@ def train_model(args):
         from src.create_tensor_pileup import channel
         pileup_tensor_shape = [param.no_of_positions, len(channel) * 2] # normal and tumor
         tensor_shape = pileup_tensor_shape
-        input = torch.ones(size=[100]+ tensor_shape).to(device)
+        input = torch.ones(size=[100] + tensor_shape).to(device)
 
     else:
         #use torchinfo
@@ -367,7 +367,6 @@ def train_model(args):
     print("[INFO] Apply focal loss in training: {}".format(apply_focal_loss))
     print("[INFO] Discard germline in training: {}".format(discard_germline))
     print("[INFO] Add L2 regularization to model parameters: {}".format(apply_focal_loss))
-
     print('[INFO] Train steps:{}'.format(train_steps))
     print('[INFO] Validate steps:{}'.format(validate_steps))
 
@@ -395,7 +394,7 @@ def train_model(args):
             # b = float(loss_2.detach().cpu().numpy())
             # print(" ", a, b, round(a, 3) == round(b, 3))
 
-            l2_regularization_loss = sum([l2_regularization_lambda * 0.5 * params.norm(2) ** 2 for params in model.parameters()]) if param.add_l2_regulation_loss else 0.0
+            l2_regularization_loss = sum([l2_regularization_lambda * 0.5 * params.norm(2) ** 2 for params in model.parameters()]) if add_l2_regulation_loss else 0.0
 
             loss += l2_regularization_loss
 

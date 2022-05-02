@@ -471,7 +471,7 @@ def somatic_calling(args):
     ec_command += ' --output_depth True '
     ec_command += ' :::: ' + os.path.join(args.output_dir, 'tmp', 'CHUNK_LIST')
     ec_command += ' |& tee ' + args.output_dir + '/logs/1_EC.log'
-    ec_command += ' && cat {}/tmp/candidates/CANDIDATE_FILE_* > {}/tmp/candidates/CANDIDATE_FILES '.format(args.output_dir, args.output_dir)
+    ec_command += ' && cat {}/tmp/candidates/CANDIDATES_FILE_* > {}/tmp/candidates/CANDIDATES_FILES '.format(args.output_dir, args.output_dir)
 
     # STEP 2: CREATE PAIR TENSOR
     echo_list.append("[INFO] STEP 2: Create Pair Tensor")
@@ -484,11 +484,12 @@ def somatic_calling(args):
     cpt_command += ' --ref_fn ' + args.ref_fn
     cpt_command += ' --ctg_name ' + str(args.ctg_name)
     cpt_command += ' --samtools ' + args.samtools
-    cpt_command += ' --full_aln_regions {1}'
+    cpt_command += ' --candidates_bed_regions {1}'
     cpt_command += ' --tensor_can_fn ' + args.output_dir + '/tmp/tensor_can/{1/} '
     cpt_command += ' --platform ' + args.platform
     cpt_command += ' --test_pos False '
-    cpt_command += ' :::: ' + args.output_dir + '/tmp/candidates/CANDIDATE_FILES'
+
+    cpt_command += ' :::: ' + args.output_dir + '/tmp/candidates/CANDIDATES_FILES'
     cpt_command += ' |& tee ' + args.output_dir + '/logs/2_CPT.log'
 
     # STEP 3: PREDICT
