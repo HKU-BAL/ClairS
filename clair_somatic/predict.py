@@ -464,7 +464,7 @@ def main():
     parser.add_argument('--sample_name', type=str, default="SAMPLE",
                         help="Define the sample name to be shown in the VCF file, optional")
 
-    parser.add_argument('--qual', type=int, default=2,
+    parser.add_argument('--qual', type=int, default=0,
                         help="If set, variants with >=$qual will be marked 'PASS', or 'LowQual' otherwise, optional")
 
     parser.add_argument('--samtools', type=str, default="samtools",
@@ -510,6 +510,10 @@ def main():
     parser.add_argument('--chunk_id', type=int, default=None,
                         help=SUPPRESS)
 
+    ## Generating outputs for ensemble model calling
+    parser.add_argument('--output_for_ensemble', action='store_true',
+                        help=SUPPRESS)
+    
     ## Use bin file from pytables to speed up calling.
     parser.add_argument('--is_from_tables', type=str2bool, default=False,
                         help=SUPPRESS)
@@ -517,7 +521,8 @@ def main():
     ## Output reference calls
     parser.add_argument('--show_ref', action='store_true',
                         help=SUPPRESS)
-
+    parser.add_argument('--show_germline', action='store_true',
+                        help=SUPPRESS)
     args = parser.parse_args()
 
     # if len(sys.argv[1:]) == 0:
