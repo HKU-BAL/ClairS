@@ -220,6 +220,7 @@ def decode_pileup_bases(pileup_bases, reference_base,minimum_snp_af_for_candidat
     pass_snp_af = False
     pass_indel_af = False
 
+    pass_depth = depth > param.min_coverage
     for item, count in pileup_list:
         if item == reference_base:
             continue
@@ -232,7 +233,7 @@ def decode_pileup_bases(pileup_bases, reference_base,minimum_snp_af_for_candidat
     af = (float(pileup_list[0][1]) / denominator) if len(pileup_list) >= 1 and pileup_list[0][
         0] != reference_base else af
 
-    pass_af = pass_snp_af or pass_indel_af
+    pass_af = (pass_snp_af or pass_indel_af) and pass_depth
 
     if not pass_af:
         return base_list, depth, pass_af, af, "", "", ""
@@ -466,6 +467,7 @@ def extract_candidates(args):
         ref_regions.append(region_from(ctg_name=ctg_name))
         reference_start = 1
 
+    # print(ref_regions)
     reference_sequence = reference_sequence_from(
         samtools_execute_command=samtools_execute_command,
         fasta_file_path=fasta_file_path,
@@ -516,7 +518,9 @@ def extract_candidates(args):
         # raw_base_quality = columns[5]
         read_name_list = columns[6].split(',') if store_tumor_infos else []
         # raw_mapping_quality = columns[7]
-        reference_base = evc_base_from(reference_sequence[pos - reference_start].upper())  # ev
+        reference_base = reference_sequence[pos - reference_start].upper()
+        if reference_base.upper() not in "ACGT":
+            continue
         is_truth_candidate = pos in truths_variant_dict
         minimum_snp_af_for_candidate = minimum_snp_af_for_truth if is_truth_candidate and minimum_snp_af_for_truth else minimum_snp_af_for_candidate
         minimum_indel_af_for_candidate = minimum_indel_af_for_truth if is_truth_candidate and minimum_indel_af_for_truth else minimum_indel_af_for_candidate
@@ -554,7 +558,7 @@ def extract_candidates(args):
                     ['\t'.join([ctg_name, str(x-flankingBaseNum-1), str(x+flankingBaseNum+1)]) for x in
                      split_output]) + '\n')  # bed format
 
-        all_candidates_regions_path = os.path.join(candidates_folder, 'CANDIDATES_FILES_{}_{}'.format(ctg_name, chunk_id))
+        all_candidates_regions_path = os.path.join(candidates_folder, 'CANDIDATES_FILE_{}_{}'.format(ctg_name, chunk_id))
         with open(all_candidates_regions_path, 'w') as output_file:
             output_file.write('\n'.join(all_candidates_regions) + '\n')
 
