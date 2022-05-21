@@ -35,8 +35,8 @@ def check_max_sampled_coverage(nor_cov, tum_cov, synthetic_proportion, pair_gamm
 
     return max_synthetic_coverage
 
-def random_sample(population, k):
-    random.seed(0)
+def random_sample(population, k, seed=0):
+    random.seed(seed)
     return random.sample(population, k)
 
 def MixBin(args):
@@ -84,32 +84,32 @@ def MixBin(args):
     sampled_normal_bin_num = int(normal_coverage / min_coverage)
     sampled_tumor_bin_num = int(tumor_coverage / min_coverage)
 
-    sampled_normal_bam_list = [normal_bam_list[idx] for idx in random_sample(range(normal_bin_num), sampled_normal_bin_num)]
+    sampled_normal_bam_list = [normal_bam_list[idx] for idx in random_sample(range(normal_bin_num), sampled_normal_bin_num, seed=int(synthetic_proportion * 100))]
     if tensor_sample_mode:
         sampled_tumor_bam_list = tumor_bam_list
     else:
-        sampled_tumor_bam_list = [tumor_bam_list[idx] for idx in random_sample(range(tumor_bin_num), sampled_tumor_bin_num)]
+        sampled_tumor_bam_list = [tumor_bam_list[idx] for idx in random_sample(range(tumor_bin_num), sampled_tumor_bin_num, seed=int(synthetic_proportion * 100))]
 
     # the rest sampled sample to generate normal bam
     rest_normal_bam_list = [normal_bam_fn for normal_bam_fn in normal_bam_list if normal_bam_fn not in sampled_normal_bam_list]
     tumor_all_bin_num = sampled_normal_bin_num + sampled_tumor_bin_num
     normal_all_bin_num = int(tumor_all_bin_num * normal_coverage_proportion)
     if normal_all_bin_num <= len(rest_normal_bam_list):
-        pair_normal_bam_list = [rest_normal_bam for rest_normal_bam in random_sample(rest_normal_bam_list, normal_all_bin_num)]
+        pair_normal_bam_list = [rest_normal_bam for rest_normal_bam in random_sample(rest_normal_bam_list, normal_all_bin_num, seed=int(synthetic_proportion * 100))]
     else:
         # sample bin exhaust if pair normal coverage could not satisfy requirement
         # avoid to resample bin for model robustness
         print('[WARNING] Need to resample normal chunked BAMs!')
         resampled_bin_count = normal_all_bin_num - len(rest_normal_bam_list)
-        resample_bin_list = [sampled_normal_bam_list[idx] for idx in random_sample(range(len(sampled_normal_bam_list)), resampled_bin_count)]
+        resample_bin_list = [sampled_normal_bam_list[idx] for idx in random_sample(range(len(sampled_normal_bam_list)), resampled_bin_count, seed=int(synthetic_proportion * 100))]
         pair_normal_bam_list = resample_bin_list + rest_normal_bam_list
 
-    print("[INFO] Raw normal BAM coverage/Raw tumor BAM coverage:{}x/{}x, normal sampled bins/tumor sampled bins:{}/{}".format(
+    print("[INFO] Raw normal BAM coverage/Raw tumor BAM coverage: {}x/{}x, normal sampled bins/tumor sampled bins:{}/{}".format(
         normal_bam_coverage, tumor_bam_coverage, sampled_normal_bin_num, sampled_tumor_bin_num))
-    print("[INFO] Tumor sampled normal chunked BAMs coverage/bins:{}x/{}:{}".format(len(sampled_normal_bam_list) * min_coverage, len(sampled_normal_bam_list), ' '.join(sampled_normal_bam_list)))
-    print("[INFO] Tumor sampled tumor chunked BAMs coverage/bins:{}x/{}:{}".format(len(sampled_tumor_bam_list) * min_coverage, len(sampled_tumor_bam_list), ' '.join(sampled_tumor_bam_list)))
+    print("[INFO] Tumor sampled normal chunked BAMs coverage/bins: {}x/{}:{}".format(len(sampled_normal_bam_list) * min_coverage, len(sampled_normal_bam_list), ' '.join(sampled_normal_bam_list)))
+    print("[INFO] Tumor sampled tumor chunked BAMs coverage/bins: {}x/{}:{}".format(len(sampled_tumor_bam_list) * min_coverage, len(sampled_tumor_bam_list), ' '.join(sampled_tumor_bam_list)))
     print("[INFO] Normal sampled BAMs coverage/bins: {}x/{}:{}".format(len(pair_normal_bam_list) * min_coverage, len(pair_normal_bam_list), ' '.join(pair_normal_bam_list)))
-    print("[INFO] Synthetic coverage: {}, Normal sampled BAMs intersection:{}\n".format(synthetic_coverage, set(pair_normal_bam_list).intersection(set(sampled_normal_bam_list + sampled_tumor_bam_list))))
+    print("[INFO] Synthetic coverage: {}, Normal sampled BAMs intersection: {}\n".format(synthetic_coverage, set(pair_normal_bam_list).intersection(set(sampled_normal_bam_list + sampled_tumor_bam_list))))
 
     tumor_sampled_bam_list = sampled_normal_bam_list + sampled_tumor_bam_list
     tumor_sampled_bam_list = ' '.join([os.path.join(input_dir, bam) for bam in tumor_sampled_bam_list])
