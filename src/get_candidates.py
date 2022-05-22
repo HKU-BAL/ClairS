@@ -418,7 +418,7 @@ def get_candidates(args):
                                  end_pos=pos)
         bed_writer.close()
 
-    all_full_aln_regions = []
+    all_candidates_regions = []
     region_num = len(pos_list) // split_bed_size + 1 if len(
         pos_list) % split_bed_size else len(pos_list) // split_bed_size
 
@@ -429,22 +429,22 @@ def get_candidates(args):
         split_output = [(item[0] - flanking_base_num, item[0] + flanking_base_num + 2, item[1]) for item in
                         split_output]
 
-        output_path = os.path.join(split_folder, '{}.{}_{}'.format(contig_name, idx, region_num))
-        all_full_aln_regions.append(output_path)
+        output_path = os.path.join(split_folder, '{}.{}_{}_por{}_cov{}'.format(contig_name, idx, region_num, int(proportion*100), int(synthetic_coverage)))
+        all_candidates_regions.append(output_path + ' ' + str(proportion) + ' ' + str(synthetic_coverage))
         with open(output_path, 'w') as output_file:
             output_file.write('\n'.join(
                 ['\t'.join([contig_name, str(x[0] - 1), str(x[1] - 1), x[2]]) for x in
                  split_output]) + '\n')  # bed format
 
-    all_full_aln_regions_path = os.path.join(split_folder, 'FULL_ALN_FILE_{}'.format( contig_name))
-    with open(all_full_aln_regions_path, 'w') as output_file:
-        output_file.write('\n'.join(all_full_aln_regions) + '\n')
+    all_candidate_path = os.path.join(split_folder, 'CANDIDATES_FILE_{}_{}_{}'.format(contig_name, proportion, synthetic_coverage))
+    with open(all_candidate_path, 'w') as output_file:
+        output_file.write('\n'.join(all_candidates_regions) + '\n')
 
     # print_all = False
     # if print_all:
-    #     print ('[INFO] {} total homo reference pos: 1:{}, 2:{}, references:{} hete variants:{} homo truth with same pos intersection:{}, homo truth with_same_repre:{}'.format(contig_name, len(homo_variant_set_1), len(homo_variant_set_2), len(ref_cans_list), len(hete_list_with_same_repre), len(intersection_pos_set), len(same_alt_pos_set)))
+    #     print ('[INFO] {} total homo reference pos: 1:{}, 2:{}, references:{} hetero variants:{} homo truth with same pos intersection:{}, homo truth with_same_repre:{}'.format(contig_name, len(normal_homo_variant_set), len(tumor_homo_variant_set), len(ref_cans_list), len(hetero_list_with_same_repre), len(intersection_pos_set), len(same_alt_pos_set)))
     # else:
-    print ('[INFO] {} homo germline:{} hete germline:{} references:{} homo somatic:{} hete somatic:{}'.format(contig_name, len(homo_germline), len(hete_germline), len(references),len(homo_somatic),len(hete_somatic) ))
+    print ('[INFO] {}-{} homo germline:{} hetero germline:{} references:{} homo somatic:{} hetero somatic:{}\n'.format(contig_name, proportion, len(homo_germline), len(hetero_germline), len(references),len(homo_somatic),len(hetero_somatic) ))
 
 
 def main():
