@@ -244,19 +244,21 @@ def get_candidates(args):
     contig_name = args.ctg_name
     bed_fn = args.bed_fn
     bed_tree = bed_tree_from(bed_fn, contig_name)
-    vcf_fn_1 = args.vcf_fn_1
-    vcf_fn_2 = args.vcf_fn_2
+    normal_vcf_fn = args.normal_vcf_fn
+    tumor_vcf_fn = args.tumor_vcf_fn
     maximum_non_variant_ratio = args.maximum_non_variant_ratio
     normal_reference_cans_fn = args.normal_reference_cans
     tumor_reference_cans_fn = args.tumor_reference_cans
-    add_hete_pos = args.add_hete_pos
+    add_hetero_pos = args.add_hetero_pos
     split_bed_size = param.split_bed_size
     flanking_base_num = args.flanking_base_num if args.flanking_base_num else param.flankingBaseNum
     split_folder = args.split_folder
     output_vcf_fn = args.output_vcf_fn
     gen_vcf = output_vcf_fn is not None
-    consider_normal_af = args.consider_normal_af
+    sample_normal_af = args.sample_normal_af
     ref_fn = args.ref_fn
+    proportion = args.proportion
+    synthetic_coverage = args.synthetic_coverage
     output_bed_fn = args.output_bed_fn
     output_fp_bed_regions = output_bed_fn is not None
     homo_variant_set_1, homo_variant_info_1, hete_variant_set_1, hete_variant_info_1, variant_set_1, variant_info_1 = vcf_reader(vcf_fn=vcf_fn_1, contig_name=contig_name, bed_tree=bed_tree, add_hete_pos=add_hete_pos)
@@ -395,16 +397,16 @@ def main():
     parser.add_argument('--bam_fn', type=str, default="input.bam",  # required=True,
                         help="Sorted BAM file input, required")
 
-    parser.add_argument('--ref_fn', type=str, default="ref.fa",  # required=True,
+    parser.add_argument('--ref_fn', type=str, default=None,  # required=True,
                         help="Reference fasta file input, required")
 
     parser.add_argument('--tensor_can_fn', type=str, default="PIPE",
                         help="Tensor output, stdout by default, default: %(default)s")
 
-    parser.add_argument('--vcf_fn_1', type=str, default=None,
+    parser.add_argument('--normal_vcf_fn', type=str, default=None,
                         help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file,  default: %(default)s")
 
-    parser.add_argument('--vcf_fn_2', type=str, default=None,
+    parser.add_argument('--tumor_vcf_fn', type=str, default=None,
                         help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file,  default: %(default)s")
 
     parser.add_argument('--min_af', type=float, default=0.08,
@@ -463,11 +465,18 @@ def main():
                         help="EXPERIMENTAL: Maximum full alignment depth to be processed. default: %(default)s")
 
     # options for debug purpose
-    parser.add_argument('--consider_normal_af', action='store_true',
+    parser.add_argument('--sample_normal_af', type=float, default=None,
                         help="DEBUG: Skip phasing and use the phasing info provided in the input BAM (HP tag), default: False")
 
+    parser.add_argument('--proportion', type=float, default=None,
+                        help="DEBUG: The window size for read phasing")
+
+    parser.add_argument('--synthetic_coverage', type=int, default=None,
+                        help="DEBUG: The window size for read phasing")
+
+
     # options for debug purpose
-    parser.add_argument('--add_hete_pos', type=str2bool, default=0,
+    parser.add_argument('--add_hetero_pos', type=str2bool, default=0,
                         help="DEBUG: Skip phasing and use the phasing info provided in the input BAM (HP tag), default: False")
 
     parser.add_argument('--extend_bed', type=str, default=None,
