@@ -6,7 +6,7 @@ import logging
 import random
 from subprocess import PIPE
 from os.path import isfile
-
+import subprocess
 from argparse import ArgumentParser, SUPPRESS
 from collections import Counter, defaultdict, OrderedDict
 
@@ -171,6 +171,7 @@ def decode_pileup_bases(pileup_bases, reference_base,minimum_snp_af_for_candidat
     has_pileup_candidates: if the candidate is directly obtained from pileup output, then no need to check the af filtering.
     """
 
+    support_alt_base = None
     base_idx = 0
     base_list = []
     while base_idx < len(pileup_bases):
@@ -228,6 +229,8 @@ def decode_pileup_bases(pileup_bases, reference_base,minimum_snp_af_for_candidat
             pass_indel_af = (pass_indel_af or (float(count) / denominator >= minimum_indel_af_for_candidate))
             continue
         pass_snp_af = pass_snp_af or (float(count) / denominator >= minimum_snp_af_for_candidate) or (alternative_base_num is not None and count >= alternative_base_num)
+        if pass_snp_af:
+            support_alt_base = item
 
     af = (float(pileup_list[1][1]) / denominator) if len(pileup_list) > 1 else 0.0
     af = (float(pileup_list[0][1]) / denominator) if len(pileup_list) >= 1 and pileup_list[0][
@@ -236,7 +239,7 @@ def decode_pileup_bases(pileup_bases, reference_base,minimum_snp_af_for_candidat
     pass_af = (pass_snp_af or pass_indel_af) and pass_depth
 
     if not pass_af:
-        return base_list, depth, pass_af, af, "", "", ""
+        return base_list, depth, pass_af, af, "", "", "", ""
 
     pileup_list = [[item[0], str(round(item[1]/denominator,3))] for item in pileup_list]
     af_infos = ','.join([item[1] for item in pileup_list if item[0] != reference_base])
@@ -255,7 +258,7 @@ def decode_pileup_bases(pileup_bases, reference_base,minimum_snp_af_for_candidat
     # af_infos = ','.join([item[1] for item in pileup_list if item[0] != reference_base])
     # pileup_infos = ' '.join([item[0] + ':' + item[1] for item in pileup_list])
 
-    return base_list, depth, pass_af, af, af_infos, pileup_infos, tumor_pileup_infos
+    return base_list, depth, pass_af, af, af_infos, pileup_infos, tumor_pileup_infos, alt_list
 
 
 def get_alt_info(center_pos, pileup_dict, ref_seq, reference_sequence, reference_start, hap_dict):
@@ -487,16 +490,17 @@ def extract_candidates(args):
     bed_option = ' -l {}'.format(full_aln_regions) if is_full_aln_regions_given else bed_option
     flags_option = ' --excl-flags {}'.format(param.SAMTOOLS_VIEW_FILTER_FLAG)
     # add max-depth cut-off for somatic?
-    max_depth_option = ' --max-depth {}'.format(args.max_depth) if args.max_depth > 0 else ""
+    max_depth_option = ' --max-depth {} '.format(args.max_depth) if args.max_depth > 0 else ""
+    max_depth_option = ' '
     reads_regions_option = ' -r {}'.format(" ".join(reads_regions)) if add_read_regions else ""
     # print (add_read_regions, ctg_start, ctg_end, reference_start)
     stdin = None if bam_file_path != "PIPE" else sys.stdin
     bam_file_path = bam_file_path if bam_file_path != "PIPE" else "-"
-    samtools_command = "{} mpileup  {} --reverse-del".format(samtools_execute_command,
-                                                                                        bam_file_path) + \
-                       read_name_option + reads_regions_option + phasing_option + mq_option + bq_option + bed_option + flags_option + max_depth_option
+    samtools_command = samtools_execute_command + " mpileup --reverse-del" +read_name_option + reads_regions_option + \
+                       phasing_option + mq_option + bq_option + bed_option + flags_option + max_depth_option
+
     samtools_mpileup_process = subprocess_popen(
-        shlex.split(samtools_command), stdin=stdin)
+        shlex.split(samtools_command + bam_file_path), stdin=stdin)
 
     if alt_fn:
         output_alt_fn = alt_fn
@@ -505,6 +509,8 @@ def extract_candidates(args):
     is_tumor = alt_fn.split('/')[-2].startswith('tumor') if alt_fn else False
     has_pileup_candidates = len(need_phasing_pos_set)
     candidates_list = []
+
+    candidates_dict = defaultdict(str)
     for row in samtools_mpileup_process.stdout:  # chr position N depth seq BQ read_name mapping_quality phasing_info
         columns = row.strip().split('\t')
         pos = int(columns[1])
@@ -525,7 +531,7 @@ def extract_candidates(args):
         is_truth_candidate = pos in truths_variant_dict
         minimum_snp_af_for_candidate = minimum_snp_af_for_truth if is_truth_candidate and minimum_snp_af_for_truth else minimum_snp_af_for_candidate
         minimum_indel_af_for_candidate = minimum_indel_af_for_truth if is_truth_candidate and minimum_indel_af_for_truth else minimum_indel_af_for_candidate
-        base_list, depth, pass_af, af, af_infos, pileup_infos, tumor_pileup_infos = decode_pileup_bases(
+        base_list, depth, pass_af, af, af_infos, pileup_infos, tumor_pileup_infos, alt_list = decode_pileup_bases(
                                                             pileup_bases=pileup_bases,
                                                             reference_base=reference_base,
                                                             minimum_snp_af_for_candidate=minimum_snp_af_for_candidate,
@@ -536,6 +542,7 @@ def extract_candidates(args):
                                                             is_tumor=is_tumor
                                                             )
 
+
         if pass_af and alt_fn:
             depth_list = [str(depth)] if output_depth else []
             alt_info_list = [af_infos, pileup_infos, tumor_pileup_infos] if output_alt_info else []
@@ -543,7 +550,86 @@ def extract_candidates(args):
 
         if pass_af:
             candidates_list.append(pos)
+            candidates_dict[pos] = (alt_list, depth)
 
+    #scan the normal_bam
+    bed_path = os.path.join(candidates_folder, "bed", '{}_{}.bed'.format(ctg_name, chunk_id))
+    if not os.path.exists(os.path.join(candidates_folder, 'bed')):
+        output = subprocess.run("mkdir -p {}".format(os.path.join(candidates_folder, 'bed')), shell=True)
+    output_bed = open(bed_path, 'w')
+    for pos in sorted(candidates_list):
+        output_bed.write('\t'.join([ctg_name, str(pos - 1), str(pos)]) + '\n')
+    output_bed.close()
+
+    candidates_set = set(candidates_list)
+    normal_samtools_mpileup_process = subprocess_popen(
+        shlex.split(samtools_command + args.normal_bam_fn + ' -l ' + bed_path), stdin=stdin)
+
+    high_normal_af_set = set()
+    high_af_gap_set = set()
+    for row in normal_samtools_mpileup_process.stdout:  # chr position N depth seq BQ read_name mapping_quality phasing_info
+        columns = row.strip().split('\t')
+        pos = int(columns[1])
+        # pos that near bed region should include some indel cover in bed
+        # pass_extend_bed = not is_extend_bed_file_given or is_region_in(extend_bed_tree,
+        #                                                                ctg_name, pos - 1,
+        #                                                                pos + 1)
+        # pass_ctg_range = not ctg_start or (pos >= ctg_start and pos <= ctg_end)
+        # if not has_pileup_candidates and not pass_extend_bed and pass_ctg_range:
+        #     continue
+
+        # if pos not in candidates_set:
+        #     continue
+        pileup_bases = columns[4]
+        # raw_base_quality = columns[5]
+        read_name_list = columns[6].split(',') if store_tumor_infos else []
+        # raw_mapping_quality = columns[7]
+        reference_base = reference_sequence[pos - reference_start].upper()
+        if pos not in candidates_set:
+            continue
+        if reference_base.upper() not in "ACGT":
+            continue
+        is_truth_candidate = pos in truths_variant_dict
+        minimum_snp_af_for_candidate = minimum_snp_af_for_truth if is_truth_candidate and minimum_snp_af_for_truth else minimum_snp_af_for_candidate
+        minimum_indel_af_for_candidate = minimum_indel_af_for_truth if is_truth_candidate and minimum_indel_af_for_truth else minimum_indel_af_for_candidate
+        base_list, depth, pass_af, af, af_infos, pileup_infos, tumor_pileup_infos, normal_alt_list = decode_pileup_bases(
+                                                            pileup_bases=pileup_bases,
+                                                            reference_base=reference_base,
+                                                            minimum_snp_af_for_candidate=minimum_snp_af_for_candidate,
+                                                            minimum_indel_af_for_candidate=minimum_indel_af_for_candidate,
+                                                            alternative_base_num=alternative_base_num,
+                                                            has_pileup_candidates=has_pileup_candidates,
+                                                            read_name_list=read_name_list,
+                                                            is_tumor=is_tumor
+                                                            )
+
+        tumor_alt_list, tumor_depth = candidates_dict[pos]
+        tumor_info = [item for item in tumor_alt_list if item[0] in "ACGT"]
+        if len(tumor_info) == 0:
+            print(pos, "not found tumor")
+            continue
+        alt_base, tumor_af = tumor_info[0]
+        normal_info = [item for item in normal_alt_list if item[0] == alt_base]
+        tumor_af = float(tumor_af)
+        #no normal alternative, feed into calling
+        if len(normal_info) == 0:
+            continue
+        normal_af = normal_info[0][1]
+        normal_af = float(normal_af)
+
+        if normal_af > 0 and tumor_af > 0:
+            if normal_af >= 0.03:
+                candidates_set.remove(pos)
+                high_normal_af_set.add(pos)
+            elif tumor_af <= normal_af * 4 and tumor_af != 0:
+                candidates_set.remove(pos)
+                high_af_gap_set.add(pos)
+
+
+    print("[INFO] {} high_normal_af_count/high_af_gap_set: {}/{}".format(ctg_name, len(high_normal_af_set), len(high_af_gap_set)))
+
+
+    candidates_list = [pos for pos in candidates_list if pos in candidates_set]
     if candidates_folder is not None and len(candidates_list):
         all_candidates_regions = []
         region_num = len(candidates_list) // split_bed_size + 1 if len(
@@ -577,6 +663,9 @@ def main():
                         help="Sequencing platform of the input. Options: 'ont,hifi,ilmn', default: %(default)s")
 
     parser.add_argument('--bam_fn', type=str, default="input.bam",
+                        help="Sorted BAM file input, required")
+
+    parser.add_argument('--normal_bam_fn', type=str, default="input.bam",
                         help="Sorted BAM file input, required")
 
     parser.add_argument('--ref_fn', type=str, default="ref.fa",
