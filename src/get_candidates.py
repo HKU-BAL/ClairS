@@ -106,6 +106,16 @@ def get_ref_candidates(fn, contig_name = None, bed_tree=None, variant_info=None)
     return ref_cans_dict
 
 
+def find_most_frequent_candidate(alt_info_dict, ref_base):
+    alt_list = sorted(list([k,v] for k,v in alt_info_dict.items() if k != ref_base), key=lambda x: x[1], reverse=True)
+
+    for alt_base, af in alt_list:
+        if alt_base == ref_base or len(alt_base) > 1:
+            continue
+        return alt_base, af
+
+    return None, None
+
 def find_candidate_match(alt_info_dict, ref_base, alt_base):
     # alt_base = alt_base[0]
     alt_list = sorted(list(alt_info_dict.items()), key=lambda x: x[1], reverse=True)
@@ -114,7 +124,6 @@ def find_candidate_match(alt_info_dict, ref_base, alt_base):
     if len(ref_base) == 1 and len(alt_base) == 1:
         if alt_base in alt_info_dict:
             return alt_info_dict[alt_base], 'snp', max_af
-    #
     # insertion
     if len(ref_base) == 1 and len(alt_base) > 1:
         ab = alt_base[0] + '+' + alt_base[1:]
@@ -131,13 +140,18 @@ def find_candidate_match(alt_info_dict, ref_base, alt_base):
     return None, "", None
 
 
-def filter_germline_candidates(truths, variant_info, alt_dict, paired_alt_dict, INFO):
+def filter_germline_candidates(truths, variant_info, alt_dict, paired_alt_dict, gen_vcf, INFO):
+    #alt_dict: tumor
+    #pair alt_dict: normal
     filtered_truths = []
+    low_confident_germline_truths = []
     truth_not_pass_af = 0
     germline_filtered_by_af_distance = 0
     for pos, variant_type in truths:
         if pos not in alt_dict:
             truth_not_pass_af += 1
+            if gen_vcf:
+                low_confident_germline_truths.append((pos, variant_type + INFO + 'germline_no_read_support'))
             # vcf_format = "%s\t%d\t.\t%s\t%s\t%d\t%s\t%s\tGT:GQ:DP:AF:VT\t%s:%d:%d:%.4f:%s" % (
             #     'chr1',
             #     int(pos),
@@ -167,17 +181,62 @@ def filter_germline_candidates(truths, variant_info, alt_dict, paired_alt_dict, 
             # pair_af: af in normal, af: af in tumor
             if pair_af is None or af is None or math.fabs(pair_af - af) > 0.1:
                 germline_filtered_by_af_distance += 1
+                if gen_vcf:
+                    low_confident_germline_truths.append((pos, variant_type + INFO + 'germline_af_gap'))
                 continue
 
             filtered_truths.append([pos, variant_type])
     # print (truth_not_pass_af, germline_filtered_by_af_distance)
 
     print(
-        '[INFO] {} truth germline variants filtered by no read suuport in normal BAM: {}, filtered by large AF distance between normal and tumor: {}:'.format(
+        '[INFO] {} truth germline variants filtered by no read support in normal BAM: {}, filtered by large AF distance between normal and tumor: {}'.format(
             INFO, truth_not_pass_af, germline_filtered_by_af_distance))
 
 
-    return filtered_truths
+    return filtered_truths, low_confident_germline_truths
+
+
+
+def filter_reference_candidates(truths, alt_dict, paired_alt_dict, gen_vcf, INFO):
+    # we filter the reference candidates that have small gap between normal and tumor pair
+    filtered_truths = []
+    low_confident_reference_candidates = []
+    truth_not_pass_af = 0
+    reference_filtered_by_af_distance = 0
+    for pos, variant_type in truths:
+        if pos not in alt_dict:
+            truth_not_pass_af += 1
+            if gen_vcf:
+                low_confident_reference_candidates.append((pos, variant_type + INFO + 'reference_no_read_support'))
+            continue
+
+        ref_base = alt_dict[pos].ref_base
+        most_frequent_alt_base, tumor_af = find_most_frequent_candidate(alt_info_dict=alt_dict[pos].alt_dict, ref_base=ref_base)
+
+        if most_frequent_alt_base is None or tumor_af is None:
+            continue
+        tumor_af = float(tumor_af)
+        if pos not in paired_alt_dict:
+            filtered_truths.append([pos, variant_type])
+        else:
+            pair_af, vt, pair_max_af = find_candidate_match(alt_info_dict=paired_alt_dict[pos].alt_dict, ref_base=ref_base, alt_base=most_frequent_alt_base)
+            if pair_af is None:
+                filtered_truths.append([pos, variant_type])
+            elif pair_af >= 0.05 or (pair_af > tumor_af * 0.2):
+                reference_filtered_by_af_distance += 1
+                if gen_vcf:
+                    low_confident_reference_candidates.append((pos, variant_type + INFO + 'reference_af_gap'))
+                continue
+
+            filtered_truths.append([pos, variant_type])
+
+    print(
+        '[INFO] {} reference calls filtered by no read support in normal BAM: {}, filtered by large AF distance between normal and tumor: {}'.format(
+            INFO, truth_not_pass_af, reference_filtered_by_af_distance))
+
+
+    return filtered_truths, low_confident_reference_candidates
+
 
 
 def filter_somatic_candidates(truths, variant_info, alt_dict, paired_alt_dict, gen_vcf=False, INFO="Homo"):
