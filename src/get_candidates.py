@@ -246,7 +246,7 @@ def filter_somatic_candidates(truths, variant_info, alt_dict, paired_alt_dict, g
     truth_filter_with_low_af = 0
     truth_filter_with_low_coverage = 0
     min_af_for_tumor = 0.03
-    max_af_in_normal = 0.1
+    max_af_in_normal = 0.03
     min_tumor_support_read_num = param.min_tumor_support_read_num
     # af_gap_for_errors = 0.15
     low_confident_truths = []
@@ -262,11 +262,13 @@ def filter_somatic_candidates(truths, variant_info, alt_dict, paired_alt_dict, g
             if skip_no_read_support:
                 continue
 
+        normal_af, tumor_reads_af = None, None
+
         if pos in paired_alt_dict:
             ref_base, alt_base = variant_info[pos]
             # very high af with same alt_base in normal is not suitable as candidate for training
             normal_af, vt, max_af = find_candidate_match(alt_info_dict=alt_dict[pos].alt_dict, ref_base=ref_base, alt_base=alt_base)
-            if normal_af is not None and normal_af > max_af_in_normal:
+            if (normal_af is not None and normal_af > max_af_in_normal) or (max_af is not None and max_af > max_af_in_normal):
                 truth_filter_in_normal += 1
                 if gen_vcf:
                     low_confident_truths.append((pos, variant_type + INFO + '_high_af_in_normal'))
