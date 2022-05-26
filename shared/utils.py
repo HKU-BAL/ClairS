@@ -63,7 +63,13 @@ def legal_range_from(param_name, x, min_num=None, max_num=None, exit_out_of_rang
         exit(log_error("[ERROR] parameter --{}={} (maximum:{}) out of range".format(param_name, x, max_num)))
     return
 
-def file_path_from(file_name, suffix="", exit_on_not_found=False, sep=""):
+def file_path_from(file_name, suffix="", exit_on_not_found=False, sep="", allow_none=False, is_directory=False):
+    if allow_none and file_name is None:
+        return None
+    if is_directory:
+        is_folder_exists(file_name, suffix)
+        if exit_on_not_found:
+            exit(log_error("[ERROR] directory %s not found" % (file_name + suffix)))
     if is_file_exists(file_name, suffix):
         return abspath(file_name + suffix)
     #allow fn.bam.bai->fn.bai fn.fa.fai->fn.fai
