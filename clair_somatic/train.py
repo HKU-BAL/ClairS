@@ -15,7 +15,7 @@ from torch.optim.lr_scheduler import StepLR
 from torch.utils.tensorboard import SummaryWriter
 import torch.nn.functional as F
 from torch.autograd import Variable
-from torchinfo import summary
+
 from tqdm import tqdm
 
 from shared.utils import str2bool
@@ -91,6 +91,31 @@ class FocalLoss(nn.Module):
         FCLoss = cross_entropy * weight
 
         reduce_fl = torch.mean(torch.sum(FCLoss,dim=1))
+        return reduce_fl
+
+
+class AFLoss(nn.Module):
+    """
+    updated version of focal loss function, for multi class classification, we remove alpha parameter, which the loss
+    more stable, and add gradient clipping to avoid gradient explosion and precision overflow.
+    """
+
+    def __init__(self, alpha=None, gamma=2):
+        super(AFLoss, self).__init__()
+        self.gamma = gamma
+
+    def forward(self, input, target):
+        y_pred, y_true = input, target
+        y_pred = torch.nn.functional.softmax(y_pred, dim=1)
+        y_pred = torch.clamp(y_pred, min=1e-9, max=1-1e-9)
+
+        cross_entropy = -y_true * torch.log(y_pred)
+        reduce_fl = torch.mean(torch.sum(cross_entropy, dim=1))
+        # cross_entropy = -y_true * torch.log(y_pred)
+        # weight = ((1 - y_pred) ** self.gamma) * y_true
+        # FCLoss = cross_entropy * weight
+        # reduce_fl = torch.mean(torch.sum(FCLoss,dim=1))
+
         return reduce_fl
 
 def cal_metrics(tp, fp, fn):
@@ -171,7 +196,6 @@ def train_model(args):
     l2_regularization_lambda = param.l2_regularization_lambda
 
     use_resnet = args.use_resnet
-    use_resnet = True
     platform = args.platform
     ctg_name_string = args.ctg_name
     chkpnt_fn = args.chkpnt_fn
@@ -199,10 +223,11 @@ def train_model(args):
         # free_memory = (reserved - allocated) / (1024 ** 3)  # free inside reserved
         # if free_memory >= 1:
         device = 'cuda'
+    apply_softmax = False if apply_focal_loss else True
     if args.pileup:
-        model = model_path.bigru().to(device)
-        from src.create_tensor_pileup import channel
-        pileup_tensor_shape = [param.no_of_positions, len(channel) * 2] # normal and tumor
+        model = model_path.bigru(apply_softmax=apply_softmax, num_classes=2 if discard_germline else 3).to(device)
+        channel_size = param.pileup_channel_size
+        pileup_tensor_shape = [param.no_of_positions, channel_size * 2] # normal and tumor
         tensor_shape = pileup_tensor_shape
         input = torch.ones(size=[100] + tensor_shape).to(device)
 
@@ -238,7 +263,7 @@ def train_model(args):
             depth=param.max_depth,
             width=param.no_of_positions,
             dim=param.channel_size,
-            apply_softmax=False
+            apply_softmax=apply_softmax
         ).to(device)
         input = torch.ones(size=(100, param.channel_size, param.max_depth, param.no_of_positions)).to(device)
         tensor_shape = param.ont_input_shape if platform == 'ont' else param.input_shape
@@ -252,6 +277,8 @@ def train_model(args):
     output = model(input)
 
     batch_size, chunk_size = param.trainBatchSize, param.chunk_size
+    # if args.pileup:
+    #     batch_size = 200
     assert batch_size % chunk_size == 0
     chunks_per_batch = batch_size // chunk_size
     random.seed(param.RANDOM_SEED)
@@ -345,16 +372,23 @@ def train_model(args):
                 label_tensor = torch.from_numpy(label_for_tumor).to(device)
                 yield input_tensor, label_tensor
 
-    print (summary(model, input_size=tuple([100]+ tensor_shape), device=device))
+    if args.pileup:
+        from torchinfo import summary
+        print (summary(model, input_size=tuple([100] + tensor_shape), device=device))
+    else:
+        from torchsummary import summary
+        print(summary(model, input_size=(param.channel_size,param.max_depth,param.no_of_positions), device=device))
     train_dataset_loder = DataGenerator(table_dataset_list, train_shuffle_chunk_list, True)
     validate_dataset_loder = DataGenerator(validate_table_dataset_list if validation_fn else table_dataset_list, validate_shuffle_chunk_list, False)
 
     criterion = FocalLoss() if apply_focal_loss else nn.CrossEntropyLoss()
     criterion = criterion.to(device)
+    if param.add_af_in_label:
+        af_loss = AFLoss().to(device)
     # optimizer
     optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=param.weight_decay)
     # learning rate scheduler
-    lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
+    # lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
     lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9)
 
     train_steps = train_data_size // batch_size
@@ -366,7 +400,7 @@ def train_model(args):
     print("[INFO] The output model folder: {}".format(ochk_prefix))
     print("[INFO] Apply focal loss in training: {}".format(apply_focal_loss))
     print("[INFO] Discard germline in training: {}".format(discard_germline))
-    print("[INFO] Add L2 regularization to model parameters: {}".format(apply_focal_loss))
+    print("[INFO] Add L2 regularization to model parameters: {}".format(add_l2_regulation_loss))
     print('[INFO] Train steps:{}'.format(train_steps))
     print('[INFO] Validate steps:{}'.format(validate_steps))
 
