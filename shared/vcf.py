@@ -8,6 +8,7 @@ from argparse import ArgumentParser
 from collections import defaultdict
 from shared.utils import subprocess_popen, Position as Position, file_path_from
 
+
 class TruthStdout(object):
     def __init__(self, handle):
         self.stdin = handle
@@ -96,6 +97,12 @@ class VcfWriter(object):
         if TAF is not None:
             FORMAT += ":TAF"
             FORMAT_V += ":%.4f" % (TAF)
+        if NDP is not None:
+            FORMAT += ":NDP"
+            FORMAT_V += ":%d" % (NDP)
+        if TDP is not None:
+            FORMAT += ":TDP"
+            FORMAT_V += ":%d" % (TDP)
         if AU is not None and CU is not None and GU is not None and TU is not None:
             FORMAT += ":AU:CU:GU:TU"
             FORMAT_V += ":%d:%d:%d:%d" % (AU, CU, GU, TU)
@@ -192,7 +199,7 @@ class VcfReader(object):
             position = int(position)
             have_extra_infos = 'VT' in row
 
-            if genotype_1 == "0" and genotype_2 == "0" and not self.show_ref:
+            if genotype_1 == "0" and genotype_2 == "0" and not self.show_ref and not self.skip_genotype:
                 continue
             extra_infos = columns[-1].split(':')[-1] if have_extra_infos else ''
             row_str = row if self.keep_row_str else False
