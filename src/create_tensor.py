@@ -73,7 +73,8 @@ class Position(object):
         self.mapping_quality = [_normalize_mq(phredscore2raw_score(item)) for item in self.raw_mapping_quality]
         self.base_quality = [_normalize_bq(phredscore2raw_score(item)) for item in self.raw_base_quality]
 
-        for read_name, base_info, bq, mq in zip(self.read_name_list, self.base_list, self.base_quality, self.mapping_quality):
+        for read_name, base_info, bq, mq in zip(self.read_name_list, self.base_list, self.base_quality,
+                                                self.mapping_quality):
             read_channel, ins_base, query_base = get_tensor_info(base_info, bq, self.ref_base, mq)
             self.read_info[read_name] = (read_channel, ins_base)
 
@@ -169,7 +170,8 @@ def get_tensor_info(base_info, bq, ref_base, read_mq=None):
     return read_channel, ins_base, query_base
 
 
-def decode_pileup_bases(pos, pileup_bases, reference_base, minimum_af_for_candidate,  minimum_snp_af_for_candidate, minimum_indel_af_for_candidate, has_pileup_candidates, candidates_type_dict,is_tumor, platform="ont"):
+def decode_pileup_bases(pos, pileup_bases, reference_base, minimum_snp_af_for_candidate, minimum_indel_af_for_candidate,
+                        has_pileup_candidates, candidates_type_dict, is_tumor, platform="ont"):
     """
     Decode mpileup input string.
     pileup_bases: pileup base string for each position, include all mapping information.
@@ -293,10 +295,17 @@ def get_alt_info(center_pos, pileup_dict, ref_seq, reference_sequence, reference
 
     return alt_info
 
-def find_tumor_alt_match(center_pos, sorted_read_name_list, pileup_dict, truths_variant_dict):
-    tumor_reads = [read_name for (hap, _, read_name) in sorted_read_name_list if read_name.startswith('t')]
-    normal_reads = [read_name for (hap, _, read_name) in sorted_read_name_list if read_name.startswith('n')]
-    ref_base, alt_base = truths_variant_dict[center_pos].reference_bases, truths_variant_dict[center_pos].alternate_bases[0]
+
+def find_tumor_alt_match(center_pos, sorted_read_name_list, pileup_dict, truths_variant_dict, proportion=None):
+    if proportion is not None and float(proportion) == 1.0:
+        # all reads are from tumor reads
+        tumor_reads = [read_name for (hap, _, read_name) in sorted_read_name_list]
+        normal_reads = []
+    else:
+        tumor_reads = [read_name for (hap, _, read_name) in sorted_read_name_list if read_name.startswith('t')]
+        normal_reads = [read_name for (hap, _, read_name) in sorted_read_name_list if read_name.startswith('n')]
+    ref_base, alt_base = truths_variant_dict[center_pos].reference_bases, \
+                             truths_variant_dict[center_pos].alternate_bases[0]
     is_ins = len(alt_base) > 1 and len(ref_base) == 1
     is_del = len(ref_base) > 1 and len(alt_base) == 1
     is_snp = len(ref_base) == 1 and len(alt_base) == 1
@@ -316,6 +325,7 @@ def find_tumor_alt_match(center_pos, sorted_read_name_list, pileup_dict, truths_
                 matched_read_name_set.add(read_name)
     return matched_read_name_set, normal_read_name_set, tumor_read_name_set
 
+
 def generate_tensor(ctg_name,
                     center_pos,
                     sorted_read_name_list,
@@ -329,11 +339,12 @@ def generate_tensor(ctg_name,
                     is_tumor,
                     candidates_type_dict,
                     use_tensor_sample_mode=False,
-                    truths_variant_dict=None):
+                    truths_variant_dict=None,
+                    proportion=None):
     """
     Generate full alignment input tensor
     ctg_name: provided contig name.
-    center_pos: center position for full alignment generation, default window size = no_of_positions = 
+    center_pos: center position for full alignment generation, default window size = no_of_positions =
     flankingBaseNum + 1 + flankingBaseNum
     sorted_read_name_list: read name list which have been sorted by read start position and haplotype.
     pileup_dict: dictionary (pos: pos info) which keep read information that cover specific position .
@@ -343,7 +354,7 @@ def generate_tensor(ctg_name,
     reference_start: upper reference base for cigar calculation.
     platform: platform for tensor shape, ont give a larger maximum depth compared with pb and illumina.
     confident_bed_tree: dictionary (contig name : intervaltree) for fast region query.
-    add_no_phasing_data_training: boolean option to decide whether add no phasing data in training, we will 
+    add_no_phasing_data_training: boolean option to decide whether add no phasing data in training, we will
     resort the read and remove haplotype info when using this option.
     """
 
@@ -391,16 +402,26 @@ def generate_tensor(ctg_name,
     # gradient = each reads
     if use_tensor_sample_mode:
 
-        tumor_reads_meet_alt_info_set, normal_read_name_set, tumor_read_name_set = find_tumor_alt_match(center_pos, sorted_read_name_list, pileup_dict, truths_variant_dict)
+        if len(sorted_read_name_list) > matrix_depth:
+            # set same seed for reproducibility
+            random.seed(0)
+            # print(len(normal_read_name_list), matrix_depth, read_num)
+            sorted_read_name_list = random.sample(sorted_read_name_list, matrix_depth)
+
+        tumor_reads_meet_alt_info_set, normal_read_name_set, tumor_read_name_set = find_tumor_alt_match(center_pos,
+                                                                                                        sorted_read_name_list,
+                                                                                                        pileup_dict,
+                                                                                                        truths_variant_dict,
+                                                                                                        proportion=proportion)
         if len(tumor_reads_meet_alt_info_set) == 0:
             print ("No reads support tumor alternative in pos:{}".format(center_pos))
             return None, None
-
+        # print(len(tumor_reads_meet_alt_info_set), len(normal_read_name_set), len(tumor_read_name_set))
         tumor_read_name_list = list(tumor_read_name_set)
         normal_read_name_list = list(normal_read_name_set)
         tumor_reads_num = len(tumor_read_name_set)
         tumor_reads_meet_alt_info_num = len(tumor_reads_meet_alt_info_set)
-        porportion = tumor_reads_meet_alt_info_num / float(tumor_reads_num)
+        tumor_read_porportion = tumor_reads_meet_alt_info_num / float(tumor_reads_num)
         paired_reads_num = len(normal_read_name_set)
         sampled_reads_num_list = []
         for read_num in range(len(tumor_read_name_set)):
@@ -1134,6 +1155,14 @@ def main():
                         help=SUPPRESS)
 
     parser.add_argument('--tensor_sample_mode', type=str2bool, default=0,
+                        help="Add all tumor tensor and only sampling in tensor generation")
+
+
+    parser.add_argument('--training_mode', type=str2bool, default=0,
+                        help="Add all tumor tensor and only sampling in tensor generation")
+
+
+    parser.add_argument('--proportion', type=float, default=1.0,
                         help="Add all tumor tensor and only sampling in tensor generation")
 
 
