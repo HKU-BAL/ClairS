@@ -347,21 +347,31 @@ def train_model(args):
                 for chunk_idx in range(chunks_per_batch):
                     offset_chunk_id = shuffle_chunk_list[batch_idx * chunks_per_batch + chunk_idx]
                     bin_id, chunk_id = offset_chunk_id
-                    input_matrix[chunk_idx * chunk_size:(chunk_idx + 1) * chunk_size] = x[bin_id].root.input_matrix[
+
+                    current_tensor = x[bin_id].root.input_matrix[
                             random_start_position + chunk_id * chunk_size:random_start_position + (chunk_id + 1) * chunk_size]
+                    if param.no_indel:
+                        current_tensor = np.concatenate([current_tensor[:,:,:4], current_tensor[:,:, 9:13], current_tensor[:,:,34:38], current_tensor[:,:,43:47]], axis=-1)
+
+                    input_matrix[chunk_idx * chunk_size:(chunk_idx + 1) * chunk_size] = current_tensor
 
                     label[chunk_idx * chunk_size:(chunk_idx + 1) * chunk_size] = x[bin_id].root.label[
-                            random_start_position + chunk_id * chunk_size:random_start_position + (chunk_id + 1) * chunk_size]
+                            random_start_position + chunk_id * chunk_size:random_start_position + (chunk_id + 1) * chunk_size, :param.label_size]
 
                 # input_matrix = np.concatenate((normal_matrix, tumor_matrix), axis=1)
                 # if add_contrastive:
                 # label_for_normal = [[0,1] if np.argmax(item) == 1 else [1,0] for item in label]
                 if discard_germline:
-                    label_for_tumor = [[0,1] if np.argmax(item) == 2 else ([1,0] if np.argmax(item) == 1 else [1,0]) for item in label]
+                    label_for_tumor = [[0,1] if np.argmax(item[:3]) == 2 else ([1,0] if np.argmax(item[:3]) == 1 else [1,0]) for item in label]
                 else:
-                    label_for_tumor = [[0,0,1] if np.argmax(item) == 2 else ([0,1,0] if np.argmax(item) == 1 else [1,0,0]) for item in label]
+                    label_for_tumor = [[0,0,1] if np.argmax(item[:3]) == 2 else ([0,1,0] if np.argmax(item[:3]) == 1 else [1,0,0]) for item in label]
                 # label_for_normal = np.array(label_for_normal, dtype=np.float32)
                 label_for_tumor = np.array(label_for_tumor, dtype=np.float32)
+                af_tensor = []
+                if param.add_af_in_label:
+                    af_list = [item[3] for item in label]
+                    af_list = [[item, item, 1/float(max(item, 0.05)) / 20.0 ] for item in af_list]
+                    af_tensor = torch.from_numpy(np.array(af_list)).to(device)
 
                 # input_matrix = np.maximum(input_matrix * 2.55, 255.0)
                 if not args.pileup:
@@ -370,7 +380,7 @@ def train_model(args):
                     input_tensor = torch.from_numpy(input_matrix).to(device)
                 # tumor_tensor = torch.from_numpy(tumor_matrix)
                 label_tensor = torch.from_numpy(label_for_tumor).to(device)
-                yield input_tensor, label_tensor
+                yield input_tensor, label_tensor, af_tensor
 
     if args.pileup:
         from torchinfo import summary
@@ -412,7 +422,7 @@ def train_model(args):
         fp, tp, fn = 0,0,0
         t = tqdm(enumerate(train_dataset_loder), total=train_steps, position=0, leave=True)
         v = tqdm(enumerate(validate_dataset_loder), total=validate_steps, position=0, leave=True)
-        for batch_idx, (data, label) in t:
+        for batch_idx, (data, label, af_list) in t:
             t.set_description('EPOCH {}'.format(epoch))
             data = data.to(device)
             label = label.to(device)
@@ -432,6 +442,8 @@ def train_model(args):
 
             loss += l2_regularization_loss
 
+            if param.add_af_in_label:
+                loss += af_loss(input=output_logit, target=af_list)
             loss.backward()
             # torch.nn.utils.clip_grad_norm_(model.parameters(), param.grad_norm_clip) # apply gradient normalization
             optimizer.step()
