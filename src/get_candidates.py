@@ -25,13 +25,13 @@ def subprocess_popen(args, stdin=None, stdout=PIPE, stderr=stderr, bufsize=83886
     return Popen(args, stdin=stdin, stdout=stdout, stderr=stderr, bufsize=bufsize, universal_newlines=True)
 
 
-def vcf_reader(vcf_fn, contig_name, bed_tree=None, add_hete_pos=False):
+def vcf_reader(vcf_fn, contig_name, bed_tree=None, add_hetero_pos=False):
     homo_variant_set = set()
     variant_set = set()
     variant_info = defaultdict()
     homo_variant_info = defaultdict()
-    hete_variant_set = set()
-    hete_variant_info = defaultdict()
+    hetero_variant_set = set()
+    hetero_variant_info = defaultdict()
 
     unzip_process = subprocess_popen(shlex.split("gzip -fdc %s" % (vcf_fn)))
     for row in unzip_process.stdout:
@@ -56,12 +56,12 @@ def vcf_reader(vcf_fn, contig_name, bed_tree=None, add_hete_pos=False):
         g1, g2 = genotype.replace('|', "/").split('/')
         if g1 == "1" and g2 == "1":
             homo_variant_set.add(pos)
-            homo_variant_info[pos] = (ref_base,alt_base)
-        if add_hete_pos and (g1 == "1" and g2 == "0" or g1 == "0" and g2 == "1"): #or g1 == "1" and g2 == "2"): # exclude 1/2 truths here
-            hete_variant_set.add(pos)
-            hete_variant_info[pos] = (ref_base, alt_base)
+            homo_variant_info[pos] = (ref_base, alt_base)
+        if add_hetero_pos and (g1 == "1" and g2 == "0" or g1 == "0" and g2 == "1"): #or g1 == "1" and g2 == "2"): # exclude 1/2 truths here
+            hetero_variant_set.add(pos)
+            hetero_variant_info[pos] = (ref_base, alt_base)
 
-    return homo_variant_set, homo_variant_info, hete_variant_set, hete_variant_info, variant_set, variant_info
+    return homo_variant_set, homo_variant_info, hetero_variant_set, hetero_variant_info, variant_set, variant_info
 
 def get_ref_candidates(fn, contig_name = None, bed_tree=None, variant_info=None):
     ref_cans_dict = defaultdict(AltInfos)
@@ -185,6 +185,10 @@ def filter_germline_candidates(truths, variant_info, alt_dict, paired_alt_dict, 
                     low_confident_germline_truths.append((pos, variant_type + INFO + 'germline_af_gap'))
                 continue
 
+            if pos in paired_alt_dict and paired_alt_dict[pos].support_alternative_af is None:
+                paired_alt_dict[pos].support_alternative_af = pair_af
+            if pos in alt_dict and alt_dict[pos].support_alternative_af is None:
+                alt_dict[pos].support_alternative_af = af
             filtered_truths.append([pos, variant_type])
     # print (truth_not_pass_af, germline_filtered_by_af_distance)
 
@@ -210,8 +214,10 @@ def filter_reference_candidates(truths, alt_dict, paired_alt_dict, gen_vcf, INFO
                 low_confident_reference_candidates.append((pos, variant_type + INFO + 'reference_no_read_support'))
             continue
 
+        tumor_af, pair_af = None, None
         ref_base = alt_dict[pos].ref_base
         most_frequent_alt_base, tumor_af = find_most_frequent_candidate(alt_info_dict=alt_dict[pos].alt_dict, ref_base=ref_base)
+
 
         if most_frequent_alt_base is None or tumor_af is None:
             continue
@@ -229,6 +235,11 @@ def filter_reference_candidates(truths, alt_dict, paired_alt_dict, gen_vcf, INFO
                 continue
 
             filtered_truths.append([pos, variant_type])
+
+        if pos in paired_alt_dict and paired_alt_dict[pos].support_alternative_af is None:
+            paired_alt_dict[pos].support_alternative_af = pair_af
+        if pos in alt_dict and alt_dict[pos].support_alternative_af is None:
+            alt_dict[pos].support_alternative_af = tumor_af
 
     print(
         '[INFO] {} reference calls filtered by no read support in normal BAM: {}, filtered by large AF distance between normal and tumor: {}'.format(
@@ -275,6 +286,7 @@ def filter_somatic_candidates(truths, variant_info, alt_dict, paired_alt_dict, g
                 if skip_high_af_in_normal:
                     continue
 
+
         if len(alt_dict[pos].tumor_alt_dict):
             ref_base, alt_base = variant_info[pos]
             # tumor_af, _, _ = find_candidate_match(alt_info_dict=alt_dict[pos].alt_dict, ref_base=ref_base,alt_base=alt_base)
@@ -294,6 +306,11 @@ def filter_somatic_candidates(truths, variant_info, alt_dict, paired_alt_dict, g
                     continue
         # if math.fabs(tumor_af - tumor_af_from_tumor_reads - normal_af) > af_gap_for_errors:
         #     continue
+
+        if pos in paired_alt_dict and paired_alt_dict[pos].support_alternative_af is None:
+            paired_alt_dict[pos].support_alternative_af = normal_af
+        if pos in alt_dict and alt_dict[pos].support_alternative_af is None:
+            alt_dict[pos].support_alternative_af = tumor_reads_af
 
         filtered_truths.append([pos, variant_type])
 
