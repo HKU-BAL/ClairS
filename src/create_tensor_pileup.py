@@ -381,7 +381,7 @@ def get_alt_info(center_pos, pileup_dict, ref_seq, reference_sequence, reference
     return alt_info
 
 def find_tumor_alt_match(center_pos, sorted_read_name_list, read_name_dict, all_nearby_read_name, truths_variant_dict, proportion=None):
-    if float(proportion) == 1.0:
+    if proportion is not None and float(proportion) == 1.0:
         # all reads are from tumor reads
         tumor_reads = all_nearby_read_name
         normal_reads = []
