@@ -228,7 +228,7 @@ def decode_pileup_bases(pileup_bases, reference_base,minimum_snp_af_for_candidat
         elif item[0] in 'ID':
             pass_indel_af = (pass_indel_af or (float(count) / denominator >= minimum_indel_af_for_candidate))
             continue
-        pass_snp_af = pass_snp_af or (float(count) / denominator >= minimum_snp_af_for_candidate) or (alternative_base_num is not None and count >= alternative_base_num)
+        pass_snp_af = pass_snp_af or (float(count) / denominator >= minimum_snp_af_for_candidate) #and (alternative_base_num is not None and count >= alternative_base_num)
         if pass_snp_af:
             support_alt_base = item
 
@@ -238,14 +238,15 @@ def decode_pileup_bases(pileup_bases, reference_base,minimum_snp_af_for_candidat
 
     pass_af = (pass_snp_af or pass_indel_af) and pass_depth
 
+    alt_list = sorted(list(alt_dict.items()), key=lambda x: x[1], reverse=True)
+    alt_list = [[item[0], str(round(item[1]/denominator,3))] for item in alt_list]
+
     if not pass_af:
-        return base_list, depth, pass_af, af, "", "", "", ""
+        return base_list, depth, pass_af, af, "", "", "", alt_list
 
     pileup_list = [[item[0], str(round(item[1]/denominator,3))] for item in pileup_list]
     af_infos = ','.join([item[1] for item in pileup_list if item[0] != reference_base])
 
-    alt_list = sorted(list(alt_dict.items()), key=lambda x: x[1], reverse=True)
-    alt_list = [[item[0], str(round(item[1]/denominator,3))] for item in alt_list]
     pileup_infos = ' '.join([item[0] + ':' + item[1] for item in alt_list])
 
     if tumor_alt_dict is not None:
@@ -543,6 +544,8 @@ def extract_candidates(args):
                                                             )
 
 
+        # if len(candidates_list) > 100:
+        #     break
         if pass_af and alt_fn:
             depth_list = [str(depth)] if output_depth else []
             alt_info_list = [af_infos, pileup_infos, tumor_pileup_infos] if output_alt_info else []
@@ -606,6 +609,7 @@ def extract_candidates(args):
         tumor_alt_list, tumor_depth = candidates_dict[pos]
         tumor_info = [item for item in tumor_alt_list if item[0] in "ACGT"]
         if len(tumor_info) == 0:
+            candidates_set.remove(pos)
             print(pos, "not found tumor")
             continue
         alt_base, tumor_af = tumor_info[0]
@@ -613,10 +617,11 @@ def extract_candidates(args):
         tumor_af = float(tumor_af)
         #no normal alternative, feed into calling
         if len(normal_info) == 0:
+            print(pos, "Not found normal")
             continue
         normal_af = normal_info[0][1]
         normal_af = float(normal_af)
-
+        print(pos, normal_af, tumor_af)
         if normal_af > 0 and tumor_af > 0:
             if normal_af >= 0.03:
                 candidates_set.remove(pos)
