@@ -68,15 +68,16 @@ class Position(object):
         self.genotype = genotype
         self.read_name_seq = defaultdict(str)
 
-    def update_infos(self):
+    def update_infos(self, is_tumor=False):
         # only proceed when variant exists in candidate windows which greatly improves efficiency
-        self.update_info = True
         self.read_name_dict = dict(zip(self.read_name_list, self.base_list))
+        self.update_info = True
         self.mapping_quality = [_normalize_mq(phredscore2raw_score(item)) for item in self.raw_mapping_quality]
         self.base_quality = [_normalize_bq(phredscore2raw_score(item)) for item in self.raw_base_quality]
 
-        for read_name, base_info, bq, mq in zip(self.read_name_list, self.base_list, self.base_quality, self.mapping_quality):
-            read_channel, ins_base, query_base = get_tensor_info(base_info, bq, self.ref_base, mq)
+        for read_name, base_info, bq, mq in zip(self.read_name_list, self.base_list, self.base_quality,
+                                                self.mapping_quality):
+            read_channel, ins_base, query_base = get_tensor_info(base_info, bq, self.ref_base, mq, is_tumor)
             self.read_info[read_name] = (read_channel, ins_base)
 
 
@@ -135,7 +136,7 @@ def sorted_by_hap_read_name(center_pos, haplotag_dict, pileup_dict, hap_dict, ma
     return sorted_read_name_list
 
 
-def get_tensor_info(base_info, bq, ref_base, read_mq=None):
+def get_tensor_info(base_info, bq, ref_base, read_mq=None, is_tumor=False):
     """
     Create tensor information for each read level position.
     base_info: base information include all alternative bases.
@@ -143,6 +144,9 @@ def get_tensor_info(base_info, bq, ref_base, read_mq=None):
     ref_base: reference_base: upper reference base for cigar calculation.
     read_mq: read mapping quality.
     """
+
+    # hap_type = 100 if is_tumor else 50
+    hap_type = 100
 
     base, indel = base_info
     ins_base = ""
@@ -166,12 +170,14 @@ def get_tensor_info(base_info, bq, ref_base, read_mq=None):
     if len(indel) and indel[0] in '+-':
         if indel[0] == "+":
             ins_base = indel[1:].upper()
-    read_channel[:5] = REF_BASE, ALT_BASE, strand, bq, read_mq,
+    # hap_type = 100 if ALT_BASE > 0 else 0
+    read_channel[:6] = REF_BASE, ALT_BASE, strand, bq, read_mq, hap_type
     query_base = "" if base_upper not in "ACGT" else base_upper
     return read_channel, ins_base, query_base
 
 
-def decode_pileup_bases(pos, pileup_bases, reference_base,  minimum_snp_af_for_candidate, minimum_indel_af_for_candidate, has_pileup_candidates, candidates_type_dict,is_tumor,platform="ont"):
+def decode_pileup_bases(pos, pileup_bases, reference_base, minimum_snp_af_for_candidate, minimum_indel_af_for_candidate,
+                        has_pileup_candidates, candidates_type_dict, is_tumor, platform="ont"):
     """
     Decode mpileup input string.
     pileup_bases: pileup base string for each position, include all mapping information.
@@ -333,7 +339,7 @@ def generate_tensor(ctg_name,
     """
     Generate full alignment input tensor
     ctg_name: provided contig name.
-    center_pos: center position for full alignment generation, default window size = no_of_positions = 
+    center_pos: center position for full alignment generation, default window size = no_of_positions =
     flankingBaseNum + 1 + flankingBaseNum
     sorted_read_name_list: read name list which have been sorted by read start position and haplotype.
     pileup_dict: dictionary (pos: pos info) which keep read information that cover specific position .
@@ -343,7 +349,7 @@ def generate_tensor(ctg_name,
     reference_start: upper reference base for cigar calculation.
     platform: platform for tensor shape, ont give a larger maximum depth compared with pb and illumina.
     confident_bed_tree: dictionary (contig name : intervaltree) for fast region query.
-    add_no_phasing_data_training: boolean option to decide whether add no phasing data in training, we will 
+    add_no_phasing_data_training: boolean option to decide whether add no phasing data in training, we will
     resort the read and remove haplotype info when using this option.
     """
 
@@ -365,7 +371,7 @@ def generate_tensor(ctg_name,
 
     for p in range(start_pos, end_pos):
         if p in pileup_dict and not pileup_dict[p].update_info:
-            pileup_dict[p].update_infos()
+            pileup_dict[p].update_infos(is_tumor=is_tumor)
         for read_idx, read_name_info in enumerate(sorted_read_name_list):
             hap, read_order, read_name = read_name_info
             offset = p - start_pos
