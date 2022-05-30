@@ -339,30 +339,30 @@ def get_candidates(args):
     synthetic_coverage = args.synthetic_coverage
     output_bed_fn = args.output_bed_fn
     output_fp_bed_regions = output_bed_fn is not None
-    homo_variant_set_1, homo_variant_info_1, hete_variant_set_1, hete_variant_info_1, variant_set_1, variant_info_1 = vcf_reader(vcf_fn=vcf_fn_1, contig_name=contig_name, bed_tree=bed_tree, add_hete_pos=add_hete_pos)
-    homo_variant_set_2, homo_variant_info_2, hete_variant_set_2, hete_variant_info_2, variant_set_2, variant_info_2 = vcf_reader(vcf_fn=vcf_fn_2, contig_name=contig_name, bed_tree=bed_tree, add_hete_pos=add_hete_pos)
-    # print (len(variant_info_1), len(variant_info_2))
-    tumor_alt_dict = get_ref_candidates(fn=tumor_reference_cans_fn, contig_name=contig_name, bed_tree=bed_tree, variant_info=variant_info_2)
-    normal_alt_dict = get_ref_candidates(fn=normal_reference_cans_fn, contig_name=contig_name, bed_tree=bed_tree, variant_info=variant_info_2)
 
-    normal_ref_cans_list = [pos for pos in normal_alt_dict if pos not in variant_set_2 and pos not in variant_set_1]
-    tumor_ref_cans_list = [pos for pos in tumor_alt_dict if pos not in variant_set_2 and pos not in variant_set_1]
-    intersection_pos_set = homo_variant_set_1.intersection(homo_variant_set_2)
+    normal_homo_variant_set, normal_homo_variant_info, normal_hetero_variant_set, normal_hetero_variant_info, normal_variant_set, normal_variant_info = vcf_reader(vcf_fn=normal_vcf_fn, contig_name=contig_name, bed_tree=bed_tree, add_hetero_pos=add_hetero_pos)
+    tumor_homo_variant_set, tumor_homo_variant_info, tumor_hetero_variant_set, tumor_hetero_variant_info, tumor_variant_set, tumor_variant_info = vcf_reader(vcf_fn=tumor_vcf_fn, contig_name=contig_name, bed_tree=bed_tree, add_hetero_pos=add_hetero_pos)
+    # print (len(normal_variant_info), len(tumor_variant_info))
+    tumor_alt_dict = get_ref_candidates(fn=tumor_reference_cans_fn, contig_name=contig_name, bed_tree=bed_tree, variant_info=tumor_variant_info)
+    normal_alt_dict = get_ref_candidates(fn=normal_reference_cans_fn, contig_name=contig_name, bed_tree=bed_tree, variant_info=tumor_variant_info)
 
-    #
+    normal_ref_cans_list = [pos for pos in normal_alt_dict if pos not in tumor_variant_set and pos not in normal_variant_set]
+    tumor_ref_cans_list = [pos for pos in tumor_alt_dict if pos not in tumor_variant_set and pos not in normal_variant_set]
+    intersection_pos_set = normal_homo_variant_set.intersection(tumor_homo_variant_set)
+
     same_alt_pos_set = set()
     for pos in intersection_pos_set:
-        if homo_variant_info_1[pos] != homo_variant_info_2[pos]:
+        if normal_homo_variant_info[pos] != tumor_homo_variant_info[pos]:
             continue
         same_alt_pos_set.add(pos)
 
-    hete_list_with_same_repre = []
-    if add_hete_pos:
-        for pos, (ref_base, alt_base) in hete_variant_info_2.items():
-            if pos in hete_variant_set_1:
-                ref_base_2, alt_base_2 = hete_variant_info_1[pos]
+    hetero_list_with_same_repre = []
+    if add_hetero_pos:
+        for pos, (ref_base, alt_base) in tumor_hetero_variant_info.items():
+            if pos in normal_hetero_variant_set:
+                ref_base_2, alt_base_2 = normal_hetero_variant_info[pos]
                 if ref_base == ref_base_2 and alt_base == alt_base_2:
-                    hete_list_with_same_repre.append(pos)
+                    hetero_list_with_same_repre.append(pos)
 
     homo_germline = [(item, 'homo_germline') for item in list(same_alt_pos_set)]
     hete_germline = [(item, 'hete_germline') for item in hete_list_with_same_repre]
