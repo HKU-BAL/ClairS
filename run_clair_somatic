@@ -478,7 +478,7 @@ def somatic_calling(args):
     cpt_command = 'time ' + args.parallel
     cpt_command += ' --joblog ' + args.output_dir + '/logs/parallel_2_create_pair_tensor.log'
     cpt_command += ' -j ' + str(args.threads)
-    cpt_command += ' ' + args.pypy + ' ' + main_entry + ' create_pair_tensor'
+    cpt_command += ' ' + args.pypy + ' ' + main_entry + ' create_pair_tensor' + "_pileup" if args.pileup else ""
     cpt_command += ' --normal_bam_fn ' + args.normal_bam_fn
     cpt_command += ' --tumor_bam_fn ' + args.tumor_bam_fn
     cpt_command += ' --ref_fn ' + args.ref_fn
@@ -503,7 +503,9 @@ def somatic_calling(args):
     predict_command += ' --chkpnt_fn ' + args.model_dir
     predict_command += ' --use_gpu ' + str(args.use_gpu)
     predict_command += ' --platform ' + args.platform
-    predict_command += ' :::: ' + args.output_dir + '/tmp/candidates/CANDIDATE_FILES'
+    if args.pileup:
+        predict_command += ' --pileup '
+    predict_command += ' :::: ' + args.output_dir + '/tmp/candidates/CANDIDATES_FILES'
     predict_command += ' |& tee ' + args.output_dir + '/logs/3_PREDICT.log'
 
     # STEP 4: MERGE VCF
@@ -735,6 +737,13 @@ def somatic_parser():
     optional_params.add_argument(
         '-d',
         "--dry_run",
+        default=False,
+        action='store_true',
+        help="If true then only the commands will be printed."
+    )
+
+    optional_params.add_argument(
+        "--pileup",
         default=False,
         action='store_true',
         help="If true then only the commands will be printed."
