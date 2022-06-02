@@ -12,6 +12,8 @@ from shared.interval_tree import bed_tree_from, is_region_in
 major_contigs_order = ["chr" + str(a) for a in list(range(1, 23)) + ["X", "Y"]] + [str(a) for a in
                                                                                    list(range(1, 23)) + ["X", "Y"]]
 
+major_contigs = {"chr" + str(a) for a in list(range(1, 23)) + ["X", "Y"]}.union(
+    {str(a) for a in list(range(1, 23)) + ["X", "Y"]})
 
 def cal_metrics(tp, fp, fn):
     precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
