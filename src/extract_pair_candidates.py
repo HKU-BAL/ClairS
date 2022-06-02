@@ -159,7 +159,7 @@ def get_tensor_info(base_info, bq, ref_base, read_mq=None):
     return read_channel, ins_base, query_base
 
 
-def decode_pileup_bases(pileup_bases, reference_base,minimum_snp_af_for_candidate, minimum_indel_af_for_candidate, alternative_base_num, has_pileup_candidates, read_name_list, is_tumor,platform="ont"):
+def decode_pileup_bases(pileup_bases, reference_base, minimum_snp_af_for_candidate, minimum_indel_af_for_candidate, alternative_base_num, has_pileup_candidates, read_name_list, is_tumor,platform="ont"):
     """
     Decode mpileup input string.
     pileup_bases: pileup base string for each position, include all mapping information.
@@ -228,7 +228,7 @@ def decode_pileup_bases(pileup_bases, reference_base,minimum_snp_af_for_candidat
         elif item[0] in 'ID':
             pass_indel_af = (pass_indel_af or (float(count) / denominator >= minimum_indel_af_for_candidate))
             continue
-        pass_snp_af = pass_snp_af or (float(count) / denominator >= minimum_snp_af_for_candidate) #and (alternative_base_num is not None and count >= alternative_base_num)
+        pass_snp_af = pass_snp_af or (float(count) / denominator >= minimum_snp_af_for_candidate) and (alternative_base_num is not None and count >= alternative_base_num)
         if pass_snp_af:
             support_alt_base = item
 
@@ -239,7 +239,7 @@ def decode_pileup_bases(pileup_bases, reference_base,minimum_snp_af_for_candidat
     pass_af = (pass_snp_af or pass_indel_af) and pass_depth
 
     alt_list = sorted(list(alt_dict.items()), key=lambda x: x[1], reverse=True)
-    alt_list = [[item[0], str(round(item[1]/denominator,3))] for item in alt_list]
+    alt_list = [[item[0], str(round(item[1]/denominator,3))] for item in alt_list if item[0].upper() != reference_base]
 
     if not pass_af:
         return base_list, depth, pass_af, af, "", "", "", alt_list
@@ -595,7 +595,7 @@ def extract_candidates(args):
         is_truth_candidate = pos in truths_variant_dict
         minimum_snp_af_for_candidate = minimum_snp_af_for_truth if is_truth_candidate and minimum_snp_af_for_truth else minimum_snp_af_for_candidate
         minimum_indel_af_for_candidate = minimum_indel_af_for_truth if is_truth_candidate and minimum_indel_af_for_truth else minimum_indel_af_for_candidate
-        base_list, depth, pass_af, af, af_infos, pileup_infos, tumor_pileup_infos, normal_alt_list = decode_pileup_bases(
+        base_list, depth, pass_af, af, af_infos, pileup_infos, normal_pileup_infos, normal_alt_list = decode_pileup_bases(
                                                             pileup_bases=pileup_bases,
                                                             reference_base=reference_base,
                                                             minimum_snp_af_for_candidate=minimum_snp_af_for_candidate,
@@ -621,7 +621,7 @@ def extract_candidates(args):
             continue
         normal_af = normal_info[0][1]
         normal_af = float(normal_af)
-        print(pos, normal_af, tumor_af)
+        # print(pos, normal_af, tumor_af)
         if normal_af > 0 and tumor_af > 0:
             if normal_af >= 0.03:
                 candidates_set.remove(pos)
@@ -634,7 +634,7 @@ def extract_candidates(args):
     print("[INFO] {} high_normal_af_count/high_af_gap_set: {}/{}".format(ctg_name, len(high_normal_af_set), len(high_af_gap_set)))
 
 
-    candidates_list = [pos for pos in candidates_list if pos in candidates_set]
+
     if candidates_folder is not None and len(candidates_list):
         all_candidates_regions = []
         region_num = len(candidates_list) // split_bed_size + 1 if len(
