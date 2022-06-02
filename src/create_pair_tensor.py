@@ -524,29 +524,28 @@ def generate_tensor(ctg_name,
             elif base.upper() != reference_base:
                 alt_dict[base.upper()] += 1
 
-        af_set= set()
-        for row_idx, (hap, _, read_name) in enumerate(sorted_read_name_list):
-            af_num = 0
-            if read_name in pileup_dict[center_pos].read_name_dict:
-                base, indel = pileup_dict[center_pos].read_name_dict[read_name]
-                base_upper = base.upper()
-                if indel != '':
-                    if indel[0] == '+':
-                        insert_str = ('+' + base_upper + indel.upper()[1:])
-                        af_num = alt_dict[insert_str] / max(1, float(depth)) if insert_str in alt_dict else af_num
-                    else:
-                        af_num = alt_dict[indel.upper()] / max(1, float(depth)) if indel.upper() in alt_dict else af_num
-                elif base.upper() in alt_dict:
-                    af_num = alt_dict[base_upper] / max(1, float(depth))
-            af_num = _normalize_af(af_num) if af_num != 0 else af_num
-            af_set.add(round(af_num/100, 3))
+        af_set = set()
+        # for row_idx, (hap, _, read_name) in enumerate(sorted_read_name_list):
+            # af_num = 0
+            # if read_name in pileup_dict[center_pos].read_name_dict:
+            #     base, indel = pileup_dict[center_pos].read_name_dict[read_name]
+            #     base_upper = base.upper()
+            #     if indel != '':
+            #         if indel[0] == '+':
+            #             insert_str = ('+' + base_upper + indel.upper()[1:])
+            #             af_num = alt_dict[insert_str] / max(1, float(depth)) if insert_str in alt_dict else af_num
+            #         else:
+            #             af_num = alt_dict[indel.upper()] / max(1, float(depth)) if indel.upper() in alt_dict else af_num
+            #     elif base.upper() in alt_dict:
+            #         af_num = alt_dict[base_upper] / max(1, float(depth))
+            # af_num = _normalize_af(af_num) if af_num != 0 else af_num
+            # af_set.add(round(af_num / 100, 3))
             # hap_type = HAP_TYPE[hap]
-            hap_type = 100 if is_tumor else 50
-            for p in range(no_of_positions):
-                if tensor[row_idx][p][2] != 0:  # skip all del #*
-                    tensor[row_idx][p][5] = af_num
-                    tensor[row_idx][p][7] = hap_type
-
+            # hap_type = 100 if is_tumor else 50
+            # for p in range(no_of_positions):
+            #     if tensor[row_idx][p][1] != 0:  # skip all del #*
+            #         tensor[row_idx][p][5] = hap_type
+                    # tensor[row_idx][p][7] = hap_type
 
         alt_info = []
         af_infos = ' '.join([str(item) for item in sorted(list(af_set), reverse=True) if item != 0])
@@ -764,7 +763,7 @@ def create_tensor(args):
     phasing_option = " --output-extra HP" if phasing_info_in_bam else " "
     mq_option = ' --min-MQ {}'.format(min_mapping_quality)
     output_mq, output_read_name = True, True
-    output_mq_option = '--output-MQ' if output_mq else ""
+    output_mq_option = ' --output-MQ ' if output_mq else ""
     output_read_name_option = ' --output-QNAME ' if output_read_name else ""
     bq_option = ' --min-BQ {}'.format(min_base_quality)
     # pileup bed first
@@ -834,7 +833,9 @@ def create_tensor(args):
             raw_base_quality = columns[5]
             raw_mapping_quality = columns[6]
             read_name_list = columns[7].split(',')
-            reference_base = evc_base_from(reference_sequence[pos - reference_start].upper())
+            reference_base = reference_sequence[pos - reference_start].upper()
+            if reference_base not in 'ACGT':
+                continue
             base_list, depth, pass_af, af = decode_pileup_bases(pos=pos,
                                                                 pileup_bases=pileup_bases,
                                                                 reference_base=reference_base,
@@ -844,17 +845,14 @@ def create_tensor(args):
                                                                 candidates_type_dict=candidates_type_dict,
                                                                 is_tumor=is_tumor)
 
-            if len(read_name_list) != len(base_list):
-                continue
-
-            if not reference_base in 'ACGT':
-                continue
-
             for b_idx, base in enumerate(base_list):
                 if base[0] == '#' or (base[0] >= 'a' and base[0] <= 'z'):
-                    read_name_list[b_idx] += '_1' # reverse
+                    read_name_list[b_idx] += '_1'  # reverse
                 else:
-                    read_name_list[b_idx] += '_0' # forward
+                    read_name_list[b_idx] += '_0'  # forward
+
+            if len(read_name_list) != len(base_list):
+                continue
 
             if not is_known_vcf_file_provided and not has_pileup_candidates and reference_base in 'ACGT' and (
                     pass_af and depth >= min_coverage):
