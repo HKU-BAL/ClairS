@@ -876,7 +876,6 @@ def create_tensor(args):
                                     bed_ctg_start=extend_start,
                                     bed_ctg_end=extend_end)
 
-
     def samtools_pileup_generator_from(samtools_mpileup_process):
         need_phasing_pos_list = sorted(list(candidates_pos_set))
         current_pos_index = 0
@@ -886,8 +885,8 @@ def create_tensor(args):
             pos = int(columns[1])
             # pos that near bed region should include some indel cover in bed
             pass_extend_bed = not is_extend_bed_file_given or is_region_in(extend_bed_tree,
-                                                                                     ctg_name, pos - 1,
-                                                                                     pos + 1)
+                                                                           ctg_name, pos - 1,
+                                                                           pos + 1)
             pass_ctg_range = not ctg_start or (pos >= ctg_start and pos <= ctg_end)
             if not has_pileup_candidates and not pass_extend_bed and pass_ctg_range:
                 continue
@@ -895,16 +894,23 @@ def create_tensor(args):
             raw_base_quality = columns[5]
             raw_mapping_quality = columns[6]
             read_name_list = columns[7].split(',')
-            reference_base = evc_base_from(reference_sequence[pos - reference_start].upper())
+            reference_base = reference_sequence[pos - reference_start].upper()
+            if reference_base not in 'ACGT':
+                continue
             base_list, depth, pass_af, af = decode_pileup_bases(pos=pos,
                                                                 pileup_bases=pileup_bases,
                                                                 reference_base=reference_base,
-                                                                minimum_af_for_candidate=minimum_af_for_candidate,
                                                                 minimum_snp_af_for_candidate=minimum_snp_af_for_candidate,
                                                                 minimum_indel_af_for_candidate=minimum_indel_af_for_candidate,
                                                                 has_pileup_candidates=has_pileup_candidates,
                                                                 candidates_type_dict=candidates_type_dict,
                                                                 is_tumor=is_tumor)
+
+            for b_idx, base in enumerate(base_list):
+                if base[0] == '#' or (base[0] >= 'a' and base[0] <= 'z'):
+                    read_name_list[b_idx] += '_1'  # reverse
+                else:
+                    read_name_list[b_idx] += '_0'  # forward
 
             if len(read_name_list) != len(base_list):
                 continue
@@ -1110,7 +1116,6 @@ def main():
     parser.add_argument('--truth_vcf_fn', type=str, default=None,
                         help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file,  default: %(default)s")
 
-
     # options for internal process control
     ## Path to the 'zstd' compression
     parser.add_argument('--zstd', type=str, default=param.zstd,
@@ -1159,10 +1164,8 @@ def main():
     parser.add_argument('--tensor_sample_mode', type=str2bool, default=0,
                         help="Add all tumor tensor and only sampling in tensor generation")
 
-
     parser.add_argument('--training_mode', type=str2bool, default=0,
                         help="Add all tumor tensor and only sampling in tensor generation")
-
 
     parser.add_argument('--proportion', type=float, default=1.0,
                         help="Add all tumor tensor and only sampling in tensor generation")
