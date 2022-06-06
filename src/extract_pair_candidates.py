@@ -630,7 +630,35 @@ def extract_candidates(args):
                 candidates_set.remove(pos)
                 high_af_gap_set.add(pos)
 
+    # pre_candidates_list = deepcopy(candidates_list)
+    candidates_list = [pos for pos in candidates_list if pos in candidates_set]
 
+    gen_vcf = False
+    if gen_vcf:
+
+        from shared.vcf import VcfWriter, VcfReader
+
+        truth_vcf_reader = VcfReader(vcf_fn=truth_vcf_fn, ctg_name=ctg_name, show_ref=False, keep_row_str=True,
+                                     skip_genotype=True)
+        truth_vcf_reader.read_vcf()
+        truth_variant_dict = truth_vcf_reader.variant_dict
+
+        vcf_writer = VcfWriter(vcf_fn=os.path.join(candidates_folder, "{}_{}.vcf".format(ctg_name, chunk_id)), ref_fn=fasta_file_path, ctg_name=ctg_name, show_ref_calls=True)
+        for pos in candidates_list:
+            genotype = '1/1'
+            ref_base, alt_base = "A", "A"
+            if pos in truth_variant_dict:
+                print(ctg_name, pos, "in truth set")
+                continue
+
+            vcf_writer.write_row(POS=pos,
+                                 REF=ref_base,
+                                 ALT=alt_base,
+                                 QUAL=10,
+                                 GT=genotype,
+                                 DP=10,
+                                 AF=0.5)
+        vcf_writer.close()
     print("[INFO] {} high_normal_af_count/high_af_gap_set: {}/{}".format(ctg_name, len(high_normal_af_set), len(high_af_gap_set)))
 
 
