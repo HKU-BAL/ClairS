@@ -143,6 +143,8 @@ def get_tensor_info(base_info, bq, ref_base, read_mq=None, is_tumor=False):
     read_mq: read mapping quality.
     """
 
+    hap_type = 100 if is_tumor else 50
+
     base, indel = base_info
     ins_base = ""
     query_base = ""
@@ -376,7 +378,7 @@ def generate_tensor(ctg_name,
 
     for p in range(start_pos, end_pos):
         if p in pileup_dict and not pileup_dict[p].update_info:
-            pileup_dict[p].update_infos()
+            pileup_dict[p].update_infos(is_tumor=is_tumor)
         for read_idx, read_name_info in enumerate(sorted_read_name_list):
             hap, read_order, read_name = read_name_info
             offset = p - start_pos
@@ -526,7 +528,7 @@ def generate_tensor(ctg_name,
         if 0:
             import numpy as np
             tmp_list = [item.split(' ') for item in tensor_string_list]
-            tmp = [np.array(tmp, dtype=int).reshape((-1, 33, 7)) for tmp in tmp_list]
+            a = [np.array(tmp, dtype=int).reshape((-1, 25, 7)) for tmp in tmp_list]
 
         return '\n'.join(["%s\t%d\t%s\t%s\t%s\t%s\t%s" % (
             ctg_name,
@@ -607,8 +609,6 @@ def generate_tensor(ctg_name,
         ) for tensor_string in tensor_string_list]), alt_info
 
 
-
-
 class TensorStdout(object):
     def __init__(self, handle):
         self.stdin = handle
@@ -625,6 +625,7 @@ def update_hetero_ref(pos, reference_sequence, reference_start, extend_bp, alt_b
     alt_seq = ref_seq[:extend_bp] + alt_base + ref_seq[extend_bp + 1:]
     return ref_seq, alt_seq
 
+
 def get_normal_set(alt_fn):
     normal_pos_set = set()
     file_path_process = subprocess_popen(shlex.split("gzip -fdc %s" % (alt_fn)))
@@ -635,6 +636,7 @@ def get_normal_set(alt_fn):
     file_path_output.close()
     file_path_process.wait()
     return normal_pos_set
+
 
 def create_tensor(args):
     ctg_start = args.ctg_start
@@ -676,10 +678,11 @@ def create_tensor(args):
     candidates_pos_set = set()
     candidates_type_dict = defaultdict(str)
     add_read_regions = True
-
+    training_mode = args.training_mode
     truth_vcf_fn = args.truth_vcf_fn
     is_truth_vcf_provided = truth_vcf_fn is not None
     truths_variant_dict = {}
+    proportion = args.proportion
     if is_truth_vcf_provided:
         from shared.vcf import VcfReader
         unified_vcf_reader = VcfReader(vcf_fn=truth_vcf_fn, ctg_name=ctg_name, is_var_format=False)
@@ -823,7 +826,7 @@ def create_tensor(args):
     phasing_option = " --output-extra HP" if phasing_info_in_bam else " "
     mq_option = ' --min-MQ {}'.format(min_mapping_quality)
     output_mq, output_read_name = True, True
-    output_mq_option = '--output-MQ' if output_mq else ""
+    output_mq_option = ' --output-MQ ' if output_mq else ""
     output_read_name_option = ' --output-QNAME ' if output_read_name else ""
     bq_option = ' --min-BQ {}'.format(min_base_quality)
     # pileup bed first
@@ -836,13 +839,12 @@ def create_tensor(args):
     # print (add_read_regions, ctg_start, ctg_end, reference_start)
     stdin = None if bam_file_path != "PIPE" else sys.stdin
     bam_file_path = bam_file_path if bam_file_path != "PIPE" else "-"
-    samtools_command = "{} mpileup  {} --reverse-del".format(samtools_execute_command, bam_file_path) + \
+    samtools_command = "{} mpileup {} --reverse-del".format(samtools_execute_command, bam_file_path) + \
                        output_read_name_option + output_mq_option + reads_regions_option + phasing_option + mq_option + bq_option + bed_option + flags_option + max_depth_option
     samtools_mpileup_process = subprocess_popen(
         shlex.split(samtools_command), stdin=stdin)
 
-    #
-    is_tumor = "tumor_" in bam_file_path
+    is_tumor = "tumor_" in bam_file_path or tensor_sample_mode != 0
     # normal_pos_set = get_normal_set(alt_fn) if is_tumor and alt_fn is not None else None
     # alt_fn = None if is_tumor else alt_fn
 
