@@ -426,17 +426,34 @@ def generate_tensor(ctg_name,
         tumor_read_porportion = tumor_reads_meet_alt_info_num / float(tumor_reads_num)
         paired_reads_num = len(normal_read_name_set)
         sampled_reads_num_list = []
-        for read_num in range(len(tumor_read_name_set)):
-            if read_num == 0 or paired_reads_num == 0 or read_num > matrix_depth:
-                continue
-            tumor_af = read_num / (read_num + paired_reads_num) * porportion
-            if tumor_af >= min_af_for_samping and tumor_af <= max_af_for_sampling:
-                sampled_reads_num_list.append(read_num)
 
-        sampled_reads_num_list = sampled_reads_num_list[::chunk_read_size]
+        if param.use_beta_subsampling:
+            beta_acc_per = param.beta_acc_per
+            for s_idx in range(3):
+                random.seed(center_pos + s_idx)
+                random_af = random.random()
+                af = None
+                for pro_idx in range(len(beta_acc_per) - 1):
+                    if random_af >= beta_acc_per[pro_idx] and random_af < beta_acc_per[pro_idx + 1]:
+                        af = pro_idx / 100.0
+                        break
+                if af == None:
+                    continue
+                sampled_read_num = int((len(tumor_read_name_set) * af) / tumor_read_porportion)
+                if sampled_read_num >= min_tumor_support_read_num and sampled_read_num <= len(tumor_read_name_set):
+                    sampled_reads_num_list.append(sampled_read_num)
+        else:
+            for read_num in range(len(tumor_read_name_set)):
+                if read_num == 0 or paired_reads_num == 0 or read_num > matrix_depth:
+                    continue
+                tumor_af = read_num / (read_num + paired_reads_num) * tumor_read_porportion
+                if tumor_af >= min_af_for_samping and tumor_af <= max_af_for_sampling:
+                    sampled_reads_num_list.append(read_num)
 
-        sampled_reads_num_list = [read_num for read_num in sampled_reads_num_list if
-                                  min_tumor_support_read_num is None or read_num >= min_tumor_support_read_num]
+            sampled_reads_num_list = sampled_reads_num_list[::chunk_read_size]
+
+        # sampled_reads_num_list = [read_num for read_num in sampled_reads_num_list if
+        #                           min_tumor_support_read_num is None or read_num >= min_tumor_support_read_num]
 
         for read_num in sampled_reads_num_list:
 
