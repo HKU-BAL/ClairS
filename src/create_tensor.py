@@ -66,7 +66,7 @@ class Position(object):
         self.genotype = genotype
         self.read_name_seq = defaultdict(str)
 
-    def update_infos(self):
+    def update_infos(self, is_tumor=False):
         # only proceed when variant exists in candidate windows which greatly improves efficiency
         self.read_name_dict = dict(zip(self.read_name_list, self.base_list))
         self.update_info = True
@@ -75,7 +75,7 @@ class Position(object):
 
         for read_name, base_info, bq, mq in zip(self.read_name_list, self.base_list, self.base_quality,
                                                 self.mapping_quality):
-            read_channel, ins_base, query_base = get_tensor_info(base_info, bq, self.ref_base, mq)
+            read_channel, ins_base, query_base = get_tensor_info(base_info, bq, self.ref_base, mq, is_tumor)
             self.read_info[read_name] = (read_channel, ins_base)
 
 
@@ -134,7 +134,7 @@ def sorted_by_hap_read_name(center_pos, haplotag_dict, pileup_dict, hap_dict, ma
     return sorted_read_name_list
 
 
-def get_tensor_info(base_info, bq, ref_base, read_mq=None):
+def get_tensor_info(base_info, bq, ref_base, read_mq=None, is_tumor=False):
     """
     Create tensor information for each read level position.
     base_info: base information include all alternative bases.
@@ -165,7 +165,7 @@ def get_tensor_info(base_info, bq, ref_base, read_mq=None):
     if len(indel) and indel[0] in '+-':
         if indel[0] == "+":
             ins_base = indel[1:].upper()
-    read_channel[:5] = REF_BASE, ALT_BASE, strand, bq, read_mq,
+    read_channel[:6] = REF_BASE, ALT_BASE, strand, bq, read_mq, hap_type
     query_base = "" if base_upper not in "ACGT" else base_upper
     return read_channel, ins_base, query_base
 
