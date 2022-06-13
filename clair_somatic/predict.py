@@ -11,6 +11,7 @@ from time import time
 from argparse import ArgumentParser, SUPPRESS
 from threading import Thread
 from subprocess import PIPE, run
+from clair_somatic.call_variants import output_vcf_from_probability, OutputConfig
 from math import log, e
 from collections import namedtuple
 
@@ -51,18 +52,31 @@ def print_output_message(
             variant_length_probabilities_2,
             extra_infomation_string=""
     ):
-        output_file.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format(
+        global call_fn
+        if call_fn is not None:
+            output_vcf_from_probability(
             chromosome,
             position,
             reference_base,
             normal_alt_info,
             tumor_alt_info,
-            ' '.join(["{:0.8f}".format(x) for x in gt21_probabilities]),
-            # ["{:0.8f}".format(x) for x in genotype_probabilities],
-            # ["{:0.8f}".format(x) for x in variant_length_probabilities_1],
-            # ["{:0.8f}".format(x) for x in variant_length_probabilities_2],
-            extra_infomation_string
-        ))
+            gt21_probabilities,
+            output_config=output_config,
+            vcf_writer=output_file
+            )
+        else:
+            output_file.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format(
+                chromosome,
+                position,
+                reference_base,
+                normal_alt_info,
+                tumor_alt_info,
+                ' '.join(["{:0.8f}".format(x) for x in gt21_probabilities]),
+                # ["{:0.8f}".format(x) for x in genotype_probabilities],
+                # ["{:0.8f}".format(x) for x in variant_length_probabilities_1],
+                # ["{:0.8f}".format(x) for x in variant_length_probabilities_2],
+                extra_infomation_string
+            ))
 
 def tensor_generator_from(tensor_file_path, batch_size, pileup=False, platform='ont'):
     float_type = 'float32'
@@ -443,7 +457,7 @@ def main():
     parser.add_argument('--chkpnt_fn', type=str, default=None,
                         help="Input a trained model for variant calling, required")
 
-    parser.add_argument('--call_fn', type=str, default="clair3",
+    parser.add_argument('--call_fn', type=str, default=None,
                         help="VCF output filename, or stdout if not set")
 
     parser.add_argument('--gvcf', type=str2bool, default=False,
