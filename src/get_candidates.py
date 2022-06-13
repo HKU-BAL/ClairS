@@ -365,8 +365,12 @@ def get_candidates(args):
                     hetero_list_with_same_repre.append(pos)
 
     homo_germline = [(item, 'homo_germline') for item in list(same_alt_pos_set)]
-    hete_germline = [(item, 'hete_germline') for item in hete_list_with_same_repre]
-    ref_list = normal_ref_cans_list + tumor_ref_cans_list if consider_normal_af else tumor_ref_cans_list
+    hetero_germline = [(item, 'hetero_germline') for item in hetero_list_with_same_repre]
+    ref_list = tumor_ref_cans_list
+    if sample_normal_af is not None:
+        random.seed(0)
+        ref_list += random.sample(normal_ref_cans_list, int(len(normal_ref_cans_list) * sample_normal_af))
+
     references = [(item, 'ref') for item in ref_list]
     homo_germline = filter_germline_candidates(truths=homo_germline, variant_info=variant_info_2, alt_dict=tumor_alt_dict, paired_alt_dict=normal_alt_dict, INFO="Homo")
     # need add hete, otherwise, in real case, the performance of hetero variants are too bad
