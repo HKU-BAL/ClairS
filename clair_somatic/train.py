@@ -286,7 +286,21 @@ def train_model(args):
     learning_rate = args.learning_rate if args.learning_rate else param.initialLearningRate
     max_epoch = args.maxEpoch if args.maxEpoch else param.maxEpoch
     bin_list = os.listdir(args.bin_fn)
+
     bin_list = [f for f in bin_list if pass_chr(f, ctg_name_list) and not exist_file_prefix(exclude_training_samples, f)]
+    failed_bin_set = set()
+    for bin_file in bin_list:
+        try:
+            table = tables.open_file(os.path.join(args.bin_fn, bin_file), 'r')
+            table.close()
+        except:
+            print("[WARNING] {} cannot open!".format(bin_file))
+            failed_bin_set.add(bin_file)
+    bin_list = [f for f in bin_list if f not in failed_bin_set]
+    if len(bin_list) == 0:
+        print("[ERROR] Cannot find ant binary for model training")
+        return
+
     logging.info("[INFO] total {} training bin files: {}".format(len(bin_list), ','.join(bin_list)))
 
     def populate_dataset_table(file_list, file_path):
