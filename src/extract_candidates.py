@@ -227,7 +227,7 @@ def decode_pileup_bases(pileup_bases, reference_base,minimum_snp_af_for_candidat
         elif item[0] in 'ID':
             pass_indel_af = (pass_indel_af or (float(count) / denominator >= minimum_indel_af_for_candidate))
             continue
-        pass_snp_af = pass_snp_af or (float(count) / denominator >= minimum_snp_af_for_candidate) or (alternative_base_num is not None and count >= alternative_base_num)
+        pass_snp_af = pass_snp_af or (float(count) / denominator >= minimum_snp_af_for_candidate) and (alternative_base_num is not None and count >= alternative_base_num)
 
     af = (float(pileup_list[1][1]) / denominator) if len(pileup_list) > 1 else 0.0
     af = (float(pileup_list[0][1]) / denominator) if len(pileup_list) >= 1 and pileup_list[0][
