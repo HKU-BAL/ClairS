@@ -486,12 +486,13 @@ def train_model(args):
         # validation
         val_fp, val_tp, val_fn = 0, 0, 0
         val_epoch_loss = 0
-        for batch_idx, (data, label) in v:
+        for batch_idx, (data, label, af_list) in v:
             v.set_description('VAL EPOCH {}'.format(epoch))
             data = data.to(device)
             label = label.to(device)
             with torch.no_grad():
                 output_logit = model(data)
+
             y_truth = torch.argmax(label, axis=1)
             optimizer.zero_grad()
             loss = criterion(input=output_logit, target=label) if apply_focal_loss else criterion(output_logit, y_truth)
@@ -502,7 +503,8 @@ def train_model(args):
                     writer.add_scalar('validation loss', validation_loss / echo_each_step, validation_step)
                 validation_loss = 0.0
             y_truth = y_truth.cpu().numpy()
-            y_pred = output_logit.argmax(dim=1).cpu().numpy()
+            output_pro = torch.softmax(output_logit, dim=1)
+            y_pred = output_pro.argmax(dim=1).cpu().numpy()
             arg_index = 1 if discard_germline else 2
             val_fp += sum([True if x != arg_index and y == arg_index else False for x, y in zip(y_truth, y_pred)])
             val_fn += sum([True if x == arg_index and y != arg_index else False for x, y in zip(y_truth, y_pred)])
