@@ -177,7 +177,7 @@ def filter_germline_candidates(truths, variant_info, alt_dict, paired_alt_dict, 
 
             af, vt, max_af = find_candidate_match(alt_info_dict=alt_dict[pos].alt_dict, ref_base=ref_base, alt_base=alt_base)
             alt_dict[pos].max_candidate_af = max_af
-            alt_dict[pos].support_alternative_af = pair_af
+            alt_dict[pos].support_alternative_af = af
             # pair_af: af in normal, af: af in tumor
             if pair_af is None or af is None or math.fabs(pair_af - af) > 0.1:
                 germline_filtered_by_af_distance += 1
@@ -386,10 +386,10 @@ def get_candidates(args):
         # random sample reference calls in training mode, with seed
         random.seed(0)
         references = random.sample(references, int(len(references) * maximum_non_variant_ratio))
-    fp_list = homo_germline + references + hete_germline
+    fp_list = homo_germline + references + hetero_germline
 
-    homo_somatic_set = sorted(list(homo_variant_set_2 - variant_set_1))
-    hete_somatic_set = sorted(list(hete_variant_set_2 - variant_set_1))
+    homo_somatic_set = sorted(list(tumor_homo_variant_set - normal_variant_set))
+    hetero_somatic_set = sorted(list(tumor_hetero_variant_set - normal_variant_set))
     homo_somatic = [(item, 'homo_somatic') for item in homo_somatic_set]
     # skip hete variant here
     hete_somatic = [(item, 'hete_somatic') for item in hete_somatic_set] if add_hete_pos else []
