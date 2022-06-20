@@ -145,8 +145,8 @@ def get_tensor_info(base_info, bq, ref_base, read_mq=None, is_tumor=False):
     read_mq: read mapping quality.
     """
 
-    # hap_type = 100 if is_tumor else 50
-    hap_type = 100
+    hap_type = 100 if is_tumor else 50
+    # hap_type = 100
 
     base, indel = base_info
     ins_base = ""
@@ -449,27 +449,31 @@ def generate_tensor(ctg_name,
                 elif base.upper() != reference_base:
                     alt_dict[base.upper()] += 1
 
-            for row_idx, read_name in enumerate(tmp_read_name_list):
-                af_num = 0
-                if read_name in pileup_dict[center_pos].read_name_dict:
-                    base, indel = pileup_dict[center_pos].read_name_dict[read_name]
-                    base_upper = base.upper()
-                    if indel != '':
-                        if indel[0] == '+':
-                            insert_str = ('+' + base_upper + indel.upper()[1:])
-                            af_num = alt_dict[insert_str] / max(1, float(tmp_depth)) if insert_str in alt_dict else af_num
-                        else:
-                            af_num = alt_dict[indel.upper()] / max(1, float(tmp_depth)) if indel.upper() in alt_dict else af_num
-                    elif base.upper() in alt_dict:
-                        af_num = alt_dict[base_upper] / max(1, float(tmp_depth))
-                af_num = _normalize_af(af_num) if af_num != 0 else af_num
-                af_set.add(round(af_num / 100, 3))
+            if use_alt_base:
+                alt_dict[truths_variant_dict[center_pos].alternate_bases[0]] -= alt_base_num
+            # for row_idx, read_name in enumerate(tmp_read_name_list):
+            #     af_num = 0
+            #     if read_name in pileup_dict[center_pos].read_name_dict:
+            #         base, indel = pileup_dict[center_pos].read_name_dict[read_name]
+            #         base_upper = base.upper()
+            #         if indel != '':
+            #             if indel[0] == '+':
+            #                 insert_str = ('+' + base_upper + indel.upper()[1:])
+            #                 af_num = alt_dict[insert_str] / max(1,
+            #                                                     float(tmp_depth)) if insert_str in alt_dict else af_num
+            #             else:
+            #                 af_num = alt_dict[indel.upper()] / max(1, float(
+            #                     tmp_depth)) if indel.upper() in alt_dict else af_num
+            #         elif base.upper() in alt_dict:
+            #             af_num = alt_dict[base_upper] / max(1, float(tmp_depth))
+                # af_num = _normalize_af(af_num) if af_num != 0 else af_num
+                # af_set.add(round(af_num / 100, 3))
                 # hap_type = HAP_TYPE[hap]
-                hap_type = 100 if is_tumor else 50
-                for p in range(no_of_positions):
-                    if tmp_tensor[row_idx][p][2] != 0:  # skip all del #*
-                        tmp_tensor[row_idx][p][5] = af_num
-                        tmp_tensor[row_idx][p][7] = hap_type
+                # hap_type = 100 if is_tumor else 50
+                # for p in range(no_of_positions):
+                #     if tmp_tensor[row_idx][p][0] != 0:  # skip all del #*
+                #         tmp_tensor[row_idx][p][5] = hap_type
+                #         # tmp_tensor[row_idx][p][7] = hap_type
 
             # print (len(tmp_tensor))
             alt_info = []
@@ -493,7 +497,7 @@ def generate_tensor(ctg_name,
         if 0:
             import numpy as np
             tmp_list = [item.split(' ') for item in tensor_string_list]
-            tmp = [np.array(tmp, dtype=int).reshape((-1, 33, 7)) for tmp in tmp_list]
+            a = [np.array(tmp, dtype=int).reshape((-1, 25, 7)) for tmp in tmp_list]
 
         return tensor_string_list, alt_info_list
         # return '\n'.join(["%s\t%d\t%s\t%s\t%s\t%s\t%s" % (
