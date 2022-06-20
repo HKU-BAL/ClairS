@@ -190,11 +190,13 @@ def pass_chr(fn, ctg_name_list):
     return False
 
 def train_model(args):
+
+
     apply_focal_loss = param.apply_focal_loss
     discard_germline = param.discard_germline
     add_l2_regulation_loss = param.add_l2_regulation_loss
     l2_regularization_lambda = param.l2_regularization_lambda
-
+    debug_mode = args.debug_mode
     use_resnet = args.use_resnet
     platform = args.platform
     ctg_name_string = args.ctg_name
@@ -351,7 +353,10 @@ def train_model(args):
         batch_num = len(shuffle_chunk_list) // chunks_per_batch
         input_matrix = np.empty([batch_size] + tensor_shape, np.float32)
         label = np.empty((batch_size, param.label_size), np.float32)
-
+        if debug_mode:
+            position_info = np.empty((batch_size, 1), "S100")
+            normal_info = np.empty((batch_size, 1), "S1000")
+            tumor_info = np.empty((batch_size, 1), "S1000")
         for epoch in range(max_epoch):
             random_start_position = np.random.randint(0, batch_size) if train_flag else 0
             if train_flag:
@@ -371,7 +376,13 @@ def train_model(args):
 
                     label[chunk_idx * chunk_size:(chunk_idx + 1) * chunk_size] = x[bin_id].root.label[
                             random_start_position + chunk_id * chunk_size:random_start_position + (chunk_id + 1) * chunk_size, :param.label_size]
-
+                    if debug_mode:
+                        position_info[chunk_idx * chunk_size:(chunk_idx + 1) * chunk_size] = x[bin_id].root.position[
+                                random_start_position + chunk_id * chunk_size:random_start_position + (chunk_id + 1) * chunk_size]
+                        normal_info[chunk_idx * chunk_size:(chunk_idx + 1) * chunk_size] = x[bin_id].root.normal_alt_info[
+                                random_start_position + chunk_id * chunk_size:random_start_position + (chunk_id + 1) * chunk_size]
+                        tumor_info[chunk_idx * chunk_size:(chunk_idx + 1) * chunk_size] = x[bin_id].root.tumor_alt_info[
+                                random_start_position + chunk_id * chunk_size:random_start_position + (chunk_id + 1) * chunk_size]
                 # input_matrix = np.concatenate((normal_matrix, tumor_matrix), axis=1)
                 # if add_contrastive:
                 # label_for_normal = [[0,1] if np.argmax(item) == 1 else [1,0] for item in label]
@@ -394,7 +405,10 @@ def train_model(args):
                     input_tensor = torch.from_numpy(input_matrix).to(device)
                 # tumor_tensor = torch.from_numpy(tumor_matrix)
                 label_tensor = torch.from_numpy(label_for_tumor).to(device)
-                yield input_tensor, label_tensor, af_tensor
+                if debug_mode:
+                    yield input_tensor, label_tensor, position_info, normal_info, tumor_info
+                else:
+                    yield input_tensor, label_tensor, af_tensor, None, None
 
     if args.pileup:
         from torchinfo import summary
@@ -435,8 +449,8 @@ def train_model(args):
         epoch_loss = 0
         fp, tp, fn = 0,0,0
         t = tqdm(enumerate(train_dataset_loder), total=train_steps, position=0, leave=True)
-        v = tqdm(enumerate(validate_dataset_loder), total=validate_steps, position=0, leave=True)
-        for batch_idx, (data, label, af_list) in t:
+        v = tqdm(enumerate(validate_dataset_loder), total=validate_steps, position=0, leave=True) if not debug_mode else enumerate(validate_dataset_loder)
+        for batch_idx, (data, label, af_list, _, _) in t:
             t.set_description('EPOCH {}'.format(epoch))
             data = data.to(device)
             label = label.to(device)
@@ -486,8 +500,9 @@ def train_model(args):
         # validation
         val_fp, val_tp, val_fn = 0, 0, 0
         val_epoch_loss = 0
-        for batch_idx, (data, label, af_list) in v:
-            v.set_description('VAL EPOCH {}'.format(epoch))
+        for batch_idx, (data, label, position_info, normal_info, tumor_info) in v:
+            if not debug_mode:
+                v.set_description('VAL EPOCH {}'.format(epoch))
             data = data.to(device)
             label = label.to(device)
             with torch.no_grad():
@@ -506,6 +521,22 @@ def train_model(args):
             output_pro = torch.softmax(output_logit, dim=1)
             y_pred = output_pro.argmax(dim=1).cpu().numpy()
             arg_index = 1 if discard_germline else 2
+            if debug_mode:
+                if device == 'cuda':
+                    data_numpy = data.cpu().numpy()
+                else:
+                    data_numpy = data.numpy()
+                cpu_logit = output_pro.cpu().numpy()
+                for idx, (x, y) in enumerate(zip(y_truth, y_pred)):
+                    if x == arg_index and y != arg_index:
+                        print(idx, 'FN', x, y, cpu_logit[idx], position_info[idx], normal_info[idx], tumor_info[idx])
+                        a = data_numpy[idx]
+                        tmp = 1
+                    if x != arg_index and y == arg_index:
+                        print(idx, 'FP', x, y, cpu_logit[idx], position_info[idx], normal_info[idx], tumor_info[idx])
+                        a = data_numpy[idx]
+                        tmp = 1
+
             val_fp += sum([True if x != arg_index and y == arg_index else False for x, y in zip(y_truth, y_pred)])
             val_fn += sum([True if x == arg_index and y != arg_index else False for x, y in zip(y_truth, y_pred)])
             val_tp += sum([True if x == y and x == arg_index else False for x, y in zip(y_truth, y_pred)])
@@ -515,10 +546,11 @@ def train_model(args):
 
             val_epoch_loss += loss
             el = val_epoch_loss.detach().cpu().numpy()
-            v.set_postfix(
-                {'validation_loss': el, 'val_tp': val_tp, 'val_fp': val_fp, 'val_fn': val_fn})
+            if not debug_mode:
+                v.set_postfix(
+                    {'validation_loss': el, 'val_tp': val_tp, 'val_fp': val_fp, 'val_fn': val_fn})
 
-            v.update(1)
+                v.update(1)
 
         # with torch.no_grad():
         #     epoch_val_loss = 0
@@ -607,6 +639,9 @@ def main():
 
     parser.add_argument('--add_writer', type=str2bool, default=False,
                         help=SUPPRESS)
+
+    parser.add_argument('--debug_mode', type=str2bool, default=False,
+                        help="Binary tensor input for use in validation: %(default)s")
 
     # mutually-incompatible validation options
     vgrp = parser.add_mutually_exclusive_group()
