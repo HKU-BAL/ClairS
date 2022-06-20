@@ -339,6 +339,7 @@ def get_candidates(args):
     synthetic_coverage = args.synthetic_coverage
     output_bed_fn = args.output_bed_fn
     output_fp_bed_regions = output_bed_fn is not None
+    exclude_flanking_truth = args.exclude_flanking_truth
 
     normal_homo_variant_set, normal_homo_variant_info, normal_hetero_variant_set, normal_hetero_variant_info, normal_variant_set, normal_variant_info = vcf_reader(vcf_fn=normal_vcf_fn, contig_name=contig_name, bed_tree=bed_tree, add_hetero_pos=add_hetero_pos)
     tumor_homo_variant_set, tumor_homo_variant_info, tumor_hetero_variant_set, tumor_hetero_variant_info, tumor_variant_set, tumor_variant_info = vcf_reader(vcf_fn=tumor_vcf_fn, contig_name=contig_name, bed_tree=bed_tree, add_hetero_pos=add_hetero_pos)
@@ -467,7 +468,8 @@ def get_candidates(args):
     # if print_all:
     #     print ('[INFO] {} total homo reference pos: 1:{}, 2:{}, references:{} hetero variants:{} homo truth with same pos intersection:{}, homo truth with_same_repre:{}'.format(contig_name, len(normal_homo_variant_set), len(tumor_homo_variant_set), len(ref_cans_list), len(hetero_list_with_same_repre), len(intersection_pos_set), len(same_alt_pos_set)))
     # else:
-    print ('[INFO] {}-{} homo germline:{} hetero germline:{} references:{} homo somatic:{} hetero somatic:{}\n'.format(contig_name, proportion, len(homo_germline), len(hetero_germline), len(references),len(homo_somatic),len(hetero_somatic) ))
+    extra_info = "homo/hetetro somatic exclude by flanking position:{}/{}".format(len(homo_exclude_truth_set), len(hetero_exclude_truth_set)) if exclude_flanking_truth else ""
+    print ('[INFO] {}-{} homo germline:{} hetero germline:{} references:{} homo somatic:{} hetero somatic:{} {}\n'.format(contig_name, proportion, len(homo_germline), len(hetero_germline), len(references),len(homo_somatic),len(hetero_somatic), extra_info))
 
 
 def main():
@@ -559,6 +561,9 @@ def main():
 
     # options for debug purpose
     parser.add_argument('--add_hetero_pos', type=str2bool, default=0,
+                        help="DEBUG: Skip phasing and use the phasing info provided in the input BAM (HP tag), default: False")
+
+    parser.add_argument('--exclude_flanking_truth', type=str2bool, default=1,
                         help="DEBUG: Skip phasing and use the phasing info provided in the input BAM (HP tag), default: False")
 
     parser.add_argument('--extend_bed', type=str, default=None,
