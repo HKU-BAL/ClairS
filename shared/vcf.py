@@ -150,6 +150,8 @@ class VcfReader(object):
         for row in vcf_fo:
             columns = row.strip().split()
             if columns[0][0] == "#":
+                if self.save_header:
+                    self.header += row
                 header_last_column = columns
                 continue
 
