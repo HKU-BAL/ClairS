@@ -3,7 +3,7 @@ import shlex
 import os
 
 from textwrap import dedent
-from subprocess import PIPE
+from subprocess import PIPE, run
 from argparse import ArgumentParser
 from collections import defaultdict
 from shared.utils import subprocess_popen, Position as Position, file_path_from
@@ -20,6 +20,12 @@ class VcfWriter(object):
     def __init__(self, vcf_fn, ctg_name=None, ref_fn=None, sample_name="SAMPLE", write_header=True, show_ref_calls=False):
         self.vcf_fn = vcf_fn
         self.show_ref_calls = show_ref_calls
+        #make directory if not exist
+        vcf_folder = os.path.dirname(self.vcf_fn)
+        if not os.path.exists(vcf_folder):
+            print("[INFO] Output VCF folder {} not found, create it".format(vcf_folder))
+            return_code = run("mkdir -p {}".format(vcf_folder), shell=True)
+
         self.vcf_writer = open(self.vcf_fn, 'w')
         self.ref_fn = ref_fn
         self.ctg_name = ctg_name
