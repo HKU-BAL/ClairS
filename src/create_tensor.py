@@ -991,9 +991,12 @@ def create_tensor(args):
         if pos not in pileup_dict:
             continue
 
-        use_tensor_sample_mode = tensor_sample_mode and (candidates_type_dict[pos] == 'homo_somatic' or candidates_type_dict[pos] == 'hetero_somatic') and pos in truths_variant_dict
+        use_tensor_sample_mode = tensor_sample_mode and (
+                    candidates_type_dict[pos] == 'homo_somatic' or candidates_type_dict[
+                pos] == 'hetero_somatic') and pos in truths_variant_dict
         max_depth = param.tumor_matrix_depth_dict[platform] if is_tumor else param.normal_matrix_depth_dict[platform]
-        sorted_read_name_list = sorted_by_hap_read_name(pos, haplotag_dict, pileup_dict, hap_dict, max_depth, use_tensor_sample_mode)
+        sorted_read_name_list = sorted_by_hap_read_name(pos, haplotag_dict, pileup_dict, hap_dict, max_depth,
+                                                        use_tensor_sample_mode)
         ref_seq = reference_sequence[
                   pos - reference_start - flanking_base_num: pos - reference_start + flanking_base_num + 1].upper()
 
@@ -1011,7 +1014,8 @@ def create_tensor(args):
                                                is_tumor=is_tumor,
                                                candidates_type_dict=candidates_type_dict,
                                                use_tensor_sample_mode=use_tensor_sample_mode,
-                                               truths_variant_dict=truths_variant_dict)
+                                               truths_variant_dict=truths_variant_dict,
+                                               proportion=proportion)
             if not tensor:
                 continue
 
@@ -1148,6 +1152,10 @@ def main():
 
     ## The chuck ID to work on
     parser.add_argument('--chunk_id', type=int, default=None,
+                        help=SUPPRESS)
+
+    ## Only call variant in phased vcf file
+    parser.add_argument('--phased_vcf_fn', type=str, default=None,
                         help=SUPPRESS)
 
     ## Apply no phased data in training. Only works in data training, default: False
