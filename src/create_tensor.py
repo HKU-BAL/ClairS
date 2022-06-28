@@ -37,10 +37,13 @@ def _normalize_bq(x):
 
 
 def _normalize_mq(x):
+    x = 0 if x < 30 else 60
+
     return int(NORMALIZE_NUM * min(x, MAX_MQ) / MAX_MQ)
 
 
 def _normalize_af(x):
+    x = 0 if x < 20 else 40
     return int(NORMALIZE_NUM * min(x, MAX_AF) / MAX_AF)
 
 
@@ -611,8 +614,10 @@ def generate_tensor(ctg_name,
                 alt_info.append(['D' + del_ref_bases, str(alt_count)])
             else:
                 alt_info.append(['X' + alt_type, str(alt_count)])
-        alt_info = str(depth) + '-' + ' '.join([' '.join([item[0], str(item[1])]) for item in alt_info]) + '-' + af_infos
-        tensor_string_list = [" ".join((" ".join(" ".join(str(x) for x in innerlist) for innerlist in outerlist)) for outerlist in tensor)]
+        alt_info = str(depth) + '-' + ' '.join(
+            [' '.join([item[0], str(item[1])]) for item in alt_info]) + '-' + af_infos
+        tensor_string_list = [" ".join(
+            (" ".join(" ".join(str(x) for x in innerlist) for innerlist in outerlist)) for outerlist in tensor)]
         variant_type = candidates_type_dict[center_pos] if center_pos in candidates_type_dict else 'unknown'
 
         return '\n'.join(["%s\t%d\t%s\t%s\t%s\t%s\t%s" % (
@@ -932,21 +937,12 @@ def create_tensor(args):
             if len(read_name_list) != len(base_list):
                 continue
 
-            if not reference_base in 'ACGT':
-                continue
-
             if not is_known_vcf_file_provided and not has_pileup_candidates and reference_base in 'ACGT' and (
                     pass_af and depth >= min_coverage):
                 need_phasing_pos_list.append(pos)
 
             if is_known_vcf_file_provided and not has_pileup_candidates and pos in known_variants_set:
                 need_phasing_pos_list.append(pos)
-
-            for b_idx, base in enumerate(base_list):
-                if base[0] == '#' or (base[0] >= 'a' and base[0] <= 'z'):
-                    read_name_list[b_idx] += '_1' # reverse
-                else:
-                    read_name_list[b_idx] += '_0' # forward
 
             pileup_dict[pos] = Position(pos=pos,
                                         ref_base=reference_base,
@@ -981,11 +977,12 @@ def create_tensor(args):
 
     for hetero_pos in hetero_snp_pos_dict:
         if need_phasing and hetero_snp_pos_dict[hetero_pos].ref_seq is None:
-            hetero_snp_pos_dict[hetero_pos].ref_seq, hetero_snp_pos_dict[hetero_pos].alt_seq = update_hetero_ref(pos=hetero_pos,
-                                                                                                       reference_sequence=reference_sequence,
-                                                                                                       reference_start=reference_start,
-                                                                                                       extend_bp=extend_bp,
-                                                                                                       hetero_snp_pos_dict=hetero_snp_pos_dict[hetero_pos].alt_base)
+            hetero_snp_pos_dict[hetero_pos].ref_seq, hetero_snp_pos_dict[hetero_pos].alt_seq = update_hetero_ref(
+                pos=hetero_pos,
+                reference_sequence=reference_sequence,
+                reference_start=reference_start,
+                extend_bp=extend_bp,
+                hetero_snp_pos_dict=hetero_snp_pos_dict[hetero_pos].alt_base)
 
     for pos in samtools_pileup_generator:
         if pos not in pileup_dict:
