@@ -374,9 +374,19 @@ def get_candidates(args):
         ref_list += random.sample(normal_ref_cans_list, int(len(normal_ref_cans_list) * sample_normal_af))
 
     references = [(item, 'ref') for item in ref_list]
-    homo_germline = filter_germline_candidates(truths=homo_germline, variant_info=variant_info_2, alt_dict=tumor_alt_dict, paired_alt_dict=normal_alt_dict, INFO="Homo")
-    # need add hete, otherwise, in real case, the performance of hetero variants are too bad
-    hete_germline = filter_germline_candidates(truths=hete_germline, variant_info=variant_info_2, alt_dict=tumor_alt_dict, paired_alt_dict=normal_alt_dict, INFO="Hetero")
+    homo_germline, homo_low_confident_germline_truths = filter_germline_candidates(truths=homo_germline,
+                                               variant_info=tumor_variant_info,
+                                               alt_dict=tumor_alt_dict,
+                                               paired_alt_dict=normal_alt_dict,
+                                               gen_vcf=gen_vcf,
+                                               INFO="Homo")
+    # need add hetero, otherwise, in real case, the performance of hetero variants are too bad
+    hetero_germline, hetero_low_confident_germline_truths = filter_germline_candidates(truths=hetero_germline,
+                                                 variant_info=tumor_variant_info,
+                                                 alt_dict=tumor_alt_dict,
+                                                 paired_alt_dict=normal_alt_dict,
+                                                 gen_vcf=gen_vcf,
+                                                 INFO="Hetero")
 
     add_germline = True
     if not add_germline:
@@ -400,16 +410,17 @@ def get_candidates(args):
     homo_somatic_set = sorted(list(tumor_homo_variant_set - normal_variant_set))
     hetero_somatic_set = sorted(list(tumor_hetero_variant_set - normal_variant_set))
     homo_somatic = [(item, 'homo_somatic') for item in homo_somatic_set]
-    # skip hete variant here
-    hete_somatic = [(item, 'hete_somatic') for item in hete_somatic_set] if add_hete_pos else []
+    # skip hetero variant here
+    hetero_somatic = [(item, 'hetero_somatic') for item in hetero_somatic_set] if add_hetero_pos else []
+
 
     homo_somatic, homo_low_confident_truths = filter_somatic_candidates(truths=homo_somatic,
-                                             variant_info=variant_info_2,
+                                             variant_info=tumor_variant_info,
                                              alt_dict=tumor_alt_dict,
                                              paired_alt_dict=normal_alt_dict,
                                              gen_vcf=gen_vcf)
-    hete_somatic, hete_low_confident_truths = filter_somatic_candidates(truths=hete_somatic,
-                                             variant_info=variant_info_2,
+    hetero_somatic, hetero_low_confident_truths = filter_somatic_candidates(truths=hetero_somatic,
+                                             variant_info=tumor_variant_info,
                                              alt_dict=tumor_alt_dict,
                                              paired_alt_dict=normal_alt_dict,
                                              gen_vcf=gen_vcf,
