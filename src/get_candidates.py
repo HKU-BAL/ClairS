@@ -286,11 +286,12 @@ def filter_somatic_candidates(truths, variant_info, alt_dict, paired_alt_dict, g
                 if skip_high_af_in_normal:
                     continue
 
-
-        if len(alt_dict[pos].tumor_alt_dict):
+        tumor_alt_dict = alt_dict[pos].tumor_alt_dict if alt_dict[pos].tumor_alt_dict is not None else alt_dict[
+            pos].alt_dict
+        if len(tumor_alt_dict):
             ref_base, alt_base = variant_info[pos]
             # tumor_af, _, _ = find_candidate_match(alt_info_dict=alt_dict[pos].alt_dict, ref_base=ref_base,alt_base=alt_base)
-            tumor_reads_af, vt, max_af = find_candidate_match(alt_info_dict=alt_dict[pos].tumor_alt_dict, ref_base=ref_base, alt_base=alt_base)
+            tumor_reads_af, vt, max_af = find_candidate_match(alt_info_dict=tumor_alt_dict, ref_base=ref_base, alt_base=alt_base)
             if tumor_reads_af is None or tumor_reads_af < min_af_for_tumor:
                 truth_filter_with_low_af += 1
                 if gen_vcf:
@@ -378,11 +379,18 @@ def get_candidates(args):
     hete_germline = filter_germline_candidates(truths=hete_germline, variant_info=variant_info_2, alt_dict=tumor_alt_dict, paired_alt_dict=normal_alt_dict, INFO="Hetero")
 
     add_germline = True
-    if not add_germline or gen_vcf:
+    if not add_germline:
         # exclude germline variants if we exclude germline variants into training
         # exclude gerlmine variants when create VCF and fp BED region
         homo_germline = []
-        hete_germline = []
+        hetero_germline = []
+
+    references, low_confident_reference_candidates = filter_reference_candidates(truths=references,
+                                             alt_dict=tumor_alt_dict,
+                                             paired_alt_dict=normal_alt_dict,
+                                             gen_vcf=gen_vcf,
+                                             INFO="Ref")
+
     if maximum_non_variant_ratio is not None:
         # random sample reference calls in training mode, with seed
         random.seed(0)
