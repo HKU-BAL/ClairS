@@ -237,7 +237,7 @@ def print_label(path):
         total += sum(table.root.label[:, 0])
         total_germline += sum(table.root.label[:, 1])
         total_somatic += sum(table.root.label[:, 2])
-    print('[INFO] total: {}, total germline:{}, total somatic:{}'.format(total,total_germline, total_somatic))
+    print('[INFO] reference: {}, total germline:{}, total somatic:{}'.format(total,total_germline, total_somatic))
 
 def check_bin_af_distrbution(path):
     import tables
@@ -356,7 +356,7 @@ def get_key_list(input_dict, shuffle = True):
         np.random.shuffle(output_list)
     return output_list
 
-def bin_reader_generator_from(subprocess_process, Y, is_tree_empty, tree, miss_variant_set, is_allow_duplicate_chr_pos=False, non_variant_subsample_ratio=1.0):
+def bin_reader_generator_from(subprocess_process, Y, is_tree_empty, tree, miss_variant_set, is_allow_duplicate_chr_pos=False, non_variant_subsample_ratio=1.0, is_tumor=False):
 
     """
     Bin reader generator for bin file generation.
@@ -372,8 +372,11 @@ def bin_reader_generator_from(subprocess_process, Y, is_tree_empty, tree, miss_v
     pre_pos = None
     for row_idx, row in enumerate(subprocess_process.stdout):
         columns = row.split("\t")
-        chrom, center_pos, seq, string, alt_info, tumor_tag, variant_type = columns
-        is_tumor = tumor_tag == 'tumor'
+        try:
+            chrom, center_pos, seq, string, alt_info, tumor_tag, variant_type = columns
+        except:
+            continue
+        # is_tumor = tumor_tag == 'tumor'
         alt_info = alt_info.rstrip()
         if not (is_tree_empty or is_region_in(tree, chrom, int(center_pos))):
             continue
@@ -411,8 +414,14 @@ def heapq_merge_generator_from(normal_bin_reader_generator, tumor_bin_reader_gen
     tensor_infos_set = set()
     X = defaultdict(defaultdict)
     batch_count = 0
+    normal_keys = set()
+    tumor_keys = set()
     for tensor_infos in heapq.merge(normal_bin_reader_generator, tumor_bin_reader_generator):
         center_pos, key, is_tumor, string, alt_info, seq, somatic_flag, dup_pos_end_flag = tensor_infos
+        if not is_tumor:
+            normal_keys.add(key)
+        else:
+            tumor_keys.add(key)
         if key not in tensor_infos_set and is_tumor:
             continue
         tensor_infos_set.add(key)
@@ -461,7 +470,7 @@ def get_training_array(normal_tensor_fn, tumor_tensor_fn, var_fn, bed_fn, bin_fn
     global param
     float_type = 'int32'
     if pileup:
-        import shared.param_p as param
+        import shared.param as param
     else:
         import shared.param as param
         float_type = 'int8'
