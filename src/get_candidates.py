@@ -405,7 +405,34 @@ def get_candidates(args):
                                              alt_dict=tumor_alt_dict,
                                              paired_alt_dict=normal_alt_dict,
                                              gen_vcf=gen_vcf,
-                                             INFO="Hete")
+                                             INFO="Hetero")
+
+    # hetero_somatic = filter_somatic_candidates(truths=hetero_somatic, variant_info=tumor_variant_info, alt_dict=tumor_alt_dict, paired_alt_dict=normal_alt_dict)
+
+
+    #exclude nearby truth in training
+    if exclude_flanking_truth:
+        all_truth_pos_list = sorted([item[0] for item in homo_somatic + hetero_somatic + fp_list])
+        def exclude_flanking(pos_list):
+            exclude_truth_set = set()
+            truth_pos_list = sorted([item[0] for item in pos_list])
+            for p_idx, pos in enumerate(truth_pos_list):
+                start = pos - flanking_base_num
+                end = pos + flanking_base_num + 1
+                for idx in range(len(all_truth_pos_list)):
+                    if all_truth_pos_list[idx] == pos:
+                        continue
+                    if all_truth_pos_list[idx] < start:
+                        continue
+                    elif all_truth_pos_list[idx] >= end:
+                        break
+                    exclude_truth_set.add(pos)
+            return exclude_truth_set
+
+        homo_exclude_truth_set = exclude_flanking(homo_somatic)
+        hetero_exclude_truth_set = exclude_flanking(hetero_somatic)
+        homo_somatic = [item for item in homo_somatic if item[0] not in homo_exclude_truth_set]
+        hetero_somatic = [item for item in hetero_somatic if item[0] not in hetero_exclude_truth_set]
 
     # hete_somatic = filter_somatic_candidates(truths=hete_somatic, variant_info=variant_info_2, alt_dict=tumor_alt_dict, paired_alt_dict=normal_alt_dict)
     tp_list = homo_somatic + hete_somatic
