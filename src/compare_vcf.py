@@ -179,6 +179,7 @@ def compare_vcf(args):
     print (''.join([str(item).ljust(15) for item in ["INDEL", truth_indel, query_indel, tp_indel, fp_indel, fn_indel, indel_pre, indel_rec, indel_f1]]), file=output_file)
     print (''.join([str(item).ljust(15) for item in ["INS", truth_ins, query_ins, tp_ins, fp_ins, fn_ins, ins_pre, ins_rec, ins_f1]]), file=output_file)
     print (''.join([str(item).ljust(15) for item in ["DEL", query_del, query_del, tp_del, fp_del, fn_del, del_pre, del_rec, del_f1]]), file=output_file)
+    print(' '.join([str(item) for item in ["SNP", truth_snp, query_snp, tp_snp, fp_snp, fn_snp, snp_pre, snp_rec, snp_f1]]), file=output_file)
     # print('\n', file=output_file)
 
     if output_dir is not None:
