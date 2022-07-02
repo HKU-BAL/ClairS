@@ -53,10 +53,10 @@ def compare_vcf(args):
     else:
         output_file = None
 
-    tp_snp, tp_ins, tp_del, fp_snp, fp_ins, fp_del, fn_snp, fn_ins, fn_del, fp_snp_truth, fp_ins_truth, fp_del_truth = 0,0,0,0,0,0,0,0,0,0,0,0
+    tp_snv, tp_ins, tp_del, fp_snv, fp_ins, fp_del, fn_snv, fn_ins, fn_del, fp_snv_truth, fp_ins_truth, fp_del_truth = 0,0,0,0,0,0,0,0,0,0,0,0
     truth_set = set()
-    truth_snp, truth_ins, truth_del = 0,0,0
-    query_snp, query_ins, query_del = 0,0,0
+    truth_snv, truth_ins, truth_del = 0,0,0
+    query_snv, query_ins, query_del = 0,0,0
     pos_out_of_bed = 0
 
     fp_set = set()
@@ -79,15 +79,15 @@ def compare_vcf(args):
         alt_base = vcf_infos.alternate_bases[0]
         genotype = vcf_infos.genotype
         qual = vcf_infos.qual
-        is_snp = len(ref_base) == 1 and len(alt_base) == 1
+        is_snv = len(ref_base) == 1 and len(alt_base) == 1
         is_ins = len(ref_base) < len(alt_base)
         is_del = len(ref_base) > len(alt_base)
 
         if key not in truth_variant_dict and genotype != (0, 0):
-            fp_snp = fp_snp + 1 if is_snp else fp_snp
+            fp_snv = fp_snv + 1 if is_snv else fp_snv
             fp_ins = fp_ins + 1 if is_ins else fp_ins
             fp_del = fp_del + 1 if is_del else fp_del
-            if fp_snp:
+            if fp_snv:
                 fp_set.add(pos)
 
         if key in truth_variant_dict:
@@ -95,7 +95,7 @@ def compare_vcf(args):
             truth_ref_base = vcf_infos.reference_bases
             truth_alt_base = vcf_infos.alternate_bases[0]
             truth_genotype = vcf_infos.genotype
-            is_snp_truth = len(truth_ref_base) == 1 and len(truth_alt_base) == 1
+            is_snv_truth = len(truth_ref_base) == 1 and len(truth_alt_base) == 1
             is_ins_truth = len(truth_ref_base) < len(truth_alt_base)
             is_del_truth = len(truth_ref_base) > len(truth_alt_base)
 
@@ -104,21 +104,21 @@ def compare_vcf(args):
 
             genotype_match = skip_genotyping or (truth_genotype == genotype)
             if truth_ref_base == ref_base and truth_alt_base == alt_base and genotype_match:
-                tp_snp = tp_snp + 1 if is_snp else tp_snp
+                tp_snv = tp_snv + 1 if is_snv else tp_snv
                 tp_ins = tp_ins + 1 if is_ins else tp_ins
                 tp_del = tp_del + 1 if is_del else tp_del
-                if tp_snp or is_snp_truth:
+                if tp_snv or is_snv_truth:
                     tp_set.add(pos)
             else:
-                fp_snp = fp_snp + 1 if is_snp else fp_snp
+                fp_snv = fp_snv + 1 if is_snv else fp_snv
                 fp_ins = fp_ins + 1 if is_ins else fp_ins
                 fp_del = fp_del + 1 if is_del else fp_del
 
-                fn_snp = fn_snp + 1 if is_snp_truth else fn_snp
+                fn_snv = fn_snv + 1 if is_snv_truth else fn_snv
                 fn_ins = fn_ins + 1 if is_ins_truth else fn_ins
                 fn_del = fn_del + 1 if is_del_truth else fn_del
 
-                if fn_snp or fp_snp:
+                if fn_snv or fp_snv:
                     fp_fn_set.add(pos)
 
             truth_set.add(pos)
@@ -139,15 +139,15 @@ def compare_vcf(args):
         truth_genotype = vcf_infos.genotype
         if truth_genotype == (0, 0):
             continue
-        is_snp_truth = len(truth_ref_base) == 1 and len(truth_alt_base) == 1
+        is_snv_truth = len(truth_ref_base) == 1 and len(truth_alt_base) == 1
         is_ins_truth = len(truth_ref_base) < len(truth_alt_base)
         is_del_truth = len(truth_ref_base) > len(truth_alt_base)
 
-        fn_snp = fn_snp + 1 if is_snp_truth else fn_snp
+        fn_snv = fn_snv + 1 if is_snv_truth else fn_snv
         fn_ins = fn_ins + 1 if is_ins_truth else fn_ins
         fn_del = fn_del + 1 if is_del_truth else fn_del
 
-        if fn_snp:
+        if fn_snv:
             fn_set.add(pos)
     pos_intersection = len(set(truth_variant_dict.keys()).intersection(set(input_variant_dict.keys())))
     print (pos_intersection, len(fp_set), len(fn_set), len(fp_fn_set), len(tp_set), len(fp_set.intersection(fn_set)))
@@ -157,29 +157,29 @@ def compare_vcf(args):
     tp_indel = tp_ins + tp_del
     fp_indel = fp_ins + fp_del
     fn_indel = fn_ins + fn_del
-    truth_all = truth_snp + truth_indel
-    query_all = query_snp + query_indel
-    tp_all = tp_snp + tp_indel
-    fp_all = fp_snp + fp_indel
-    fn_all = fn_snp + fn_indel
+    truth_all = truth_snv + truth_indel
+    query_all = query_snv + query_indel
+    tp_all = tp_snv + tp_indel
+    fp_all = fp_snv + fp_indel
+    fn_all = fn_snv + fn_indel
 
     all_pre, all_rec, all_f1 = cal_metrics(tp=tp_all, fp=fp_all, fn=fn_all)
-    snp_pre, snp_rec, snp_f1 = cal_metrics(tp=tp_snp, fp=fp_snp, fn=fn_snp)
+    snv_pre, snv_rec, snv_f1 = cal_metrics(tp=tp_snv, fp=fp_snv, fn=fn_snv)
     indel_pre, indel_rec, indel_f1 = cal_metrics(tp=tp_indel, fp=fp_indel, fn=fn_indel)
     ins_pre, ins_rec, ins_f1 = cal_metrics(tp=tp_ins, fp=fp_ins, fn=fn_ins)
     del_pre, del_rec, del_f1 = cal_metrics(tp=tp_del, fp=fp_del, fn=fn_del)
 
-    # print (tp_snp, tp_ins, tp_del, fp_snp, fp_ins, fp_del, fn_snp, fn_ins, fn_del, fp_snp_truth, fp_ins_truth, fp_del_truth)
+    # print (tp_snv, tp_ins, tp_del, fp_snv, fp_ins, fp_del, fn_snv, fn_ins, fn_del, fp_snv_truth, fp_ins_truth, fp_del_truth)
     print ((ctg_name + '-' if ctg_name is not None else "") + input_vcf_fn.split('/')[-1])
     print (len(input_variant_dict), len(truth_variant_dict), pos_out_of_bed)
 
     print (''.join([item.ljust(15) for item in ["type", 'total.truth', 'total.query', 'tp','fp', 'fn', 'precision', 'recall', "f1-score"]]), file=output_file)
     print (''.join([str(item).ljust(15) for item in ["Overall", truth_all, query_all, tp_all, fp_all, fn_all, all_pre, all_rec, all_f1]]), file=output_file)
-    print (''.join([str(item).ljust(15) for item in ["SNP", truth_snp, query_snp, tp_snp, fp_snp, fn_snp, snp_pre, snp_rec, snp_f1]]),file=output_file)
+    print (''.join([str(item).ljust(15) for item in ["SNV", truth_snv, query_snv, tp_snv, fp_snv, fn_snv, snv_pre, snv_rec, snv_f1]]),file=output_file)
     print (''.join([str(item).ljust(15) for item in ["INDEL", truth_indel, query_indel, tp_indel, fp_indel, fn_indel, indel_pre, indel_rec, indel_f1]]), file=output_file)
     print (''.join([str(item).ljust(15) for item in ["INS", truth_ins, query_ins, tp_ins, fp_ins, fn_ins, ins_pre, ins_rec, ins_f1]]), file=output_file)
     print (''.join([str(item).ljust(15) for item in ["DEL", query_del, query_del, tp_del, fp_del, fn_del, del_pre, del_rec, del_f1]]), file=output_file)
-    print(' '.join([str(item) for item in ["SNP", truth_snp, query_snp, tp_snp, fp_snp, fn_snp, snp_pre, snp_rec, snp_f1]]), file=output_file)
+    print(' '.join([str(item) for item in ["SNV", truth_snv, query_snv, tp_snv, fp_snv, fn_snv, snv_pre, snv_rec, snv_f1]]), file=output_file)
     # print('\n', file=output_file)
 
     if output_dir is not None:
