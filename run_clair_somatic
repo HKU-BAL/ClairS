@@ -23,7 +23,7 @@ major_contigs_order = ["chr" + str(a) for a in list(range(1, 23)) + ["X", "Y"]] 
 
 file_directory = os.path.dirname(os.path.realpath(__file__))
 main_entry = os.path.join(file_directory, "clair-somatic.py")
-MAX_STEP = 3
+MAX_STEP = 5
 OutputPath = namedtuple('OutputPath', [
     'log_path',
     'tmp_file_path',
@@ -305,10 +305,10 @@ def check_contigs_intersection(args, fai_fn):
     if not len(contig_set):
         if is_bed_file_provided:
             all_contig_in_bed = ' '.join(list(tree.keys()))
-            print(log_warning("[WARNING] No contig intersection found by --bed_fn, contigs in BED {}: {}".format(bed_fn, all_contig_in_bed)))
+            print(log_warning("[WARNING] No contig intersection found by --bed_fn, contigs in BED {}: {}".format(args.bed_fn, all_contig_in_bed)))
         if is_known_vcf_file_provided:
             all_contig_in_vcf = ' '.join(list(know_vcf_contig_set))
-            print(log_warning("[WARNING] No contig intersection found by --vcf_fn, contigs in VCF {}: {}".format(vcf_fn, all_contig_in_vcf)))
+            print(log_warning("[WARNING] No contig intersection found by --vcf_fn, contigs in VCF {}: {}".format(args.vcf_fn, all_contig_in_vcf)))
         if is_ctg_name_list_provided:
             all_contig_in_ctg_name = ' '.join(args.ctg_name.split(','))
             print(log_warning("[WARNING] No contig intersection found by --ctg_name, contigs in contigs list: {}".format(all_contig_in_ctg_name)))
@@ -544,7 +544,8 @@ def somatic_calling(args):
 def somatic_parser():
 
     parser = argparse.ArgumentParser(
-        description='Run clair-somatic for somatic variant calling. Example run: clair-somatic -n NORMAL_BAM -t TUMOR_BAM -f REF -o OUTPUT_DIR -@ THREADS -p PLATFORM')
+        description='Run clair-somatic for somatic variant calling. \
+                     Example run: run_clair_somatic -n NORMAL_BAM -t TUMOR_BAM -f REF -o OUTPUT_DIR -@ THREADS -p PLATFORM')
 
     # print version
     parser.add_argument('-v', '--version', action='version',
