@@ -1035,7 +1035,7 @@ def output_vcf_from_probability(
         for tumor_alt, tumor_count in tumor_alt_info_dict.items():
             tumor_af = tumor_count / float(tumor_read_depth)
             normal_count = normal_alt_info_dict[tumor_alt] if tumor_alt in normal_alt_info_dict else 0
-            normal_af = normal_count /float(normal_read_depth)
+            normal_af = normal_count / float(normal_read_depth) if normal_read_depth > 0 else 0
             if tumor_af - normal_af > 0:
                 support_alt_dict[tumor_alt] = tumor_af - normal_af
         if len(support_alt_dict) == 0:
@@ -1051,7 +1051,7 @@ def output_vcf_from_probability(
         for tumor_alt, tumor_count in tumor_alt_info_dict.items():
             tumor_af = tumor_count / float(tumor_read_depth)
             normal_count = normal_alt_info_dict[tumor_alt] if tumor_alt in normal_alt_info_dict else 0
-            normal_af = normal_count / float(normal_read_depth)
+            normal_af = normal_count / float(normal_read_depth) if normal_read_depth > 0 else 0
             support_alt_dict[tumor_alt] = tumor_af + normal_af
         if len(support_alt_dict) == 0:
             return "", 0, 0
@@ -1064,6 +1064,9 @@ def output_vcf_from_probability(
 
 
     if is_tumor:
+        if tumor_read_depth <= 0:
+            print("low tumor coverage")
+            return
         best_match_alt, tumor_supported_reads_count, normal_supported_reads_count = rank_somatic_alt(tumor_alt_info_dict, normal_alt_info_dict, tumor_read_depth, normal_read_depth)
 
         if best_match_alt == "":
