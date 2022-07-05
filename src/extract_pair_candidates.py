@@ -651,13 +651,21 @@ def extract_candidates(args):
                 print(ctg_name, pos, "in truth set")
                 continue
 
+            tumor_alt_list, tumor_depth = candidates_dict[pos]
+            tumor_info = [item for item in tumor_alt_list if item[0] in "ACGT"]
+            if len(tumor_info) == 0:
+                candidates_set.remove(pos)
+                print(pos, "gen vcf not found tumor")
+                continue
+            alt_base, tumor_af = tumor_info[0]
+            ref_base = reference_sequence[pos - reference_start].upper()
             vcf_writer.write_row(POS=pos,
                                  REF=ref_base,
                                  ALT=alt_base,
                                  QUAL=10,
                                  GT=genotype,
                                  DP=10,
-                                 AF=0.5)
+                                 AF=float(tumor_af))
         vcf_writer.close()
     print("[INFO] {} high_normal_af_count/high_af_gap_set: {}/{}".format(ctg_name, len(high_normal_af_set), len(high_af_gap_set)))
 
