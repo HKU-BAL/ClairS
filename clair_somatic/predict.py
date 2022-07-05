@@ -88,7 +88,11 @@ def tensor_generator_from(tensor_file_path, batch_size, pileup=False, platform='
         fo = sys.stdin
 
     processed_tensors = 0
-    tensor_shape = param.ont_input_shape if platform == 'ont' else param.input_shape
+    if pileup:
+        channel_size = param.pileup_channel_size
+        tensor_shape = [param.no_of_positions, channel_size * 2]
+    else:
+        tensor_shape = param.ont_input_shape if platform == 'ont' else param.input_shape
     prod_tensor_shape = np.prod(tensor_shape)
 
     def item_from(row):
@@ -103,20 +107,36 @@ def tensor_generator_from(tensor_file_path, batch_size, pileup=False, platform='
         #         tensor = tensor / scale_factor
         # else:
             # need add padding if depth is lower than maximum depth.
-        normal_matrix = [int(item) for item in normal_tensor.split()]
-        tumor_matrix = [int(item) for item in tumor_tensor.split()]
+        normal_matrix = [float(item) for item in normal_tensor.split()]
+        tumor_matrix = [float(item) for item in tumor_tensor.split()]
 
-        normal_depth = len(normal_matrix) // tensor_shape[1] // tensor_shape[2]
-        tumor_depth = len(tumor_matrix) // tensor_shape[1] // tensor_shape[2]
-        tensor_depth = normal_depth + tumor_depth
-        center_padding_depth = param.center_padding_depth
-        padding_depth = tensor_shape[0] - tensor_depth - center_padding_depth
-        prefix_padding_depth = int(padding_depth / 2)
-        suffix_padding_depth = padding_depth - int(padding_depth / 2)
-        prefix_zero_padding = [0] * prefix_padding_depth * tensor_shape[1] * tensor_shape[2]
-        center_zero_padding = [0] * center_padding_depth * tensor_shape[1] * tensor_shape[2]
-        suffix_zero_padding = [0] * suffix_padding_depth * tensor_shape[1] * tensor_shape[2]
-        tensor = prefix_zero_padding + normal_matrix + center_zero_padding + tumor_matrix + suffix_zero_padding
+        if pileup:
+            apply_normalize = False
+            channel_size = param.pileup_channel_size
+            tensor = []
+            for idx in range(param.no_of_positions):
+                if apply_normalize:
+                    normal_coverage = float(normal_alt_info.split('-')[0])
+                    tumor_coverage = float(tumor_alt_info.split('-')[0])
+                    tensor += [float(item) / normal_coverage for item in
+                                     normal_matrix[idx * channel_size: (idx + 1) * channel_size]]
+                    tensor += [float(item) / tumor_coverage for item in
+                                     tumor_matrix[idx * channel_size: (idx + 1) * channel_size]]
+                else:
+                    tensor += normal_matrix[idx * channel_size: (idx + 1) * channel_size]
+                    tensor += tumor_matrix[idx * channel_size: (idx + 1) * channel_size]
+        else:
+            normal_depth = len(normal_matrix) // tensor_shape[1] // tensor_shape[2]
+            tumor_depth = len(tumor_matrix) // tensor_shape[1] // tensor_shape[2]
+            tensor_depth = normal_depth + tumor_depth
+            center_padding_depth = param.center_padding_depth
+            padding_depth = tensor_shape[0] - tensor_depth - center_padding_depth
+            prefix_padding_depth = int(padding_depth / 2)
+            suffix_padding_depth = padding_depth - int(padding_depth / 2)
+            prefix_zero_padding = [0] * prefix_padding_depth * tensor_shape[1] * tensor_shape[2]
+            center_zero_padding = [0] * center_padding_depth * tensor_shape[1] * tensor_shape[2]
+            suffix_zero_padding = [0] * suffix_padding_depth * tensor_shape[1] * tensor_shape[2]
+            tensor = prefix_zero_padding + normal_matrix + center_zero_padding + tumor_matrix + suffix_zero_padding
         tensor = np.array(tensor, dtype=np.dtype(float_type))
 
         # tensor_depth = len(tensor) // tensor_shape[1] // tensor_shape[2]
@@ -157,7 +177,10 @@ def tensor_generator_from(tensor_file_path, batch_size, pileup=False, platform='
         if current_batch_size <= 0:
             continue
         yield X[:current_batch_size], positions[:current_batch_size], normal_alt_info_list[:current_batch_size],tumor_alt_info_list[:current_batch_size], variant_type_list[:current_batch_size]
-
+        # for p, (pos, n_info, t_info) in enumerate(
+        #         zip(positions[:current_batch_size], normal_alt_info_list[:current_batch_size],
+        #             tumor_alt_info_list[:current_batch_size])):
+        #     print(p, pos, n_info, t_info)
     if tensor_file_path != "PIPE":
         fo.close()
         f.wait()
@@ -318,36 +341,65 @@ def DataGenerator(dataset, num_epoch, batch_size, chunk_start_pos, chunk_end_pos
 
 
 def predict(args):
+    global output_config
+    global call_fn
+    output_config = OutputConfig(
+        is_show_reference=args.show_ref,
+        is_show_germline=args.show_germline,
+        is_haploid_precise_mode_enabled=args.haploid_precise,
+        is_haploid_sensitive_mode_enabled=args.haploid_sensitive,
+        is_output_for_ensemble=args.output_for_ensemble,
+        quality_score_for_pass=args.qual,
+        tensor_fn=args.tensor_fn,
+        input_probabilities=args.input_probabilities,
+        add_indel_length=args.add_indel_length,
+        gvcf=args.gvcf,
+        pileup=args.pileup
+    )
+
     chunk_id = args.chunk_id - 1 if args.chunk_id else None  # 1-base to 0-base
     chunk_num = args.chunk_num
     predict_fn = args.predict_fn
     use_gpu = args.use_gpu
     logging.info("[INFO] Make prediction")
     variant_call_start_time = time()
-    add_indel_length = args.add_indel_length
+    call_fn = args.call_fn
     chkpnt_fn = args.chkpnt_fn
     tensor_fn = args.tensor_fn
     platform = args.platform
+    torch.set_num_threads(1)
     if use_gpu and not torch.cuda.is_available():
         print("[WARNING] --use_gpu is enabled, but cuda is not found")
         use_gpu = False
-        torch.set_num_threads(1)
     if use_gpu:
         device = 'cuda'
     else:
         os.environ["CUDA_VISIBLE_DEVICES"] = ""
         device = 'cpu'
 
-    if predict_fn != "PIPE":
+
+    if call_fn is not None:
+        from shared.vcf import VcfWriter
+        call_dir = os.path.dirname(call_fn)
+        if not os.path.exists(call_dir):
+            output = run("mkdir -p {}".format(call_dir), shell=True)
+        vcf_writer = VcfWriter(vcf_fn=args.call_fn,
+                               ref_fn=args.ref_fn,
+                               ctg_name=args.ctg_name,
+                               show_ref_calls=args.show_ref,
+                               sample_name=args.sample_name,
+                               )
+        output_file = vcf_writer
+    elif predict_fn != "PIPE":
         predict_dir = os.path.dirname(predict_fn)
         if not os.path.exists(predict_dir):
             output = run("mkdir -p {}".format(predict_dir), shell=True)
         predict_fn_fpo = open(predict_fn, "wb")
         predict_fn_fp = subprocess_popen(shlex.split("{} -c".format(param.zstd)), stdin=PIPE, stdout=predict_fn_fpo)
+        output_file = predict_fn_fp.stdin
     else:
         predict_fn_fp = TensorStdout(sys.stdout)
-
-    output_file = predict_fn_fp.stdin
+        output_file = predict_fn_fp.stdin
 
     global test_pos
     test_pos = None
@@ -369,7 +421,7 @@ def predict(args):
             except StopIteration:
                 return
 
-        tensor_generator = tensor_generator_from(tensor_fn, param.predictBatchSize, pileup=False,
+        tensor_generator = tensor_generator_from(tensor_fn, param.predictBatchSize, pileup=args.pileup,
                                                        platform=platform)
 
         while True:
@@ -377,11 +429,20 @@ def predict(args):
             if len(mini_batches_to_output) > 0:
                 mini_batch = mini_batches_to_output.pop(0)
                 input_tensor, position, normal_alt_info_list, tumor_alt_info_list, variant_type_list = mini_batch
-                input_matrix = torch.from_numpy(np.transpose(input_tensor, (0, 3, 1, 2)) / 100.0).float().to(device)
-                with torch.no_grad():
-                    prediction = model(input_matrix)
-                prediction = softmax(prediction)
-                prediction = prediction.cpu().numpy()
+
+                if param.use_tf:
+                    prediction = model.predict_on_batch(input_tensor)[0]
+                else:
+                    if args.pileup:
+                        input_matrix = torch.from_numpy(input_tensor).to(device)
+                    else:
+                        input_matrix = torch.from_numpy(np.transpose(input_tensor, (0, 3, 1, 2)) / 100.0).float().to(device)
+                        # print(np.unique(input_tensor[:,:,:,5]))
+                    with torch.no_grad():
+                        prediction = model(input_matrix)
+                    prediction = softmax(prediction)
+                    prediction = prediction.cpu().numpy()
+
                 total += len(input_tensor)
                 thread_pool.append(Thread(
                     target=batch_output,
@@ -548,3 +609,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# /mnt/bal36/zxzheng/env/miniconda3/envs/clair3/bin/python3 ${CS} predict > tmp_alt
+# /autofs/bal33/zxzheng/env/miniconda2/envs/torch_3090/bin/python3 /autofs/bal36/zxzheng/somatic/Clair-somatic/clair-somatic.py predict --tensor_fn /autofs/bal36/zxzheng/somatic/ilmn/ilmn/chr20_add_germline_min_coverage_3_mq_20/build/tensor_can/chr20.13_2_3 --call_fn /autofs/bal36/zxzheng/somatic/ilmn/ilmn/chr20_add_germline_min_coverage_3_mq_20/predict/tmp.vcf --chkpnt_fn /autofs/bal36/zxzheng/somatic/ilmn/ilmn/training_add_germline_add_mq20/train/test_no_germline/12.pkl --use_gpu 1 --platform ilmn
