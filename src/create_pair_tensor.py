@@ -34,11 +34,15 @@ HAP_TYPE = dict(zip((1, 0, 2), (30, 60, 90)))  # hap1 UNKNOWN H2
 ACGT_NUM = dict(zip("ACGT+-*#N", (100, 25, 75, 50, -50, -100, 0, 0, 100)))
 
 
-def _normalize_bq(x):
+def _normalize_bq(x, platform='ont'):
+    if platform == "ilmn":
+    # only work for short reads
+        x = x // 10 * 10
     return int(NORMALIZE_NUM * min(x, MAX_BQ) / MAX_BQ)
 
 
 def _normalize_mq(x):
+    x = 0 if x <= 20 else (20 if x <= 40 else 60)
     return int(NORMALIZE_NUM * min(x, MAX_MQ) / MAX_MQ)
 
 
@@ -68,12 +72,12 @@ class Position(object):
         self.genotype = genotype
         self.read_name_seq = defaultdict(str)
 
-    def update_infos(self, is_tumor=False):
+    def update_infos(self, is_tumor=False, platform='ont'):
         # only proceed when variant exists in candidate windows which greatly improves efficiency
         self.read_name_dict = dict(zip(self.read_name_list, self.base_list))
         self.update_info = True
         self.mapping_quality = [_normalize_mq(phredscore2raw_score(item)) for item in self.raw_mapping_quality]
-        self.base_quality = [_normalize_bq(phredscore2raw_score(item)) for item in self.raw_base_quality]
+        self.base_quality = [_normalize_bq(phredscore2raw_score(item), platform) for item in self.raw_base_quality]
 
         for read_name, base_info, bq, mq in zip(self.read_name_list, self.base_list, self.base_quality,
                                                 self.mapping_quality):
@@ -146,7 +150,6 @@ def get_tensor_info(base_info, bq, ref_base, read_mq=None, is_tumor=False):
     """
 
     hap_type = 100 if is_tumor else 50
-    # hap_type = 100
 
     base, indel = base_info
     ins_base = ""
@@ -170,7 +173,6 @@ def get_tensor_info(base_info, bq, ref_base, read_mq=None, is_tumor=False):
     if len(indel) and indel[0] in '+-':
         if indel[0] == "+":
             ins_base = indel[1:].upper()
-    # hap_type = 100 if ALT_BASE > 0 else 0
     read_channel[:6] = REF_BASE, ALT_BASE, strand, bq, read_mq, hap_type
     query_base = "" if base_upper not in "ACGT" else base_upper
     return read_channel, ins_base, query_base
@@ -371,7 +373,7 @@ def generate_tensor(ctg_name,
 
     for p in range(start_pos, end_pos):
         if p in pileup_dict and not pileup_dict[p].update_info:
-            pileup_dict[p].update_infos(is_tumor=is_tumor)
+            pileup_dict[p].update_infos(is_tumor=is_tumor, platform=platform)
         for read_idx, read_name_info in enumerate(sorted_read_name_list):
             hap, read_order, read_name = read_name_info
             offset = p - start_pos
