@@ -470,14 +470,26 @@ def get_candidates(args):
             else:
                 alt_base = ref_base = normal_alt_dict[pos].ref_base if pos in normal_alt_dict else (tumor_alt_dict[pos] if pos in tumor_alt_dict else "N")
 
+            normal_coverage = int(normal_alt_dict[pos].depth) if pos in normal_alt_dict else 0
+            tumor_coverage = int(tumor_alt_dict[pos].depth) if pos in tumor_alt_dict else 0
+            normal_af = normal_alt_dict[pos].support_alternative_af if pos in normal_alt_dict else 0
+            tumor_af = tumor_alt_dict[pos].support_alternative_af if pos in tumor_alt_dict else 0
+
+            normal_coverage = -1 if normal_coverage is None else normal_coverage
+            tumor_coverage = -1 if tumor_coverage is None else tumor_coverage
+            normal_af = -1 if normal_af is None else normal_af
+            tumor_af = -1 if tumor_af is None else tumor_af
             vcf_writer.write_row(POS=pos,
                                  REF=ref_base,
                                  ALT=alt_base,
-                                 QUAL=10,
+                                 QUAL=100,
                                  FILTER=filter_tag,
                                  GT=genotype,
-                                 DP=10,
-                                 AF=0.5,
+                                 DP=tumor_coverage,
+                                 AF=tumor_af,
+                                 NAF=normal_af,
+                                 NDP=normal_coverage,
+                                 TDP=tumor_coverage,
                                  VT=variant_type)
         vcf_writer.close()
 
