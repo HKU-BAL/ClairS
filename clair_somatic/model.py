@@ -261,25 +261,28 @@ class ResNet(nn.Module):
         super().__init__()
 
         in_channels = param.channel_size
-
-        self.conv1 = BasicConv2D(input_channel=in_channels,output_channel=64, strides=2)
-        self.in_channels = 32
+        conv1_channel_size = 16
+        conv2_channel_size = 32
+        conv3_channel_size = 64
+        self.conv1 = BasicConv2D(input_channel=in_channels, output_channel=conv1_channel_size, strides=2)
 
         depth_scale_size = cal_scale(input_size=param.max_depth, layers=3)
         width_scale_size = cal_scale(input_size=param.no_of_positions, layers=3)
 
-        self.conv1_x = self._make_layer(block, 64, 1, 1)
-        self.conv2 = BasicConv2D(input_channel=64,output_channel=128, strides=2)
-        self.conv2_x = self._make_layer(block, 128, 1, 1)
-        self.conv3 = BasicConv2D(input_channel=128,output_channel=256, strides=2)
-        self.conv3_x = self._make_layer(block, 256, 1, 1)
+        self.conv1_x = self._make_layer(block, conv1_channel_size, 1, 1)
+
+        self.conv2 = BasicConv2D(input_channel=conv1_channel_size, output_channel=conv2_channel_size, strides=2)
+        self.conv2_x = self._make_layer(block, conv2_channel_size, 1, 1)
+
+        self.conv3 = BasicConv2D(input_channel=conv2_channel_size, output_channel=conv3_channel_size, strides=2)
+        self.conv3_x = self._make_layer(block, conv3_channel_size, 1, 1)
 
         self.dropout = nn.Dropout(p=0.5)
         # self.conv3_x = self._make_layer(block, 64, num_block[1], 2)
         # self.conv4_x = self._make_layer(block, 256, num_block[2], 2)
         # self.conv5_x = self._make_layer(block, 512, num_block[3], 2)
         self.flatten = nn.Flatten()
-        self.fc1 = nn.Linear(256 * depth_scale_size * width_scale_size, 16)
+        self.fc1 = nn.Linear(conv3_channel_size * depth_scale_size * width_scale_size, 16)
         self.fc2 = nn.Linear(16, num_classes)
 
     def _make_layer(self, block, out_channels, num_blocks, stride):
