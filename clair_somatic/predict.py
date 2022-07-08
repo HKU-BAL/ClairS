@@ -407,7 +407,16 @@ def predict(args):
     # batch_output_method = batch_output_for_ensemble if output_config.is_output_for_ensemble else batch_output
     batch_output_method = batch_output
     # m.load_weights(args.chkpnt_fn)
-    model = torch.load(chkpnt_fn, map_location=torch.device(device))
+    if param.use_tf:
+        import clair_somatic.model_tf as model_path
+        # args.chkpnt_fn = "/autofs/bal36/zxzheng/TMP/test.19"
+        # import shared.param as param
+        model = model_path.Clair3_P()
+        model.load_weights(args.chkpnt_fn)
+
+    else:
+        model = torch.load(chkpnt_fn, map_location=torch.device(device))
+    # model = torch.nn.DataParallel(model, device_ids=[0,1,2,3])
     total = 0
     softmax = torch.nn.Softmax(dim=1)
     if not args.is_from_tables:
@@ -497,13 +506,27 @@ def predict(args):
             end_pos = min((idx + 1) * batch_size, dataset_size)
             batch_output(output_file, position, normal_alt_info_list, tumor_alt_info_list, prediction)
             total += len(input_tensor)
-    if predict_fn != "PIPE":
+
+    logging.info("Total process positions: {}".format(total))
+    logging.info("Total time elapsed: %.2f s" % (time() - variant_call_start_time))
+
+    if call_fn is not None:
+        output_file.close()
+        if os.path.exists(call_fn):
+            vcf_file = open(call_fn, 'r').readlines()
+            if not len(vcf_file):
+                os.remove(call_fn)
+            for row in vcf_file:
+                if row[0] != '#':
+                    return
+            logging.info("[INFO] No vcf output for file {}, remove empty file".format(call_fn))
+            os.remove(call_fn)
+    elif predict_fn != "PIPE":
         predict_fn_fp.stdin.close()
         predict_fn_fp.wait()
         predict_fn_fpo.close()
 
-    logging.info("Total process positions: {}".format(total))
-    logging.info("Total time elapsed: %.2f s" % (time() - variant_call_start_time))
+
 
 
 def main():
