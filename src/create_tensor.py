@@ -32,18 +32,19 @@ HAP_TYPE = dict(zip((1, 0, 2), (30, 60, 90)))  # hap1 UNKNOWN H2
 ACGT_NUM = dict(zip("ACGT+-*#N", (100, 25, 75, 50, -50, -100, 0, 0, 100)))
 
 
-def _normalize_bq(x):
+def _normalize_bq(x, platform='ont'):
+    if platform == "ilmn":
+    # only work for short reads
+        x = x // 10 * 10
     return int(NORMALIZE_NUM * min(x, MAX_BQ) / MAX_BQ)
 
 
 def _normalize_mq(x):
-    x = 0 if x < 30 else 60
-
+    x = 0 if x <= 20 else (20 if x <= 40 else 60)
     return int(NORMALIZE_NUM * min(x, MAX_MQ) / MAX_MQ)
 
 
 def _normalize_af(x):
-    x = 0 if x < 20 else 40
     return int(NORMALIZE_NUM * min(x, MAX_AF) / MAX_AF)
 
 
@@ -69,12 +70,12 @@ class Position(object):
         self.genotype = genotype
         self.read_name_seq = defaultdict(str)
 
-    def update_infos(self, is_tumor=False):
+    def update_infos(self, is_tumor=False, platform='ont'):
         # only proceed when variant exists in candidate windows which greatly improves efficiency
         self.read_name_dict = dict(zip(self.read_name_list, self.base_list))
         self.update_info = True
         self.mapping_quality = [_normalize_mq(phredscore2raw_score(item)) for item in self.raw_mapping_quality]
-        self.base_quality = [_normalize_bq(phredscore2raw_score(item)) for item in self.raw_base_quality]
+        self.base_quality = [_normalize_bq(phredscore2raw_score(item), platform) for item in self.raw_base_quality]
 
         for read_name, base_info, bq, mq in zip(self.read_name_list, self.base_list, self.base_quality,
                                                 self.mapping_quality):
@@ -381,7 +382,7 @@ def generate_tensor(ctg_name,
 
     for p in range(start_pos, end_pos):
         if p in pileup_dict and not pileup_dict[p].update_info:
-            pileup_dict[p].update_infos(is_tumor=is_tumor)
+            pileup_dict[p].update_infos(is_tumor=is_tumor, platform=platform)
         for read_idx, read_name_info in enumerate(sorted_read_name_list):
             hap, read_order, read_name = read_name_info
             offset = p - start_pos
@@ -459,33 +460,39 @@ def generate_tensor(ctg_name,
         #                           min_tumor_support_read_num is None or read_num >= min_tumor_support_read_num]
 
         for read_num in sampled_reads_num_list:
+            use_alt_base = param.use_alt_base
 
             sampled_tumor_read_name_list = random.sample(tumor_read_name_list, read_num)
-            sampled_tumor_read_name_meet_alt_set = set(sampled_tumor_read_name_list).intersection(tumor_reads_meet_alt_info_set)
-            #in training, the candiates should have enough read support
+            sampled_tumor_read_name_meet_alt_set = set(sampled_tumor_read_name_list).intersection(
+                tumor_reads_meet_alt_info_set)
+            # in training, the candidates should have enough read support
             if len(sampled_tumor_read_name_meet_alt_set) < min_tumor_support_read_num:
                 continue
 
-            #check the strand info of sampled_tumor_read_name_list
+            # check the strand info of sampled_tumor_read_name_list
             forward_strand = sum([1 for rn in sampled_tumor_read_name_meet_alt_set if rn.endswith('1')])
             if forward_strand == 0 or forward_strand == len(sampled_tumor_read_name_meet_alt_set):
                 continue
-            sampled_normal_read_name_list = normal_read_name_list
-            if len(normal_read_name_list) + read_num > matrix_depth:
-                # set same seed for reproducibility
-                random.seed(0)
-                # print(len(normal_read_name_list), matrix_depth, read_num)
-                sampled_normal_read_name_list = random.sample(normal_read_name_list, matrix_depth - read_num)
-            re_sorted_read_name_list = sampled_normal_read_name_list + sampled_tumor_read_name_list
-            tmp_tensor = []
-            re_sorted_read_name_set = set(re_sorted_read_name_list)
 
+            if use_alt_base:
+                re_sorted_read_name_set = set(normal_read_name_list + tumor_read_name_list)
+            else:
+                re_sorted_read_name_set = set(normal_read_name_list + sampled_tumor_read_name_list)
+
+            tmp_tensor = []
             tmp_depth = len(re_sorted_read_name_set)
             af_set = set()
             tmp_read_name_list = []
+            alt_base_num = 0
             for row_idx, (hap, _, read_name) in enumerate(sorted_read_name_list):
                 if read_name in re_sorted_read_name_set:
-                    tmp_tensor.append(tensor[row_idx])
+                    if use_alt_base and read_name not in sampled_tumor_read_name_meet_alt_set and tensor[row_idx][flanking_base_num][1] == ACGT_NUM[truths_variant_dict[center_pos].alternate_bases[0]]:
+                        tensor_copy = deepcopy(tensor[row_idx])
+                        tensor_copy[flanking_base_num][1] = 0
+                        tmp_tensor.append(tensor_copy)
+                        alt_base_num += 1
+                    else:
+                        tmp_tensor.append(tensor[row_idx])
                     tmp_read_name_list.append(read_name)
             alt_dict = defaultdict(int)
             for read_name, (base, indel) in zip(pileup_dict[center_pos].read_name_list,
@@ -503,27 +510,31 @@ def generate_tensor(ctg_name,
                 elif base.upper() != reference_base:
                     alt_dict[base.upper()] += 1
 
-            for row_idx, read_name in enumerate(tmp_read_name_list):
-                af_num = 0
-                if read_name in pileup_dict[center_pos].read_name_dict:
-                    base, indel = pileup_dict[center_pos].read_name_dict[read_name]
-                    base_upper = base.upper()
-                    if indel != '':
-                        if indel[0] == '+':
-                            insert_str = ('+' + base_upper + indel.upper()[1:])
-                            af_num = alt_dict[insert_str] / max(1, float(tmp_depth)) if insert_str in alt_dict else af_num
-                        else:
-                            af_num = alt_dict[indel.upper()] / max(1, float(tmp_depth)) if indel.upper() in alt_dict else af_num
-                    elif base.upper() in alt_dict:
-                        af_num = alt_dict[base_upper] / max(1, float(tmp_depth))
-                af_num = _normalize_af(af_num) if af_num != 0 else af_num
-                af_set.add(round(af_num / 100, 3))
+            if use_alt_base:
+                alt_dict[truths_variant_dict[center_pos].alternate_bases[0]] -= alt_base_num
+            # for row_idx, read_name in enumerate(tmp_read_name_list):
+            #     af_num = 0
+            #     if read_name in pileup_dict[center_pos].read_name_dict:
+            #         base, indel = pileup_dict[center_pos].read_name_dict[read_name]
+            #         base_upper = base.upper()
+            #         if indel != '':
+            #             if indel[0] == '+':
+            #                 insert_str = ('+' + base_upper + indel.upper()[1:])
+            #                 af_num = alt_dict[insert_str] / max(1,
+            #                                                     float(tmp_depth)) if insert_str in alt_dict else af_num
+            #             else:
+            #                 af_num = alt_dict[indel.upper()] / max(1, float(
+            #                     tmp_depth)) if indel.upper() in alt_dict else af_num
+            #         elif base.upper() in alt_dict:
+            #             af_num = alt_dict[base_upper] / max(1, float(tmp_depth))
+                # af_num = _normalize_af(af_num) if af_num != 0 else af_num
+                # af_set.add(round(af_num / 100, 3))
                 # hap_type = HAP_TYPE[hap]
-                hap_type = 100 if is_tumor else 50
-                for p in range(no_of_positions):
-                    if tmp_tensor[row_idx][p][2] != 0:  # skip all del #*
-                        tmp_tensor[row_idx][p][5] = af_num
-                        tmp_tensor[row_idx][p][7] = hap_type
+                # hap_type = 100 if is_tumor else 50
+                # for p in range(no_of_positions):
+                #     if tmp_tensor[row_idx][p][0] != 0:  # skip all del #*
+                #         tmp_tensor[row_idx][p][5] = hap_type
+                #         # tmp_tensor[row_idx][p][7] = hap_type
 
             # print (len(tmp_tensor))
             alt_info = []
@@ -578,29 +589,28 @@ def generate_tensor(ctg_name,
             elif base.upper() != reference_base:
                 alt_dict[base.upper()] += 1
 
-        af_set= set()
-        for row_idx, (hap, _, read_name) in enumerate(sorted_read_name_list):
-            af_num = 0
-            if read_name in pileup_dict[center_pos].read_name_dict:
-                base, indel = pileup_dict[center_pos].read_name_dict[read_name]
-                base_upper = base.upper()
-                if indel != '':
-                    if indel[0] == '+':
-                        insert_str = ('+' + base_upper + indel.upper()[1:])
-                        af_num = alt_dict[insert_str] / max(1, float(depth)) if insert_str in alt_dict else af_num
-                    else:
-                        af_num = alt_dict[indel.upper()] / max(1, float(depth)) if indel.upper() in alt_dict else af_num
-                elif base.upper() in alt_dict:
-                    af_num = alt_dict[base_upper] / max(1, float(depth))
-            af_num = _normalize_af(af_num) if af_num != 0 else af_num
-            af_set.add(round(af_num/100, 3))
+        af_set = set()
+        # for row_idx, (hap, _, read_name) in enumerate(sorted_read_name_list):
+            # af_num = 0
+            # if read_name in pileup_dict[center_pos].read_name_dict:
+            #     base, indel = pileup_dict[center_pos].read_name_dict[read_name]
+            #     base_upper = base.upper()
+            #     if indel != '':
+            #         if indel[0] == '+':
+            #             insert_str = ('+' + base_upper + indel.upper()[1:])
+            #             af_num = alt_dict[insert_str] / max(1, float(depth)) if insert_str in alt_dict else af_num
+            #         else:
+            #             af_num = alt_dict[indel.upper()] / max(1, float(depth)) if indel.upper() in alt_dict else af_num
+            #     elif base.upper() in alt_dict:
+            #         af_num = alt_dict[base_upper] / max(1, float(depth))
+            # af_num = _normalize_af(af_num) if af_num != 0 else af_num
+            # af_set.add(round(af_num / 100, 3))
             # hap_type = HAP_TYPE[hap]
-            hap_type = 100 if is_tumor else 50
-            for p in range(no_of_positions):
-                if tensor[row_idx][p][2] != 0:  # skip all del #*
-                    tensor[row_idx][p][5] = af_num
-                    tensor[row_idx][p][7] = hap_type
-
+            # hap_type = 100 if is_tumor else 50
+            # for p in range(no_of_positions):
+            #     if tensor[row_idx][p][1] != 0:  # skip all del #*
+            #         tensor[row_idx][p][5] = hap_type
+                    # tensor[row_idx][p][7] = hap_type
 
         alt_info = []
         af_infos = ' '.join([str(item) for item in sorted(list(af_set), reverse=True) if item != 0])
@@ -1200,3 +1210,9 @@ def main():
 
 if __name__ == "__main__":
     main()
+##time samtools mpileup  /autofs/bal36/zxzheng/somatic/data/ilmn_seqc/WGS_NV_N_2.bwa.dedup.bam  --reverse-del --min-MQ 20 --min-BQ 0 --excl-flags 2316 --output-QNAME -r chr20: | less
+##time samtools mpileup  /autofs/bal36/zxzheng/somatic/data/ilmn_seqc/WGS_NV_T_2.bwa.dedup.bam  --reverse-del --min-MQ 20 --min-BQ 0 --excl-flags 2316 --output-QNAME -r chr20: | less
+# ls predict/* | parallel -j20 "echo {1} && zstd -fdc  {1} | grep 28796765"
+
+
+
