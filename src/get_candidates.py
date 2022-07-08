@@ -453,17 +453,18 @@ def get_candidates(args):
         homo_somatic = [item for item in homo_somatic if item[0] not in homo_exclude_truth_set]
         hetero_somatic = [item for item in hetero_somatic if item[0] not in hetero_exclude_truth_set]
 
-    # hete_somatic = filter_somatic_candidates(truths=hete_somatic, variant_info=variant_info_2, alt_dict=tumor_alt_dict, paired_alt_dict=normal_alt_dict)
-    tp_list = homo_somatic + hete_somatic
+
+    tp_list = homo_somatic + hetero_somatic
+
     pos_list = sorted(fp_list + tp_list, key=lambda x: x[0])
 
     if gen_vcf:
         vcf_writer = VcfWriter(vcf_fn=output_vcf_fn, ref_fn=ref_fn, ctg_name=contig_name, show_ref_calls=True)
-        for pos, variant_type in pos_list + homo_low_confident_truths + hete_low_confident_truths:
-            genotype = '1/1' if (variant_type == 'homo_somatic' or variant_type == 'hete_somatic') else '0/0'
-            filter_tag = "PASS" if genotype == '1/1' else "LowQual"
+        for pos, variant_type in pos_list + homo_low_confident_truths + hetero_low_confident_truths + homo_low_confident_germline_truths + hetero_low_confident_germline_truths:
+            genotype = '1/1' if (variant_type == 'homo_somatic' or variant_type == 'hetero_somatic') else '0/0'
+            filter_tag = "PASS" if genotype == '1/1' else variant_type
             if genotype == "1/1":
-                ref_base, alt_base = variant_info_2[pos]
+                ref_base, alt_base = tumor_variant_info[pos]
             elif pos in tumor_alt_dict:
                 ref_base = alt_base = tumor_alt_dict[pos].ref_base
             else:
