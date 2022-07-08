@@ -1210,9 +1210,7 @@ def main():
 
 if __name__ == "__main__":
     main()
-##time samtools mpileup  /autofs/bal36/zxzheng/somatic/data/ilmn_seqc/WGS_NV_N_2.bwa.dedup.bam  --reverse-del --min-MQ 20 --min-BQ 0 --excl-flags 2316 --output-QNAME -r chr20: | less
-##time samtools mpileup  /autofs/bal36/zxzheng/somatic/data/ilmn_seqc/WGS_NV_T_2.bwa.dedup.bam  --reverse-del --min-MQ 20 --min-BQ 0 --excl-flags 2316 --output-QNAME -r chr20: | less
-# ls predict/* | parallel -j20 "echo {1} && zstd -fdc  {1} | grep 28796765"
+
 
 
 
