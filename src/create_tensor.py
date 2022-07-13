@@ -973,6 +973,18 @@ def create_tensor(args):
                     else:
                         read_name_list[b_idx] += '_0'  # forward
 
+            if phasing_info_in_bam:
+                phasing_info = columns[8].split(',')
+                # https://github.com/HKU-BAL/Clair3/issues/32, skip adding phase info when BAM phase info lacks
+                # add read name list size check in following steps
+                if len(read_name_list) != len(phasing_info):
+                    continue
+                else:
+                    for hap_idx, hap in enumerate(phasing_info):
+                        if hap in '12' and read_name_list[hap_idx] not in hap_dict:
+                            hap_dict[read_name_list[hap_idx]] = int(hap)
+
+
             if len(read_name_list) != len(base_list):
                 continue
 
@@ -1046,7 +1058,7 @@ def create_tensor(args):
                                                reference_start=reference_start,
                                                platform=platform,
                                                confident_bed_tree=confident_bed_tree,
-                                               add_no_phasing_data_training=add_no_phasing_data_training,
+                                               add_hetero_phasing=add_hetero_phasing,
                                                is_tumor=is_tumor,
                                                candidates_type_dict=candidates_type_dict,
                                                use_tensor_sample_mode=use_tensor_sample_mode,
@@ -1219,7 +1231,7 @@ def main():
                         help=SUPPRESS)
 
     ## Apply read realignment for illumina platform. Greatly boost indel performance in trade of running time
-    parser.add_argument('--add_adjacent', action='store_true',
+    parser.add_argument('--add_hetero_phasing', type=str2bool, default=0,
                         help=SUPPRESS)
 
     parser.add_argument('--tensor_sample_mode', type=str2bool, default=0,
