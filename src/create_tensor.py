@@ -28,7 +28,9 @@ MAX_MQ = 60.0
 MAX_AF = 1.0
 STRAND_0 = 100
 STRAND_1 = 50
-HAP_TYPE = dict(zip((1, 0, 2), (30, 60, 90)))  # hap1 UNKNOWN H2
+HAP_TYPE = dict(zip((1, 0, 2), (30, 60, 90)))  # hap1 UNKNOWN H2 # should be better using
+NORMAL_HAP_TYPE = dict(zip((1, 0, 2), (13, 25, 37)))  # set normal hap tag
+TUMOR_HAP_TYPE = dict(zip((1, 0, 2), (75, 88, 100)))  # set tumor hap tag
 ACGT_NUM = dict(zip("ACGT+-*#N", (100, 25, 75, 50, -50, -100, 0, 0, 100)))
 
 
@@ -132,9 +134,10 @@ def sorted_by_hap_read_name(center_pos, haplotag_dict, pileup_dict, hap_dict, ma
     sorted_read_name_list = []
     for order, read_name in enumerate(all_nearby_read_name):
         hap = max(haplotag_dict[read_name], hap_dict[read_name])  # no phasing is 0
+        # hap = 0  # no phasing is 0
         sorted_read_name_list.append((hap, order, read_name))
 
-    sorted_read_name_list = sorted(sorted_read_name_list)
+    sorted_read_name_list = sorted(sorted_read_name_list, key=lambda x: x[1])
     return sorted_read_name_list
 
 
@@ -147,7 +150,7 @@ def get_tensor_info(base_info, bq, ref_base, read_mq=None, is_tumor=False):
     read_mq: read mapping quality.
     """
 
-    hap_type = 100 if is_tumor else 50
+    hap_type = TUMOR_HAP_TYPE[0] if is_tumor else NORMAL_HAP_TYPE[0]
 
     base, indel = base_info
     ins_base = ""
@@ -341,7 +344,7 @@ def generate_tensor(ctg_name,
                     reference_start,
                     platform,
                     confident_bed_tree,
-                    add_no_phasing_data_training,
+                    add_hetero_phasing,
                     is_tumor,
                     candidates_type_dict,
                     use_tensor_sample_mode=False,
@@ -554,7 +557,32 @@ def generate_tensor(ctg_name,
             alt_info_list.append(alt_info)
             tensor_string_list.append(" ".join(
                 (" ".join(" ".join(str(x) for x in innerlist) for innerlist in outerlist)) for outerlist in tmp_tensor))
-            variant_type = candidates_type_dict[center_pos] if center_pos in candidates_type_dict else 'unknown'
+
+            if add_hetero_phasing and candidates_type_dict[center_pos] == 'hetero_somatic':
+                HAP_TYPE = TUMOR_HAP_TYPE if is_tumor else NORMAL_HAP_TYPE
+                all_hap = [item[0] for item in sorted_read_name_list]
+                # skip if no phased reads exist
+                if sum(all_hap) != 0:
+
+                    sorted_phased_read_name_list = sorted(sorted_read_name_list, key=lambda x: x[0])
+                    phase_read_name_index_mapping = [item[1] for item in sorted_phased_read_name_list]
+
+                    phased_tensor = [tensor[read_idx] for read_idx in phase_read_name_index_mapping]
+
+                    for row_idx in range(len(phased_tensor)):
+                        hap = sorted_phased_read_name_list[row_idx][0]
+                        if hap in HAP_TYPE:
+                            for p in range(no_of_positions):
+                                if phased_tensor[row_idx][p][5] > 0:
+                                    phased_tensor[row_idx][p][5] = HAP_TYPE[hap]
+
+                    phasing_tensor_string = " ".join(
+                        (" ".join(" ".join(str(x) for x in innerlist) for innerlist in outerlist)) for outerlist in
+                        phased_tensor)
+                    tensor_string_list.append(phasing_tensor_string)
+                    alt_info_list.append(alt_info)
+
+        variant_type = candidates_type_dict[center_pos] if center_pos in candidates_type_dict else 'unknown'
 
         if 0:
             import numpy as np
@@ -683,7 +711,7 @@ def create_tensor(args):
     chunk_num = args.chunk_num
     tensor_can_output_path = args.tensor_can_fn
     is_candidates_bed_regions_given = candidates_bed_regions is not None
-    phasing_info_in_bam = args.phasing_info_in_bam
+    add_hetero_phasing = phasing_info_in_bam = args.add_hetero_phasing
     phasing_window_size = args.phasing_window_size
     extend_bp = param.extend_bp
     unify_repre = args.unify_repre
@@ -938,11 +966,12 @@ def create_tensor(args):
                                                                 candidates_type_dict=candidates_type_dict,
                                                                 is_tumor=is_tumor)
 
-            for b_idx, base in enumerate(base_list):
-                if base[0] == '#' or (base[0] >= 'a' and base[0] <= 'z'):
-                    read_name_list[b_idx] += '_1'  # reverse
-                else:
-                    read_name_list[b_idx] += '_0'  # forward
+            if platform == 'ilmn':
+                for b_idx, base in enumerate(base_list):
+                    if base[0] == '#' or (base[0] >= 'a' and base[0] <= 'z'):
+                        read_name_list[b_idx] += '_1'  # reverse
+                    else:
+                        read_name_list[b_idx] += '_0'  # forward
 
             if len(read_name_list) != len(base_list):
                 continue
