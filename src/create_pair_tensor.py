@@ -851,11 +851,12 @@ def create_tensor(args):
                                                                 candidates_type_dict=candidates_type_dict,
                                                                 is_tumor=is_tumor)
 
-            for b_idx, base in enumerate(base_list):
-                if base[0] == '#' or (base[0] >= 'a' and base[0] <= 'z'):
-                    read_name_list[b_idx] += '_1'  # reverse
-                else:
-                    read_name_list[b_idx] += '_0'  # forward
+            if platform == 'ilmn':
+                for b_idx, base in enumerate(base_list):
+                    if base[0] == '#' or (base[0] >= 'a' and base[0] <= 'z'):
+                        read_name_list[b_idx] += '_1'  # reverse
+                    else:
+                        read_name_list[b_idx] += '_0'  # forward
 
             if len(read_name_list) != len(base_list):
                 continue
