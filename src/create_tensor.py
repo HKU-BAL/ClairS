@@ -1100,10 +1100,10 @@ def create_tensor(args):
 
 
 def main():
-    parser = ArgumentParser(description="Generate variant candidate tensors using phased full-alignment")
+    parser = ArgumentParser(description="Generate variant candidate tensors")
 
     parser.add_argument('--platform', type=str, default='ont',
-                        help="Sequencing platform of the input. Options: 'ont,hifi,ilmn', default: %(default)s")
+                        help="Sequencing platform of the input, default: %(default)s")
 
     parser.add_argument('--bam_fn', type=str, default="input.bam",
                         help="Sorted BAM file input, required")
@@ -1117,14 +1117,8 @@ def main():
     parser.add_argument('--vcf_fn', type=str, default=None,
                         help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file,  default: %(default)s")
 
-    parser.add_argument('--min_af', type=float, default=None,
-                        help="Minimum allele frequency for both SNP and Indel for a site to be considered as a condidate site, default: %(default)f")
-
     parser.add_argument('--snp_min_af', type=float, default=0.1,
                         help="Minimum snp allele frequency for a site to be considered as a candidate site, default: %(default)f")
-
-    parser.add_argument('--indel_min_af', type=float, default=0.2,
-                        help="Minimum indel allele frequency for a site to be considered as a candidate site, default: %(default)f")
 
     parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of sequence to be processed, required if --bed_fn is not defined")
@@ -1137,12 +1131,6 @@ def main():
 
     parser.add_argument('--bed_fn', type=str, default=None,
                         help="Call variant only in the provided regions. Will take an intersection if --ctg_name and/or (--ctg_start, --ctg_end) are set")
-
-    parser.add_argument('--gvcf', type=str2bool, default=False,
-                        help="Enable GVCF output, default: disabled")
-
-    parser.add_argument('--sample_name', type=str, default="SAMPLE",
-                        help="Define the sample name to be shown in the GVCF file")
 
     parser.add_argument('--samtools', type=str, default="samtools",
                         help="Path to the 'samtools', samtools version >= 1.10 is required. default: %(default)s")
@@ -1160,6 +1148,9 @@ def main():
     parser.add_argument('--max_depth', type=int, default=param.max_depth,
                         help="EXPERIMENTAL: Maximum full alignment depth to be processed. default: %(default)s")
 
+    parser.add_argument('--indel_min_af', type=float, default=0.2,
+                        help="EXPERIMENTAL: Minimum indel allele frequency for a site to be considered as a candidate site, default: %(default)f")
+
     # options for debug purpose
     parser.add_argument('--phasing_info_in_bam', action='store_true',
                         help="DEBUG: Skip phasing and use the phasing info provided in the input BAM (HP tag), default: False")
@@ -1172,15 +1163,6 @@ def main():
 
     parser.add_argument('--alt_fn', type=str, default=None,
                         help="DEBUG: Output all alternative indel cigar for debug purpose")
-
-    parser.add_argument('--base_err', default=0.001, type=float,
-                        help='DEBUG: Estimated base error rate in gvcf option, default: %(default)f')
-
-    parser.add_argument('--gq_bin_size', default=5, type=int,
-                        help='DEBUG: Default gq bin size for merge non-variant block in gvcf option, default: %(default)d')
-
-    parser.add_argument('--bp_resolution', action='store_true',
-                        help="DEBUG: Enable bp resolution for GVCF, default: disabled")
 
     parser.add_argument('--truth_vcf_fn', type=str, default=None,
                         help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file,  default: %(default)s")
@@ -1202,22 +1184,6 @@ def main():
     parser.add_argument('--chunk_id', type=int, default=None,
                         help=SUPPRESS)
 
-    ## Only call variant in phased vcf file
-    parser.add_argument('--phased_vcf_fn', type=str, default=None,
-                        help=SUPPRESS)
-
-    ## Apply no phased data in training. Only works in data training, default: False
-    parser.add_argument('--add_no_phasing_data_training', action='store_true',
-                        help=SUPPRESS)
-
-    ## Output representation unification infos, which refines training labels
-    parser.add_argument('--unify_repre', action='store_true',
-                        help=SUPPRESS)
-
-    ## Path of representation unification output
-    parser.add_argument('--unify_repre_fn', type=str, default=None,
-                        help=SUPPRESS)
-
     ## Provide the regions to be included in full-alignment based calling
     parser.add_argument('--candidates_bed_regions', type=str, default=None,
                         help=SUPPRESS)
@@ -1227,22 +1193,41 @@ def main():
                         help=SUPPRESS)
 
     ## Apply read realignment for illumina platform. Greatly boost indel performance in trade of running time
-    parser.add_argument('--need_realignment', action='store_true',
-                        help=SUPPRESS)
-
-    ## Apply read realignment for illumina platform. Greatly boost indel performance in trade of running time
     parser.add_argument('--add_hetero_phasing', type=str2bool, default=0,
                         help=SUPPRESS)
 
+    ## only keep phasing tensor for model training
+    parser.add_argument('--keep_phase_only', type=str2bool, default=0,
+                        help=SUPPRESS)
+
+    ## apply tensor sample mode in training
     parser.add_argument('--tensor_sample_mode', type=str2bool, default=0,
-                        help="Add all tumor tensor and only sampling in tensor generation")
+                        help=SUPPRESS)
 
     parser.add_argument('--training_mode', type=str2bool, default=0,
-                        help="Add all tumor tensor and only sampling in tensor generation")
+                        help=SUPPRESS)
 
     parser.add_argument('--proportion', type=float, default=1.0,
-                        help="Add all tumor tensor and only sampling in tensor generation")
+                        help=SUPPRESS)
 
+    # parser.add_argument('--min_af', type=float, default=None,
+    #                     help="Minimum allele frequency for both SNP and Indel for a site to be considered as a condidate site, default: %(default)f")
+    # ## Only call variant in phased vcf file
+    # parser.add_argument('--phased_vcf_fn', type=str, default=None,
+    #                     help=SUPPRESS)
+    # ## Apply read realignment for illumina platform. Greatly boost indel performance in trade of running time
+    # parser.add_argument('--need_realignment', action='store_true',
+    #                     help=SUPPRESS)
+    # ## Output representation unification infos, which refines training labels
+    # parser.add_argument('--unify_repre', action='store_true',
+    #                     help=SUPPRESS)
+    #
+    # ## Path of representation unification output
+    # parser.add_argument('--unify_repre_fn', type=str, default=None,
+    #                     help=SUPPRESS)
+    # ## Apply no phased data in training. Only works in data training, default: False
+    # parser.add_argument('--add_no_phasing_data_training', action='store_true',
+    #                     help=SUPPRESS)
 
     args = parser.parse_args()
 
