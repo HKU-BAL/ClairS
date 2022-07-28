@@ -972,7 +972,7 @@ def create_tensor(args):
 
 
 def main():
-    parser = ArgumentParser(description="Generate variant candidate tensors using phased full-alignment")
+    parser = ArgumentParser(description="Generate normal-tumor pair variant candidate tensors")
 
     parser.add_argument('--platform', type=str, default='ont',
                         help="Sequencing platform of the input. Options: 'ont,hifi,ilmn', default: %(default)s")
@@ -995,9 +995,6 @@ def main():
     parser.add_argument('--snp_min_af', type=float, default=0.1,
                         help="Minimum snp allele frequency for a site to be considered as a candidate site, default: %(default)f")
 
-    parser.add_argument('--indel_min_af', type=float, default=0.2,
-                        help="Minimum indel allele frequency for a site to be considered as a candidate site, default: %(default)f")
-
     parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of sequence to be processed, required if --bed_fn is not defined")
 
@@ -1009,9 +1006,6 @@ def main():
 
     parser.add_argument('--bed_fn', type=str, default=None,
                         help="Call variant only in the provided regions. Will take an intersection if --ctg_name and/or (--ctg_start, --ctg_end) are set")
-
-    parser.add_argument('--sample_name', type=str, default="SAMPLE",
-                        help="Define the sample name to be shown in the GVCF file")
 
     parser.add_argument('--samtools', type=str, default="samtools",
                         help="Path to the 'samtools', samtools version >= 1.10 is required. default: %(default)s")
@@ -1028,6 +1022,9 @@ def main():
 
     parser.add_argument('--max_depth', type=int, default=param.max_depth,
                         help="EXPERIMENTAL: Maximum full alignment depth to be processed. default: %(default)s")
+
+    parser.add_argument('--indel_min_af', type=float, default=0.2,
+                        help="EXPERIMENTAL: Minimum indel allele frequency for a site to be considered as a candidate site, default: %(default)f")
 
     # options for debug purpose
     parser.add_argument('--phasing_info_in_bam', action='store_true',
@@ -1070,21 +1067,24 @@ def main():
     parser.add_argument('--need_phasing', action='store_true',
                         help=SUPPRESS)
 
-    ## Apply read realignment for illumina platform. Greatly boost indel performance in trade of running time
-    parser.add_argument('--need_realignment', action='store_true',
-                        help=SUPPRESS)
+    parser.add_argument('--phase_normal', type=str2bool, default=0,
+                        help="Phase normal tensor in calling")
+
+    parser.add_argument('--phase_tumor', type=str2bool, default=0,
+                        help="Phase tumor tensor in calling")
 
     ## Apply read realignment for illumina platform. Greatly boost indel performance in trade of running time
     parser.add_argument('--add_adjacent', action='store_true',
                         help=SUPPRESS)
 
+    ## apply tensor sample mode in training
     parser.add_argument('--tensor_sample_mode', type=str2bool, default=0,
-                        help="Add all tumor tensor and only sampling in tensor generation")
+                        help=SUPPRESS)
 
 
     args = parser.parse_args()
 
-    create_tensor(args)
+    create_pair_tensor(args)
 
 
 if __name__ == "__main__":

@@ -698,40 +698,28 @@ def extract_candidates(args):
 
 
 def main():
-    parser = ArgumentParser(description="Generate variant candidate tensors using phased full-alignment")
+    parser = ArgumentParser(description="Generate normal-tumor pair variant candidate for tensor creation")
 
     parser.add_argument('--platform', type=str, default='ont',
-                        help="Sequencing platform of the input. Options: 'ont,hifi,ilmn', default: %(default)s")
+                        help="Sequencing platform of the input, default: %(default)s")
 
-    parser.add_argument('--bam_fn', type=str, default="input.bam",
-                        help="Sorted BAM file input, required")
+    parser.add_argument('--candidates_folder', type=str, default=None,
+                        help="Output candidate folder to store the candidate bed information, required")
 
-    parser.add_argument('--normal_bam_fn', type=str, default="input.bam",
-                        help="Sorted BAM file input, required")
+    parser.add_argument('--tumor_bam_fn', type=str, default=None,
+                        help="Sorted tumor BAM file input, required")
 
-    parser.add_argument('--ref_fn', type=str, default="ref.fa",
+    parser.add_argument('--normal_bam_fn', type=str, default=None,
+                        help="Sorted normal BAM file input, required")
+
+    parser.add_argument('--ref_fn', type=str, default=None,
                         help="Reference fasta file input, required")
 
-    parser.add_argument('--tensor_can_fn', type=str, default="PIPE",
-                        help="Tensor output, stdout by default, default: %(default)s")
-
     parser.add_argument('--vcf_fn', type=str, default=None,
-                        help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file,  default: %(default)s")
+                        help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file, default: %(default)s")
 
-    parser.add_argument('--unified_vcf_fn', type=str, default=None,
-                        help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file,  default: %(default)s")
-
-    parser.add_argument('--min_truth_snp_af', type=float, default=None,
-                        help="Minimum allele frequency for both SNP and Indel for a site to be considered as a condidate site, default: %(default)f")
-
-    parser.add_argument('--min_truth_indel_af', type=float, default=None,
-                        help="Minimum allele frequency for both SNP and Indel for a site to be considered as a condidate site, default: %(default)f")
-
-    parser.add_argument('--snp_min_af', type=float, default=0.1,
-                        help="Minimum snp allele frequency for a site to be considered as a candidate site, default: %(default)f")
-
-    parser.add_argument('--indel_min_af', type=float, default=0.2,
-                        help="Minimum indel allele frequency for a site to be considered as a candidate site, default: %(default)f")
+    parser.add_argument('--snv_min_af', type=float, default=0.1,
+                        help="Minimum SNV allele frequency for a site to be considered as a candidate site, default: %(default)f")
 
     parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of sequence to be processed, required if --bed_fn is not defined")
@@ -744,12 +732,6 @@ def main():
 
     parser.add_argument('--bed_fn', type=str, default=None,
                         help="Call variant only in the provided regions. Will take an intersection if --ctg_name and/or (--ctg_start, --ctg_end) are set")
-
-    parser.add_argument('--gvcf', type=str2bool, default=False,
-                        help="Enable GVCF output, default: disabled")
-
-    parser.add_argument('--sample_name', type=str, default="SAMPLE",
-                        help="Define the sample name to be shown in the GVCF file")
 
     parser.add_argument('--samtools', type=str, default="samtools",
                         help="Path to the 'samtools', samtools version >= 1.10 is required. default: %(default)s")
@@ -765,26 +747,23 @@ def main():
                         help="EXPERIMENTAL: If set, bases with base quality with <$min_bq are filtered, default: %(default)d")
 
     parser.add_argument('--max_depth', type=int, default=param.max_depth,
-                        help="EXPERIMENTAL: Maximum full alignment depth to be processed. default: %(default)s")
+                        help="EXPERIMENTAL: Maximum depth to be processed. default: %(default)s")
 
     parser.add_argument('--alternative_base_num', type=int, default=param.alternative_base_num,
-                        help="EXPERIMENTAL: Maximum full alignment depth to be processed. default: %(default)s")
+                        help="EXPERIMENTAL: Minimum alternative base number to process a candidate. default: %(default)s")
+
+    parser.add_argument('--indel_min_af', type=float, default=1.0,
+                        help="EXPERIMENTAL: Minimum indel allele frequency for a site to be considered as a candidate site, default: %(default)f")
 
     # options for debug purpose
-    parser.add_argument('--phasing_info_in_bam', action='store_true',
-                        help="DEBUG: Skip phasing and use the phasing info provided in the input BAM (HP tag), default: False")
-
     parser.add_argument('--output_depth', type=str2bool, default=False,
-                        help="DEBUG: Skip phasing and use the phasing info provided in the input BAM (HP tag), default: False")
+                        help="DEBUG: Output the candidate coverage for debugging, default: False")
 
     parser.add_argument('--output_alt_info', type=str2bool, default=False,
-                        help="DEBUG: Skip phasing and use the phasing info provided in the input BAM (HP tag), default: False")
-
-    parser.add_argument('--phasing_window_size', type=int, default=param.phasing_window_size,
-                        help="DEBUG: The window size for read phasing")
+                        help="DEBUG: Output the candidate alternative information for debugging, default: False")
 
     parser.add_argument('--extend_bed', type=str, default=None,
-                        help="DEBUG: Extend the regions in the --bed_fn by a few bp for tensor creation, default extend 16bp")
+                        help="DEBUG: Extend the regions in the --bed_fn by a few bp for tensor creation")
 
     parser.add_argument('--alt_fn', type=str, default=None,
                         help="DEBUG: Output all alternative indel cigar for debug purpose")
@@ -792,12 +771,17 @@ def main():
     parser.add_argument('--store_tumor_infos', type=str2bool, default=False,
                         help="DEBUG: Enable bp resolution for GVCF, default: disabled")
 
-    parser.add_argument('--candidates_folder', type=str, default=None,
-                        help="Call variant only in the provided regions. Will take an intersection if --ctg_name and/or (--ctg_start, --ctg_end) are set")
-
     # options for internal process control
-    ## Path to the 'zstd' compression
-    parser.add_argument('--zstd', type=str, default=param.zstd,
+    ## Minimum SNV allele frequency for a truth site for training
+    parser.add_argument('--min_truth_snv_af', type=float, default=None,
+                        help=SUPPRESS)
+
+    ## Minimum INDEL allele frequency for a truth site for training
+    parser.add_argument('--min_truth_indel_af', type=float, default=None,
+                        help=SUPPRESS)
+
+    ## Truth vcf fn, use for training
+    parser.add_argument('--truth_vcf_fn', type=str, default=None,
                         help=SUPPRESS)
 
     ## Test in specific candidate position. Only for testing
@@ -810,18 +794,6 @@ def main():
 
     ## The chuck ID to work on
     parser.add_argument('--chunk_id', type=int, default=None,
-                        help=SUPPRESS)
-
-    ## Apply no phased data in training. Only works in data training, default: False
-    parser.add_argument('--add_no_phasing_data_training', action='store_true',
-                        help=SUPPRESS)
-
-    ## Output representation unification infos, which refines training labels
-    parser.add_argument('--unify_repre', action='store_true',
-                        help=SUPPRESS)
-
-    ## Path of representation unification output
-    parser.add_argument('--unify_repre_fn', type=str, default=None,
                         help=SUPPRESS)
 
     ## Provide the regions to be included in full-alignment based calling
