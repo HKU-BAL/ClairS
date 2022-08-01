@@ -140,13 +140,15 @@ def find_candidate_match(alt_info_dict, ref_base, alt_base):
     return None, "", None
 
 
-def filter_germline_candidates(truths, variant_info, alt_dict, paired_alt_dict, gen_vcf, INFO):
+def filter_germline_candidates(truths, variant_info, alt_dict, paired_alt_dict, gen_vcf, INFO, platform='ont'):
     #alt_dict: tumor
     #pair alt_dict: normal
     filtered_truths = []
     low_confident_germline_truths = []
     truth_not_pass_af = 0
     germline_filtered_by_af_distance = 0
+    germline_af_gap = 0.1 if platform == 'ont' else 0.1
+    min_germline_af = 0.1 if platform == 'ont' else None
     for pos, variant_type in truths:
         if pos not in alt_dict:
             truth_not_pass_af += 1
@@ -179,7 +181,7 @@ def filter_germline_candidates(truths, variant_info, alt_dict, paired_alt_dict, 
             alt_dict[pos].max_candidate_af = max_af
             alt_dict[pos].support_alternative_af = af
             # pair_af: af in normal, af: af in tumor
-            if pair_af is None or af is None or math.fabs(pair_af - af) > 0.1:
+            if pair_af is None or af is None or math.fabs(pair_af - af) > germline_af_gap or (min_germline_af is not None and (af < min_germline_af or pair_af < min_germline_af)):
                 germline_filtered_by_af_distance += 1
                 if gen_vcf:
                     low_confident_germline_truths.append((pos, variant_type + INFO + 'germline_af_gap'))
@@ -336,6 +338,7 @@ def get_candidates(args):
     gen_vcf = output_vcf_fn is not None
     sample_normal_af = args.sample_normal_af
     ref_fn = args.ref_fn
+    platform = args.platform
     proportion = args.proportion
     synthetic_coverage = args.synthetic_coverage
     output_bed_fn = args.output_bed_fn
@@ -379,14 +382,16 @@ def get_candidates(args):
                                                alt_dict=tumor_alt_dict,
                                                paired_alt_dict=normal_alt_dict,
                                                gen_vcf=gen_vcf,
-                                               INFO="Homo")
+                                               INFO="Homo",
+                                               platform=platform)
     # need add hetero, otherwise, in real case, the performance of hetero variants are too bad
     hetero_germline, hetero_low_confident_germline_truths = filter_germline_candidates(truths=hetero_germline,
                                                  variant_info=tumor_variant_info,
                                                  alt_dict=tumor_alt_dict,
                                                  paired_alt_dict=normal_alt_dict,
                                                  gen_vcf=gen_vcf,
-                                                 INFO="Hetero")
+                                                 INFO="Hetero",
+                                                 platform=platform)
 
     add_germline = True
     if not add_germline:
@@ -419,6 +424,7 @@ def get_candidates(args):
                                              alt_dict=tumor_alt_dict,
                                              paired_alt_dict=normal_alt_dict,
                                              gen_vcf=gen_vcf)
+
     hetero_somatic, hetero_low_confident_truths = filter_somatic_candidates(truths=hetero_somatic,
                                              variant_info=tumor_variant_info,
                                              alt_dict=tumor_alt_dict,
