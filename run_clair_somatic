@@ -517,18 +517,7 @@ def somatic_calling(args):
     mv_command += ' --input_dir ' + args.output_dir + '/tmp/vcf_output'
     mv_command += ' --output_fn ' + args.output_dir + '/somatic_output.vcf'
 
-    #parallel ?
-    # STEP 5: REALIGN VARIANT
-    echo_list.append("[INFO] STEP 5: Realign Variant for short-reads")
-    rv_command = 'time ' + args.pypy + ' ' + main_entry + ' realign_variants'
-    rv_command += ' --ref_fn ' + args.ref_fn
-    rv_command += ' --bam_fn ' + args.tumor_bam_fn
-    rv_command += ' --ctg_name ' + args.ctg_name
-    rv_command += ' --input_vcf_fn ' + args.output_dir + '/somatic_output.vcf.gz'
-    rv_command += ' --output_vcf_fn ' + args.output_dir + '/somatic_output_realign.vcf.gz'
-
     commands_list = [ec_command, cpt_command, predict_command, mv_command]
-    commands_list = commands_list if args.platform != "ilmn" else commands_list + [rv_command]
     # EXECUTE COMMAND
     skip_steps = args.skip_steps.rstrip().split(',') if args.skip_steps else None
     for i, (command, echo) in enumerate(zip(commands_list, echo_list)):
