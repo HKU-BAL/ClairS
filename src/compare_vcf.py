@@ -1,14 +1,10 @@
 import os
 import subprocess
-import shlex
-from sys import stdin, exit
-from argparse import ArgumentParser
-from collections import defaultdict
-from concurrent import futures
+from argparse import ArgumentParser, SUPPRESS
 
-from shared.utils import log_error, log_warning, file_path_from, subprocess_popen
 from shared.vcf import VcfReader, VcfWriter
 from shared.interval_tree import bed_tree_from, is_region_in
+
 major_contigs_order = ["chr" + str(a) for a in list(range(1, 23)) + ["X", "Y"]] + [str(a) for a in
                                                                                    list(range(1, 23)) + ["X", "Y"]]
 
@@ -209,40 +205,34 @@ def compare_vcf(args):
 
 
 def main():
-    parser = ArgumentParser(description="Sort a VCF file according to contig name and starting position")
+    parser = ArgumentParser(description="Compare input VCF with truth VCF")
 
     parser.add_argument('--output_fn', type=str, default=None,
                         help="Output VCF filename, required")
 
     parser.add_argument('--bed_fn', type=str, default=None,
-                        help="Input directory")
+                        help="High confident Bed region for benchmarking")
 
     parser.add_argument('--input_vcf_fn', type=str, default=None,
                         help="Input vcf filename prefix")
 
     parser.add_argument('--truth_vcf_fn', type=str, default=None,
-                        help="Input vcf filename suffix")
+                        help="Truth vcf filename suffix")
 
     parser.add_argument('--ref_fn', type=str, default=None,
                         help="Reference fasta file input")
 
-    parser.add_argument('--sampleName', type=str, default="SAMPLE",
-                        help="Define the sample name to be shown in the VCF file, optional")
-
     parser.add_argument('--ctg_name', type=str, default=None,
                         help="Contigs file with all processing contigs")
 
-    parser.add_argument('--contigs_fn', type=str, default=None,
-                        help="Contigs file with all processing contigs")
-
     parser.add_argument('--output_dir', type=str, default=None,
-                        help="Output VCF filename, required")
+                        help="Output directory")
 
     parser.add_argument('--skip_genotyping', action='store_true',
-                        help='Output VCF filename, required')
+                        help="Skip calculating VCF genotype")
 
     parser.add_argument('--input_filter_tag', type=str, default=None,
-                        help='Output VCF filename, required')
+                        help="Filter tag for the input VCF")
 
     parser.add_argument('--truth_filter_tag', type=str, default=None,
                         help='Output VCF filename, required')
