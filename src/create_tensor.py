@@ -1,11 +1,10 @@
 import sys
 import shlex
-import os
 import json
 import logging
 import random
+
 from subprocess import PIPE
-from os.path import isfile
 from copy import deepcopy
 from argparse import ArgumentParser, SUPPRESS
 from collections import Counter, defaultdict, OrderedDict
@@ -30,13 +29,17 @@ STRAND_0 = 100
 STRAND_1 = 50
 HAP_TYPE = dict(zip((1, 0, 2), (30, 60, 90)))  # hap1 UNKNOWN H2 # should be better using
 NORMAL_HAP_TYPE = dict(zip((1, 0, 2), (13, 25, 37)))  # set normal hap tag
-TUMOR_HAP_TYPE = dict(zip((1, 0, 2), (75, 88, 100)))  # set tumor hap tag
+# TUMOR_HAP_TYPE = dict(zip((1, 0, 2), (75, 88, 100)))  # set tumor hap tag
+TUMOR_HAP_TYPE = dict(zip((1, 0, 2), (50, 75, 100)))  # set tumor hap tag
+
+# NORMAL_HAP_TYPE = dict(zip((1, 0, 2), (13, 50, 37)))  # set normal hap tag
+# TUMOR_HAP_TYPE = dict(zip((1, 0, 2), (75, 100, 88)))  # set tumor hap tag
 ACGT_NUM = dict(zip("ACGT+-*#N", (100, 25, 75, 50, -50, -100, 0, 0, 100)))
 
 
 def _normalize_bq(x, platform='ont'):
     if platform == "ilmn":
-    # only work for short reads
+        # only work for short reads
         x = x // 10 * 10
     return int(NORMALIZE_NUM * min(x, MAX_BQ) / MAX_BQ)
 
@@ -85,11 +88,12 @@ class Position(object):
             self.read_info[read_name] = (read_channel, ins_base)
 
 
-class PhasingRead(object):
-    def __init__(self):
-        self.read_seq = defaultdict(str)
-        self.read_start = None
-        self.read_end = None
+#
+# class PhasingRead(object):
+#     def __init__(self):
+#         self.read_seq = defaultdict(str)
+#         self.read_start = None
+#         self.read_end = None
 
 
 def phredscore2raw_score(qual):
@@ -112,7 +116,7 @@ def evc_base_from(base):
 def sorted_by_hap_read_name(center_pos, haplotag_dict, pileup_dict, hap_dict, max_depth, use_tensor_sample_mode=False):
     """
     Sort by reads haplotype after haplotag reads otherwise sort by read start position.
-    center_pos: define the center candidate position for proccessing.
+    center_pos: define the center candidate position for processing.
     haplotag_dict: dictionary (read name : hap type) which keep the read name and haplotype mapping.
     pileup_dict: dictionary (pos: pos info) which keep read information that cover specific position .
     hap_dict: similar to haplotag_dict, dictionary (pos: pos info) which keep the read name and haplotype mapping,
@@ -134,7 +138,6 @@ def sorted_by_hap_read_name(center_pos, haplotag_dict, pileup_dict, hap_dict, ma
     sorted_read_name_list = []
     for order, read_name in enumerate(all_nearby_read_name):
         hap = max(haplotag_dict[read_name], hap_dict[read_name])  # no phasing is 0
-        # hap = 0  # no phasing is 0
         sorted_read_name_list.append((hap, order, read_name))
 
     sorted_read_name_list = sorted(sorted_read_name_list, key=lambda x: x[1])
@@ -1117,8 +1120,8 @@ def main():
     parser.add_argument('--vcf_fn', type=str, default=None,
                         help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file,  default: %(default)s")
 
-    parser.add_argument('--snp_min_af', type=float, default=0.1,
-                        help="Minimum snp allele frequency for a site to be considered as a candidate site, default: %(default)f")
+    parser.add_argument('--snv_min_af', type=float, default=0.1,
+                        help="Minimum snv allele frequency for a site to be considered as a candidate site, default: %(default)f")
 
     parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of sequence to be processed, required if --bed_fn is not defined")
