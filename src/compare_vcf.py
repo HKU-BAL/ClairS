@@ -178,6 +178,24 @@ def compare_vcf(args):
     print(' '.join([str(item) for item in ["SNV", truth_snv, query_snv, tp_snv, fp_snv, fn_snv, snv_pre, snv_rec, snv_f1]]), file=output_file)
     # print('\n', file=output_file)
 
+
+    if args.roc_fn:
+        fp_dict = dict([(key, float(input_variant_dict[key].qual)) for key in fp_set])
+        tp_dict = dict([(key, float(input_variant_dict[key].qual)) for key in tp_set])
+        qual_list = sorted([float(qual) for qual in fp_dict.values()] + [qual for qual in tp_dict.values()],
+                           reverse=True)
+
+        tp_count = len(tp_set)
+        roc_fn = open(args.roc_fn, 'w')
+        for qual_cut_off in qual_list:
+            pass_fp_count = sum([1 if float(qual) >= qual_cut_off else 0 for key, qual in fp_dict.items()])
+            pass_tp_count = sum([1 if float(qual) >= qual_cut_off else 0 for key, qual in tp_dict.items()])
+            fn_count = tp_count - pass_tp_count + fn_snv
+            tmp_pre, tmp_rec, tmp_f1 = cal_metrics(tp=pass_tp_count, fp=pass_fp_count, fn=fn_count)
+            roc_fn.write('\t'.join([str(item) for item in [qual_cut_off, tmp_pre, tmp_rec, tmp_f1]]) + '\n')
+        roc_fn.close()
+
+
     if output_dir is not None:
         if not os.path.exists(output_dir):
             subprocess.run("mkdir -p {}".format(output_dir), shell=True)
@@ -235,9 +253,17 @@ def main():
                         help="Filter tag for the input VCF")
 
     parser.add_argument('--truth_filter_tag', type=str, default=None,
-                        help='Output VCF filename, required')
+                        help="Filter tag for the truth VCF")
+
+    ## Only benchmark 'HighConf' tag in seqc VCF
+    parser.add_argument('--high_confident_only', type=str, default=None,
+                        help=SUPPRESS)
+
+    parser.add_argument('--roc_fn', type=str, default=None,
+                        help=SUPPRESS)
 
     args = parser.parse_args()
+
     compare_vcf(args)
 
 if __name__ == "__main__":
