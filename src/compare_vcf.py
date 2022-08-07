@@ -27,8 +27,8 @@ def compare_vcf(args):
     truth_vcf_fn = args.truth_vcf_fn
     input_vcf_fn = args.input_vcf_fn
     bed_fn = args.bed_fn
-    sample_name = args.sampleName
     ref_fn = args.ref_fn
+    high_confident_only = args.high_confident_only
     ctg_name = args.ctg_name
     skip_genotyping = args.skip_genotyping
     input_filter_tag = args.input_filter_tag
@@ -43,6 +43,14 @@ def compare_vcf(args):
     input_vcf_reader = VcfReader(vcf_fn=input_vcf_fn, ctg_name=ctg_name, show_ref=False, keep_row_str=True, skip_genotype=skip_genotyping, filter_tag=input_filter_tag)
     input_vcf_reader.read_vcf()
     input_variant_dict = input_vcf_reader.variant_dict
+
+
+    low_qual_truth = set()
+    if high_confident_only:
+        for key in list(truth_variant_dict.keys()):
+            row = truth_variant_dict[key].row_str
+            if "PASS;HighConf" not in row:
+                low_qual_truth.add(key)
 
     if output_fn:
         output_file = open(output_fn, 'w')
@@ -69,6 +77,9 @@ def compare_vcf(args):
         if not pass_bed_region:
             pos_out_of_bed += 1
             # print(pos)
+            continue
+
+        if high_confident_only and key in low_qual_truth:
             continue
 
         ref_base = vcf_infos.reference_bases
@@ -128,6 +139,9 @@ def compare_vcf(args):
                                                               region_end=pos)
         if not pass_bed_region or pos in truth_set:
             pass
+            continue
+
+        if high_confident_only and key in low_qual_truth:
             continue
 
         truth_ref_base = vcf_infos.reference_bases
