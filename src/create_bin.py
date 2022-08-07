@@ -1,7 +1,7 @@
 import sys
 import logging
 from argparse import ArgumentParser, SUPPRESS
-
+from shared.utils import str2bool
 
 logging.basicConfig(format='%(message)s', level=logging.INFO)
 
@@ -27,7 +27,8 @@ def Run(args):
         chunk_id=args.chunk_id-1 if args.chunk_id else None, # 1-base to 0-base
         chunk_num=args.chunk_num,
         pileup=args.pileup,
-        platform=args.platform)
+        platform=args.platform,
+        merge_bins=args.merge_bins)
     logging.info("Finish!")
 
 
@@ -38,10 +39,10 @@ def main():
                         help="Sequencing platform of the input. Options: 'ont,hifi,ilmn', default: %(default)s")
 
     parser.add_argument('--normal_tensor_fn', type=str, default=None,
-                        help="Tensor input, required")
+                        help="Normal tensor input, required")
 
     parser.add_argument('--tumor_tensor_fn', type=str, default=None,
-                        help="Tensor input, required")
+                        help="Tumor tensor input, required")
 
     parser.add_argument('--var_fn', type=str, default=None,
                         help="Truth variants list input, required")
@@ -77,6 +78,10 @@ def main():
 
     ## Path to the variant candidate details
     parser.add_argument('--candidate_details_fn_prefix', type=str, default=None,
+                        help=SUPPRESS)
+
+    ## Path to the variant candidate details
+    parser.add_argument('--merge_bins', type=str2bool, default=False,
                         help=SUPPRESS)
 
     args = parser.parse_args()
