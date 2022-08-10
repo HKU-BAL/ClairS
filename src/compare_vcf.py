@@ -95,7 +95,7 @@ def compare_vcf(args):
             fp_ins = fp_ins + 1 if is_ins else fp_ins
             fp_del = fp_del + 1 if is_del else fp_del
             if fp_snv:
-                fp_set.add(pos)
+                fp_set.add(key)
 
         if key in truth_variant_dict:
             vcf_infos = truth_variant_dict[key]
@@ -115,7 +115,7 @@ def compare_vcf(args):
                 tp_ins = tp_ins + 1 if is_ins else tp_ins
                 tp_del = tp_del + 1 if is_del else tp_del
                 if tp_snv or is_snv_truth:
-                    tp_set.add(pos)
+                    tp_set.add(key)
             else:
                 fp_snv = fp_snv + 1 if is_snv else fp_snv
                 fp_ins = fp_ins + 1 if is_ins else fp_ins
@@ -126,7 +126,7 @@ def compare_vcf(args):
                 fn_del = fn_del + 1 if is_del_truth else fn_del
 
                 if fn_snv or fp_snv:
-                    fp_fn_set.add(pos)
+                    fp_fn_set.add(key)
 
             truth_set.add(pos)
 
@@ -137,8 +137,10 @@ def compare_vcf(args):
                                                               contig_name=contig,
                                                               region_start=pos - 1,
                                                               region_end=pos)
-        if not pass_bed_region or pos in truth_set:
-            pass
+
+        if pos in truth_set:
+            continue
+        if not pass_bed_region and args.remove_fn_out_of_fp_bed:
             continue
 
         if high_confident_only and key in low_qual_truth:
@@ -158,7 +160,8 @@ def compare_vcf(args):
         fn_del = fn_del + 1 if is_del_truth else fn_del
 
         if fn_snv:
-            fn_set.add(pos)
+            fn_set.add(key)
+
     pos_intersection = len(set(truth_variant_dict.keys()).intersection(set(input_variant_dict.keys())))
     print (pos_intersection, len(fp_set), len(fn_set), len(fp_fn_set), len(tp_set), len(fp_set.intersection(fn_set)))
 
@@ -273,9 +276,17 @@ def main():
     parser.add_argument('--high_confident_only', type=str, default=None,
                         help=SUPPRESS)
 
+    parser.add_argument('--remove_fn_out_of_fp_bed', type=str, default=None,
+                        help=SUPPRESS)
+
     parser.add_argument('--roc_fn', type=str, default=None,
                         help=SUPPRESS)
 
+    parser.add_argument('--log_som', type=str, default=None,
+                        help=SUPPRESS)
+
+    parser.add_argument('--caller', type=str, default=None,
+                        help=SUPPRESS)
     args = parser.parse_args()
 
     compare_vcf(args)
