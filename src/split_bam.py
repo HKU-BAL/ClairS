@@ -33,7 +33,7 @@ def split_bin(args):
     samtools_execute_command = args.samtools
     samtools_threads = args.samtools_threads
     samtools_output_threads = args.samtools_output_threads
-    min_coverage = args.min_coverage
+    min_bin_coverage = args.min_bin_coverage
     cov_dir = args.cov_dir
 
     normal_coverage_log = os.path.join(cov_dir, 'raw_normal_' + ctg_name + cov_suffix)
@@ -41,8 +41,8 @@ def split_bin(args):
     normal_bam_coverage = get_coverage(normal_coverage_log)
     tumor_bam_coverage = get_coverage(tumor_coverage_log)
 
-    normal_bin_num = int(int(normal_bam_coverage) / int(min_coverage))
-    tumor_bin_num = int(int(tumor_bam_coverage) / int(min_coverage))
+    normal_bin_num = int(int(normal_bam_coverage) / int(min_bin_coverage))
+    tumor_bin_num = int(int(tumor_bam_coverage) / int(min_bin_coverage))
 
     for bam_fn, bin_num, prefix in zip((normal_bam_fn, tumor_bam_fn), (normal_bin_num, tumor_bin_num),
                                        ("normal", 'tumor')):
@@ -109,7 +109,7 @@ def main():
     parser.add_argument('--cov_dir', type=str, default=None,
                         help="Directory of mosdepth coverage summary")
 
-    parser.add_argument('--min_coverage', type=int, default=4,
+    parser.add_argument('--min_bin_coverage', type=int, default=4,
                         help="Minimum average coverage for each chunked bin")
 
     parser.add_argument('--samtools_threads', type=int, default=32,
