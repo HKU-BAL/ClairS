@@ -23,11 +23,6 @@ flanking_base_num = param.flankingBaseNum
 channel_size = param.channel_size
 BASE2NUMBER = dict(zip("ACGTURYSWKMBDHVN-", (0, 1, 2, 3, 3, 0, 1, 1, 0, 2, 0, 1, 0, 0, 0, 0, 4)))
 NORMALIZE_NUM = param.NORMALIZE_NUM
-MAX_BQ = 40.0
-MAX_MQ = 60.0
-MAX_AF = 1.0
-STRAND_0 = 100
-STRAND_1 = 50
 HAP_TYPE = dict(zip((1, 0, 2), (30, 60, 90)))  # hap1 UNKNOWN H2
 ACGT_NUM = dict(zip("ACGT+-*#N", (100, 25, 75, 50, -50, -100, 0, 0, 100)))
 
@@ -113,7 +108,7 @@ def evc_base_from(base):
 def sorted_by_hap_read_name(center_pos, haplotag_dict, pileup_dict, hap_dict, max_depth, use_tensor_sample_mode=False):
     """
     Sort by reads haplotype after haplotag reads otherwise sort by read start position.
-    center_pos: define the center candidate position for proccessing.
+    center_pos: define the center candidate position for processing.
     haplotag_dict: dictionary (read name : hap type) which keep the read name and haplotype mapping.
     pileup_dict: dictionary (pos: pos info) which keep read information that cover specific position .
     hap_dict: similar to haplotag_dict, dictionary (pos: pos info) which keep the read name and haplotype mapping,
@@ -1289,7 +1284,7 @@ def main():
     parser.add_argument('--min_bq', type=int, default=param.min_bq,
                         help="EXPERIMENTAL: If set, bases with base quality with <$min_bq are filtered, default: %(default)d")
 
-    parser.add_argument('--max_depth', type=int, default=param.max_depth,
+    parser.add_argument('--max_depth', type=int, default=None,
                         help="EXPERIMENTAL: Maximum full alignment depth to be processed. default: %(default)s")
 
     parser.add_argument('--indel_min_af', type=float, default=0.2,
