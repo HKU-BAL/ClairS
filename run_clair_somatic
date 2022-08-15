@@ -73,10 +73,10 @@ def check_skip_steps_legal(args):
     skip_steps = args.skip_steps
     skip_steps_list = skip_steps.rstrip().split(",")
     if len(skip_steps_list) == 0:
-        sys.exit(log_error("[ERROR] --check_skip_steps option provided but no skip steps index found"))
+        sys.exit(log_error("[ERROR] --skip_steps option provided but no skip steps index found"))
     for step in skip_steps_list:
         if int(step) < 1 or int(step) > MAX_STEP:
-            sys.exit(log_error("[ERROR] --check_skip_steps option provided skip steps index is not avaliable, should be 1-index"))
+            sys.exit(log_error("[ERROR] --skip_steps option provided skip steps index is not avaliable, should be 1-index"))
 
 def check_python_path():
     python_path = subprocess.run("which python", stdout=subprocess.PIPE, shell=True).stdout.decode().rstrip()
