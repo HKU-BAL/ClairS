@@ -378,8 +378,8 @@ def check_args(args):
     args.vcf_fn = file_path_from(file_name=args.vcf_fn, exit_on_not_found=True, allow_none=True)
     args.model_dir = file_path_from(file_name=args.model_dir, is_directory=True)
 
-    if args.snp_min_af is None:
-        args.snp_min_af = 0.08
+    if args.snv_min_af is None:
+        args.snv_min_af = 0.08
     if args.indel_min_af is None:
         args.indel_min_af = 1.0
     if args.qual is None:
@@ -393,7 +393,7 @@ def check_args(args):
 
     legal_range_from(param_name="threads", x=args.threads, min_num=1, exit_out_of_range=True)
     legal_range_from(param_name="qual", x=args.qual, min_num=0, exit_out_of_range=True)
-    legal_range_from(param_name="snp_min_af", x=args.snp_min_af, min_num=0, max_num=1, exit_out_of_range=True)
+    legal_range_from(param_name="snv_min_af", x=args.snv_min_af, min_num=0, max_num=1, exit_out_of_range=True)
     legal_range_from(param_name="indel_min_af", x=args.indel_min_af, min_num=0, max_num=1, exit_out_of_range=True)
     # print (args)
     args.output_path = create_output_folder(args)
@@ -432,12 +432,12 @@ def print_args(args):
     print("[INFO] PYTHON PATH: {}".format(args.python))
     print("[INFO] PYPY PATH: {}".format(args.pypy))
     print("[INFO] CHUNK SIZE: {}".format(args.chunk_size))
-    print("[INFO] SNP THRESHOLD: {}".format(args.snp_min_af))
+    print("[INFO] SNV THRESHOLD: {}".format(args.snv_min_af))
     print("[INFO] INDEL THRESHOLD: {}".format(args.indel_min_af))
     print("[INFO] SKIP STEPS: {}".format(args.skip_steps))
     print("[INFO] ENABLE USE GPU: {}".format(args.use_gpu))
     print("[INFO] ENABLE COMMAND DRY RUN: {}".format(args.dry_run))
-    print("[INFO] ENABLE CALLING SNP CANDIDATES ONLY: {}".format(args.call_snp_only))
+    # print("[INFO] ENABLE CALLING SNV CANDIDATES ONLY: {}".format(args.call_snp_only))
     print("[INFO] ENABLE PRINTING REFERENCE CALLS: {}".format(args.print_ref_calls))
     print("[INFO] ENABLE INCLUDE ALL CTGS CALLING: {}".format(args.include_all_ctgs))
     print("[INFO] ENABLE REMOVING INTERMEDIATE FILES: {}".format(args.remove_intermediate_dir))
@@ -460,7 +460,7 @@ def somatic_calling(args):
     ec_command += ' --normal_bam_fn ' + args.normal_bam_fn
     ec_command += ' --ref_fn ' + args.ref_fn
     ec_command += ' --samtools ' + args.samtools
-    ec_command += ' --snp_min_af ' + str(args.snp_min_af)
+    ec_command += ' --snv_min_af ' + str(args.snv_min_af)
     ec_command += ' --indel_min_af ' + str(args.indel_min_af)
     ec_command += ' --chunk_id {2} '
     ec_command += ' --chunk_num {3} '
@@ -657,10 +657,10 @@ def somatic_parser():
     )
 
     optional_params.add_argument(
-        "--snp_min_af",
+        "--snv_min_af",
         type=float,
         default=None,
-        help="Minimum SNP AF required for a candidate variant. Lowering the value might increase a bit of sensitivity in trade of speed and accuracy, default: 0.08"
+        help="Minimum SNV AF required for a candidate variant. Lowering the value might increase a bit of sensitivity in trade of speed and accuracy, default: 0.08"
     )
 
     optional_params.add_argument(
@@ -714,12 +714,12 @@ def somatic_parser():
         help="Call variants on all contigs, otherwise call in chr{1..22,X,Y} and {1..22,X,Y}, default: disable."
     )
 
-    optional_params.add_argument(
-        "--call_snp_only",
-        default=False,
-        action='store_true',
-        help="Call candidates pass SNP minimum AF only, ignore Indel candidates, default: disable."
-    )
+    # optional_params.add_argument(
+    #     "--call_snp_only",
+    #     default=False,
+    #     action='store_true',
+    #     help="Call candidates pass SNP minimum AF only, ignore Indel candidates, default: disable."
+    # )
 
     optional_params.add_argument(
         "--print_ref_calls",
