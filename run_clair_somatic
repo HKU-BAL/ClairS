@@ -33,6 +33,24 @@ OutputPath = namedtuple('OutputPath', [
     'vcf_output_path',
 ])
 
+import sys
+
+class Tee(object):
+    def __init__(self, name, mode):
+        self.file = open(name, mode)
+        self.stdout = sys.stdout
+        sys.stdout = self
+
+    def __del__(self):
+        sys.stdout = self.stdout
+        self.file.close()
+
+    def write(self, data):
+        self.file.write(data)
+        self.stdout.write(data)
+
+    def flush(self):
+        self.file.flush()
 
 def create_output_folder(args):
     # create temp file folder
@@ -823,6 +841,10 @@ def main():
 
     parser = somatic_parser()
     args = parser.parse_args()
+
+    args.output_dir = folder_path_from(args.output_dir, create_not_found=True)
+    tee_logger = Tee(os.path.join(args.output_dir, 'run_somatic.log'), 'w')
+
     args = check_args(args)
     args = print_args(args)
     somatic_calling(args)
