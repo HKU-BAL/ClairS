@@ -86,7 +86,7 @@ def check_python_path():
 def check_tools_version(args):
 
     required_tool_version = {
-        'python': LooseVersion('3.6.10'),
+        'python': LooseVersion('3.6.9'),
         'pypy': LooseVersion('3.6'),
         'samtools': LooseVersion('1.10'),
         'whatshap': LooseVersion('1.0'),
@@ -145,8 +145,14 @@ def check_contig_in_bam(bam_fn, sorted_contig_list, samtools, allow_none=False):
 
 def check_threads(args):
     threads = args.threads
-    sched_getaffinity_list = list(os.sched_getaffinity(0))
-    num_cpus = len(sched_getaffinity_list)
+    #sched_getaffinity is not exist in pypy
+    try:
+        sched_getaffinity_list = list(os.sched_getaffinity(0))
+        num_cpus = len(sched_getaffinity_list)
+    except:
+        num_cpus = int(subprocess.run(args.python + " -c \"import os; print(len(os.sched_getaffinity(0)))\"", \
+                                      stdout=subprocess.PIPE, shell=True).stdout.decode().rstrip())
+
 
     if threads > num_cpus:
         print(log_warning(
