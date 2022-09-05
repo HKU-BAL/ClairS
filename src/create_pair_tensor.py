@@ -1,6 +1,5 @@
 import sys
 import shlex
-import os
 import json
 import logging
 import random
@@ -776,9 +775,8 @@ def create_tensor(args):
     bed_option = ' -l {}'.format(
         extend_bed) if is_extend_bed_file_given else ""
     bed_option = ' -l {}'.format(candidates_bed_regions) if is_candidates_bed_regions_given else bed_option
-    flags_option = ' --excl-flags {}'.format(param.SAMTOOLS_VIEW_FILTER_FLAG)
-    max_depth_option = ' --max-depth {}'.format(args.max_depth) if args.max_depth > 0 else ""
-    max_depth_option =  ""
+    flags_option = ' --excl-flags {} '.format(param.SAMTOOLS_VIEW_FILTER_FLAG)
+    max_depth_option = ' --max-depth {}'.format(args.max_depth) if args.max_depth is not None else " "
     reads_regions_option = ' -r {}'.format(" ".join(reads_regions)) if add_read_regions else ""
     # print (add_read_regions, ctg_start, ctg_end, reference_start)
 
@@ -1020,7 +1018,7 @@ def main():
     parser.add_argument('--min_bq', type=int, default=param.min_bq,
                         help="EXPERIMENTAL: If set, bases with base quality with <$min_bq are filtered, default: %(default)d")
 
-    parser.add_argument('--max_depth', type=int, default=param.max_depth,
+    parser.add_argument('--max_depth', type=int, default=None,
                         help="EXPERIMENTAL: Maximum full alignment depth to be processed. default: %(default)s")
 
     parser.add_argument('--indel_min_af', type=float, default=0.2,
