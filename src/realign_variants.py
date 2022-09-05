@@ -94,40 +94,61 @@ def extract_base(POS):
 def realign_variants(args):
 
     ctg_name = args.ctg_name
-    input_vcf_fn = args.input_vcf_fn
     threads = args.threads
 
-    input_vcf_reader = VcfReader(vcf_fn=input_vcf_fn, ctg_name=ctg_name, show_ref=False, keep_row_str=True,
+    p_reader = VcfReader(vcf_fn=args.pileup_input_vcf_fn, ctg_name=ctg_name, show_ref=False, keep_row_str=True,
                                  filter_tag="PASS;HighConf,PASS;MedConf,PASS,RefCall", save_header=True) #PASS;HighConf PASS;MedConf
-    input_vcf_reader.read_vcf()
-    input_variant_dict = input_vcf_reader.variant_dict
+    p_reader.read_vcf()
+    p_input_variant_dict = p_reader.variant_dict
+
+    fa_reader = VcfReader(vcf_fn=args.fa_input_vcf_fn, ctg_name=ctg_name, show_ref=False, keep_row_str=True,
+                                 filter_tag="PASS;HighConf,PASS;MedConf,PASS,RefCall", save_header=True) #PASS;HighConf PASS;MedConf
+    fa_reader.read_vcf()
+    fa_input_variant_dict = fa_reader.variant_dict
+
+    for key, d in fa_input_variant_dict.items():
+        if key not in p_input_variant_dict:
+            d.extra_infos = False
+
 
     output_vcf_fn = args.output_vcf_fn
     vcf_writer = VcfWriter(vcf_fn=output_vcf_fn, ref_fn=args.ref_fn, ctg_name=ctg_name, show_ref_calls=True)
 
+    # for key in list(input_variant_dict):
+    #     if key != 193147846:
+    #         del input_variant_dict[key]
     # for POS in input_variant_dict.values():
     #     pos, pass_realign_filter = extract_base(POS)
 
     realign_fail_pos_set = set()
     realign_info_dict = defaultdict()
     with concurrent.futures.ProcessPoolExecutor(max_workers=threads) as exec:
-        for result in exec.map(extract_base, list(input_variant_dict.values())):
-            pos, pass_realign_filter = result[:2]
-            raw_support_read_num, raw_depth, realign_support_read_num, realign_depth = result[2]
-            realign_info_dict[(ctg_name, pos)] = result[2]
+        for result in exec.map(extract_base, list(fa_input_variant_dict.values())):
+            contig, pos, pass_realign_filter = result[:3]
+            raw_support_read_num, raw_depth, realign_support_read_num, realign_depth = result[3]
+            if args.output_realign_info:
+                realign_info_dict[(contig, pos)] = result[3]
 
             if pass_realign_filter is False:
-                realign_fail_pos_set.add((ctg_name, pos))
+                realign_fail_pos_set.add((contig, pos))
 
-    for pos in sorted(input_variant_dict.keys()):
-        row_str = input_variant_dict[pos].row_str.rstrip()
-        if (ctg_name, pos) in realign_fail_pos_set:
+    for key in sorted(fa_input_variant_dict.keys()):
+        pos = key if ctg_name is not None else key[1]
+        contig = ctg_name if ctg_name is not None else key[0]
+
+        row_str = fa_input_variant_dict[key].row_str.rstrip()
+
+        if (contig, pos) in realign_fail_pos_set:
             row_str = row_str.replace("PASS", "Low_realign")
         if args.output_realign_info:
-            row_str += "\t" + ' '.join([str(item) for item in realign_info_dict[(ctg_name, pos)]])
+            row_str += "\t" + ' '.join([str(item) for item in realign_info_dict[(contig, pos)]])
         vcf_writer.vcf_writer.write(row_str + '\n')
     vcf_writer.close()
-    print("[INFO] {}: {} called variant filtered by realignment".format(ctg_name, len(realign_fail_pos_set)))
+
+    if ctg_name is not None:
+        print("[INFO] {}: {} called variant filtered by realignment".format(ctg_name, len(realign_fail_pos_set)))
+    else:
+        print("[INFO] {} called variant filtered by realignment".format(len(realign_fail_pos_set)))
 
 
 def main():
@@ -145,8 +166,11 @@ def main():
     parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of sequence to be processed")
 
-    parser.add_argument('--input_vcf_fn', type=str, default=None,
-                        help="The 1-based starting position of the sequence to be processed")
+    parser.add_argument('--pileup_input_vcf_fn', type=str, default=None,
+                        help="Pileup VCF file input")
+
+    parser.add_argument('--fa_input_vcf_fn', type=str, default=None,
+                        help="Full-alignment VCF file input")
 
     parser.add_argument('--output_vcf_fn', type=str, default=None,
                         help="The 1-based starting position of the sequence to be processed")
