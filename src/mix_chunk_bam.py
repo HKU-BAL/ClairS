@@ -25,9 +25,9 @@ def get_coverage(coverage_log, ctg_name=None):
     return coverage
 
 
-def check_max_sampled_coverage(nor_cov, tum_cov, synthetic_proportion, pair_gamma=0.5, min_coverage=4):
-    # nor_cov = int(nor_cov / min_coverage * min_coverage)
-    # tum_cov = int(tum_cov / min_coverage * min_coverage)
+def check_max_sampled_coverage(nor_cov, tum_cov, synthetic_proportion, pair_gamma=0.5, min_bin_coverage=4):
+    # nor_cov = int(nor_cov / min_bin_coverage * min_bin_coverage)
+    # tum_cov = int(tum_cov / min_bin_coverage * min_bin_coverage)
     max_synthetic_coverage_for_tumor = int(tum_cov / synthetic_proportion)
     max_synthetic_coverage_for_normal = int(nor_cov / (1 + pair_gamma - synthetic_proportion))
 
@@ -43,8 +43,7 @@ def random_sample(population, k, seed=0):
 
 
 def MixBin(args):
-    # normal_bam_fn = args.normal_bam_fn
-    # tumor_bam_fn = args.tumor_bam_fn
+    tumor_bam_fn = args.tumor_bam_fn
     output_fn = args.output_fn
     input_dir = args.input_dir
     cov_dir = args.cov_dir
@@ -52,7 +51,7 @@ def MixBin(args):
     samtools_execute_command = args.samtools
     samtools_threads = args.samtools_threads
     tensor_sample_mode = args.tensor_sample_mode
-    min_coverage = args.min_coverage
+    min_bin_coverage = args.min_bin_coverage
     synthetic_proportion = args.synthetic_proportion
     synthetic_coverage = args.synthetic_coverage
     contaminative_proportions = args.contaminative_proportions
@@ -75,7 +74,7 @@ def MixBin(args):
                                                   tum_cov=tumor_bam_coverage,
                                                   synthetic_proportion=synthetic_proportion,
                                                   pair_gamma=normal_coverage_proportion,
-                                                  min_coverage=4)
+                                                  min_bin_coverage=min_bin_coverage)
 
     if synthetic_coverage is None:
         print('[INFO] Synthetic coverage not set, use maximum synthetic coverage {}'.format(max_syn_coverage))
@@ -87,8 +86,8 @@ def MixBin(args):
 
     tumor_coverage = int(synthetic_coverage * synthetic_proportion)
     normal_coverage = int(synthetic_coverage - tumor_coverage)
-    sampled_normal_bin_num = int(normal_coverage / min_coverage)
-    sampled_tumor_bin_num = int(tumor_coverage / min_coverage)
+    sampled_normal_bin_num = int(normal_coverage / min_bin_coverage)
+    sampled_tumor_bin_num = int(tumor_coverage / min_bin_coverage)
 
     sampled_normal_bam_list = [normal_bam_list[idx] for idx in
                                random_sample(range(normal_bin_num), sampled_normal_bin_num,
@@ -139,10 +138,17 @@ def MixBin(args):
     normal_output_bam = output_fn.replace('tumor_', 'normal_')
     normal_sampled_bam_list = ' '.join([os.path.join(input_dir, bam) for bam in pair_normal_bam_list])
 
-    subprocess_run(shlex.split(
-        "{} merge -f -@{} {} {}".format(samtools_execute_command, samtools_threads, tumor_output_bam,
-                                        tumor_sampled_bam_list)))
-    subprocess_run(shlex.split("{} index -@{} {}".format(samtools_execute_command, samtools_threads, tumor_output_bam)))
+    # no need to merge bins if use all tumor bins
+    if tumor_bam_fn is not None and synthetic_proportion == 1.0 and len(tumor_sampled_bam_list) == tumor_bin_num \
+            and len(sampled_normal_bam_list) == 0:
+        subprocess_run(shlex.split("ln -sf {} {}".format(tumor_bam_fn, tumor_output_bam)))
+        subprocess_run(shlex.split("ln -sf {}.bai {}.bai".format(tumor_bam_fn, tumor_output_bam)))
+
+    else:
+        subprocess_run(shlex.split(
+            "{} merge -f -@{} {} {}".format(samtools_execute_command, samtools_threads, tumor_output_bam,
+                                            tumor_sampled_bam_list)))
+        subprocess_run(shlex.split("{} index -@{} {}".format(samtools_execute_command, samtools_threads, tumor_output_bam)))
 
     subprocess_run(shlex.split(
         "{} merge -f -@{} {} {}".format(samtools_execute_command, samtools_threads, normal_output_bam,
@@ -195,6 +201,9 @@ def MixBin(args):
 def main():
     parser = ArgumentParser(description="Mix splited chunk BAM into multiple BAM")
 
+    parser.add_argument('--tumor_bam_fn', type=str, default=None,
+                        help="Sorted tumor BAM file input")
+
     parser.add_argument('--normal_bam_coverage', type=int, default=None,
                         help="Normal BAM coverage calculated using mosdepth")
 
@@ -207,7 +216,7 @@ def main():
     parser.add_argument('--input_dir', type=str, default=None,
                         help="Input directory, required")
 
-    parser.add_argument('--min_coverage', type=int, default=4,
+    parser.add_argument('--min_bin_coverage', type=int, default=4,
                         help="Reference fasta file input, required")
 
     parser.add_argument('--samtools', type=str, default="samtools",
