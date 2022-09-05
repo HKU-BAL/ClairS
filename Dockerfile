@@ -22,19 +22,11 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86
     conda config --add channels defaults && \
     conda config --add channels bioconda && \
     conda config --add channels conda-forge && \
-    conda config --add channels anaconda && \
-    conda create -n python=3.8 pypy tensorflow>=2.6.0 whatshap samtools -y
+    conda create -n somatic -c pytorch -c conda-forge -c bioconda clair3  pytorch tqdm einops torchinfo -y
 
 ENV PATH /opt/conda/envs/somatic/bin:$PATH
 ENV CONDA_DEFAULT_ENV somatic
 
-RUN /bin/bash -c "source activate somatic" && \
-    conda install -c conda-forge  -y && \
-    conda install -c conda-forge -c bioconda samtools whatshap -y && \
-    pip install tensorflow whatshap=1.4 tables==3.6.1 tensorflow-addons==0.16.1 && \
-    conda install -c anaconda pigz==2.4 cffi==1.14.4 -y && \
-    conda install -c conda-forge parallel=20191122 automake curl xz zlib bzip2 -y && \
-    rm -rf /opt/conda/pkgs/* && \
-    rm -rf /root/.cache/pip && \
+RUN /bin/bash -c "source activate somatic"
 
 COPY . .
