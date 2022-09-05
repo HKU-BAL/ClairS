@@ -51,33 +51,36 @@ def extract_base(POS):
     bam_fn = args.bam_fn
     ref_fn = args.ref_fn
     samtools = args.samtools
-    ctg_name = args.ctg_name
+    ctg_name = args.ctg_name if args.ctg_name is not None else POS.ctg_name
     min_mq = args.min_mq
     min_bq = args.min_bq
     python = args.python
 
+    if POS.extra_infos is False:
+        return ctg_name, pos, True, (-1,-1,-1,-1)
+
     ctg_range = "{}:{}-{}".format(ctg_name, pos, pos)
     samtools_command = "{} mpileup {} --min-MQ {} --min-BQ {} --excl-flags 2316 -r {}".format(samtools, bam_fn, min_mq, min_bq, ctg_range)
 
-    output = subprocess.Popen(samtools_command, shell=True, stdout=subprocess.PIPE, universal_newlines=True)
-    output = output.stdout.read().rstrip()
+    output = subprocess.run(samtools_command, shell=True, stdout=subprocess.PIPE, universal_newlines=True)
+    output = output.stdout.rstrip()
 
     columns = output.split('\t')
-    # print(output)
     if len(columns) < 4:
-        return pos, True, (-1,-1,-1,-1)
+        return ctg_name, pos, True, (-1,-1,-1,-1)
     base_counter, base_list = get_base_list(columns)
 
     realign_command = "{} {} realign_reads --pos {} --ctg_name {} --bam_fn {} --ref_fn {}".format(python, main_entry, pos, ctg_name, bam_fn, ref_fn)
     samtools_pile_command = "{} mpileup - --reverse-del --min-MQ {} --min-BQ {} --excl-flags 2316 | grep -w {}".format(samtools, min_mq, min_bq, pos)
     realign_command += " | " + samtools_pile_command
-    realign_output = subprocess.Popen(realign_command, shell=True, stdout=subprocess.PIPE, universal_newlines=True )
+    realign_output = subprocess.run(realign_command, shell=True, stdout=subprocess.PIPE, universal_newlines=True )
 
     realign_output = realign_output.stdout.read().rstrip()
+    # print(realign_command)
     # print(realign_output)
     columns = realign_output.split('\t')
     if len(columns) < 4:
-        return pos, True, (-1,-1,-1,-1)
+        return ctg_name, pos, True, (-1,-1,-1,-1)
     realign_base_counter, realign_base_list = get_base_list(columns)
 
     raw_depth = len(base_list)
@@ -88,7 +91,7 @@ def extract_base(POS):
     pass_realign_filter = True
     if raw_support_read_num / float(raw_depth) > realign_support_read_num / realign_depth and realign_support_read_num < raw_support_read_num:
         pass_realign_filter = False
-    return pos, pass_realign_filter, (raw_support_read_num, raw_depth, realign_support_read_num, realign_depth)
+    return ctg_name, pos, pass_realign_filter, (raw_support_read_num, raw_depth, realign_support_read_num, realign_depth)
 
 
 def realign_variants(args):
