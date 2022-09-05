@@ -21,9 +21,16 @@ major_contigs = {"chr" + str(a) for a in list(range(1, 23)) + ["X", "Y"]}.union(
 major_contigs_order = ["chr" + str(a) for a in list(range(1, 23)) + ["X", "Y"]] + [str(a) for a in
                                                                                    list(range(1, 23)) + ["X", "Y"]]
 
+#exclude XY
+major_contigs = {"chr" + str(a) for a in list(range(1, 23))}.union(
+    {str(a) for a in list(range(1, 23))})
+major_contigs_order = ["chr" + str(a) for a in list(range(1, 23))] + [str(a) for a in
+                                                                                   list(range(1, 23))]
+
+
 file_directory = os.path.dirname(os.path.realpath(__file__))
 main_entry = os.path.join(file_directory, "clair-somatic.py")
-MAX_STEP = 3
+MAX_STEP = 10
 OutputPath = namedtuple('OutputPath', [
     'log_path',
     'tmp_file_path',
@@ -35,22 +42,11 @@ OutputPath = namedtuple('OutputPath', [
 
 import sys
 
-class Tee(object):
-    def __init__(self, name, mode):
-        self.file = open(name, mode)
-        self.stdout = sys.stdout
-        sys.stdout = self
-
-    def __del__(self):
-        sys.stdout = self.stdout
-        self.file.close()
-
-    def write(self, data):
-        self.file.write(data)
-        self.stdout.write(data)
-
-    def flush(self):
-        self.file.flush()
+def logging(str):
+    if args.tee is None:
+        print(str)
+    else:
+        args.tee.stdin.write(bytes(str + '\n', encoding='utf8'))
 
 def create_output_folder(args):
     # create temp file folder
@@ -61,6 +57,7 @@ def create_output_folder(args):
                                       create_not_found=True) if args.bed_fn or args.vcf_fn else None
     candidates_path = folder_path_from(os.path.join(tmp_file_path, 'candidates'), create_not_found=True)
     tensor_can_path = folder_path_from(os.path.join(tmp_file_path, 'tensor_can'), create_not_found=True)
+    fa_tensor_can_path = folder_path_from(os.path.join(tmp_file_path, 'fa_tensor_can'), create_not_found=True)
     vcf_output_path = folder_path_from(os.path.join(tmp_file_path, 'vcf_output'), create_not_found=True)
     output_path = OutputPath(log_path=log_path,
                              tmp_file_path=tmp_file_path,
@@ -121,13 +118,13 @@ def check_tools_version(args):
     for tool, version in tool_version.items():
         required_version = required_tool_version[tool]
         if version is None:
-            print(log_error("[ERROR] {} not found, please check you are in clair3 virtual environment".format(tool)))
+            logging(log_error("[ERROR] {} not found, please check you are in clair3 virtual environment".format(tool)))
             check_python_path()
         elif version < required_version:
-            print(log_error("[ERROR] Tool version not match, please check you are in clair3 virtual environment"))
-            print(' '.join([str(item).ljust(10) for item in ["Tool", "Version", "Required"]]))
+            logging(log_error("[ERROR] Tool version not match, please check you are in clair3 virtual environment"))
+            logging(' '.join([str(item).ljust(10) for item in ["Tool", "Version", "Required"]]))
             error_info = ' '.join([str(item).ljust(10) for item in [tool, version, '>=' + str(required_version)]])
-            print(error_info)
+            logging(error_info)
             check_python_path()
     return
 
@@ -148,14 +145,14 @@ def check_contig_in_bam(bam_fn, sorted_contig_list, samtools, allow_none=False):
             contig_with_read_support_set.add(contig_name)
     for contig_name in sorted_contig_list:
         if contig_name not in contig_with_read_support_set:
-            print(log_warning(
+            logging(log_warning(
                 "[WARNING] Contig name {} provided but no mapped reads in BAM, skip!".format(contig_name)))
     filtered_sorted_contig_list = [item for item in sorted_contig_list if item in contig_with_read_support_set]
 
     found_contig = True
     if len(filtered_sorted_contig_list) == 0:
         found_contig = False
-        print(log_warning(
+        logging(log_warning(
             "[WARNING] No mapped reads support in BAM for provided contigs set {}".format(
                 ' '.join(sorted_contig_list))))
     return filtered_sorted_contig_list, found_contig
@@ -173,10 +170,10 @@ def check_threads(args):
 
 
     if threads > num_cpus:
-        print(log_warning(
+        logging(log_warning(
             '[WARNING] Current maximum threads {} is larger than support cpu count {},'.format(
                 threads, num_cpus)))
-        print(log_warning('Set --threads={} for better parallelism.'.format(num_cpus)))
+        logging(log_warning('Set --threads={} for better parallelism.'.format(num_cpus)))
         args.threads = num_cpus
     return args
 
@@ -266,15 +263,15 @@ def check_contigs_intersection(args, fai_fn):
     contig_set = set(args.ctg_name.split(',')) if is_ctg_name_list_provided else set()
 
     if not args.include_all_ctgs:
-        print("[INFO] --include_all_ctgs not enabled, use chr{1..22,X,Y} and {1..22,X,Y} by default")
+        logging("[INFO] --include_all_ctgs not enabled, use chr{1..22,X,Y} and {1..22,X,Y} by default")
     else:
-        print("[INFO] --include_all_ctgs enabled")
+        logging("[INFO] --include_all_ctgs enabled")
 
     if is_ctg_name_list_provided and is_bed_file_provided:
-        print(log_warning("[WARNING] both --ctg_name and --bed_fn provided, will only proceed contigs in intersection"))
+        logging(log_warning("[WARNING] both --ctg_name and --bed_fn provided, will only proceed contigs in intersection"))
 
     if is_ctg_name_list_provided and is_known_vcf_file_provided:
-        print(log_warning("[WARNING] both --ctg_name and --vcf_fn provided, will only proceed contigs in intersection"))
+        logging(log_warning("[WARNING] both --ctg_name and --vcf_fn provided, will only proceed contigs in intersection"))
 
     if is_ctg_name_list_provided:
         contig_set = contig_set.intersection(
@@ -329,18 +326,18 @@ def check_contigs_intersection(args, fai_fn):
     if not len(contig_set):
         if is_bed_file_provided:
             all_contig_in_bed = ' '.join(list(tree.keys()))
-            print(log_warning("[WARNING] No contig intersection found by --bed_fn, contigs in BED {}: {}".format(bed_fn, all_contig_in_bed)))
+            logging(log_warning("[WARNING] No contig intersection found by --bed_fn, contigs in BED {}: {}".format(bed_fn, all_contig_in_bed)))
         if is_known_vcf_file_provided:
             all_contig_in_vcf = ' '.join(list(know_vcf_contig_set))
-            print(log_warning("[WARNING] No contig intersection found by --vcf_fn, contigs in VCF {}: {}".format(vcf_fn, all_contig_in_vcf)))
+            logging(log_warning("[WARNING] No contig intersection found by --vcf_fn, contigs in VCF {}: {}".format(vcf_fn, all_contig_in_vcf)))
         if is_ctg_name_list_provided:
             all_contig_in_ctg_name = ' '.join(args.ctg_name.split(','))
-            print(log_warning("[WARNING] No contig intersection found by --ctg_name, contigs in contigs list: {}".format(all_contig_in_ctg_name)))
+            logging(log_warning("[WARNING] No contig intersection found by --ctg_name, contigs in contigs list: {}".format(all_contig_in_ctg_name)))
         found_contig = False
     else:
         for c in sorted_contig_list:
             if c not in contig_chunk_num:
-                print(log_warning(("[WARNING] Contig {} given but not found in reference fai file".format(c))))
+                logging(log_warning(("[WARNING] Contig {} given but not found in reference fai file".format(c))))
 
         # check contig in bam have support reads
         sorted_contig_list, tumor_found_contig = check_contig_in_bam(bam_fn=args.tumor_bam_fn, sorted_contig_list=sorted_contig_list,
@@ -353,22 +350,22 @@ def check_contigs_intersection(args, fai_fn):
     if not found_contig:
         return
 
-    print('[INFO] Call variant in contigs: {}'.format(' '.join(sorted_contig_list)))
-    print('[INFO] Chunk number for each contig: {}'.format(
+    logging('[INFO] Call variant in contigs: {}'.format(' '.join(sorted_contig_list)))
+    logging('[INFO] Chunk number for each contig: {}'.format(
         ' '.join([str(contig_chunk_num[c]) for c in sorted_contig_list])))
 
     if default_chunk_num > 0 and max_chunk_length > MAX_CHUNK_LENGTH:
-        print(log_warning(
+        logging(log_warning(
             '[WARNING] Current maximum chunk size {} is larger than default maximum chunk size {}, You may set a larger chunk_num by setting --chunk_num=$ for better parallelism.'.format(
                 min_chunk_length, MAX_CHUNK_LENGTH)))
 
     elif default_chunk_num > 0 and min_chunk_length < MIN_CHUNK_LENGTH:
-        print(log_warning(
+        logging(log_warning(
             '[WARNING] Current minimum chunk size {} is smaller than default minimum chunk size {}, You may set a smaller chunk_num by setting --chunk_num=$.'.format(
                 min_chunk_length, MIN_CHUNK_LENGTH)))
 
     if default_chunk_num == 0 and max(contig_length_list) < DEFAULT_CHUNK_SIZE / 5:
-        print(log_warning(
+        logging(log_warning(
             '[WARNING] Current maximum contig length {} is much smaller than default chunk size {}, You may set a smaller chunk size by setting --chunk_size=$ for better parallelism.'.format(
                 max(contig_length_list), DEFAULT_CHUNK_SIZE)))
 
@@ -383,7 +380,7 @@ def check_contigs_intersection(args, fai_fn):
     chunk_list_path = os.path.join(args.output_dir, 'tmp', 'CHUNK_LIST')
     with open(chunk_list_path, 'w') as output_file:
         for contig_name in sorted_contig_list:
-            chunk_num = contig_chunk_num[contig_name]
+            chunk_num = contig_chunk_num[contig_name] if args.chunk_num is None else args.chunk_num
             for chunk_id in range(1, chunk_num + 1):
                 output_file.write(contig_name + ' ' + str(chunk_id) + ' ' + str(chunk_num) + '\n')
                 chunk_list.append((contig_name, chunk_id, chunk_num))
@@ -839,11 +836,18 @@ def main():
     Main interface for clair-somatic.
     """
 
+    global args
+
     parser = somatic_parser()
     args = parser.parse_args()
 
     args.output_dir = folder_path_from(args.output_dir, create_not_found=True)
-    tee_logger = Tee(os.path.join(args.output_dir, 'run_somatic.log'), 'w')
+    tee_logger = os.path.join(args.output_dir, 'run_somatic.log' if not args.dry_run else "run_somatic_dry_run.log")
+    try:
+        args.tee = subprocess.Popen(['tee', tee_logger], stdin=subprocess.PIPE, bufsize=0)
+    except:
+        args.tee = None
+
 
     args = check_args(args)
     args = print_args(args)
