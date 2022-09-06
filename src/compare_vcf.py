@@ -212,6 +212,26 @@ def compare_vcf(args):
             roc_fn.write('\t'.join([str(item) for item in [qual_cut_off, tmp_pre, tmp_rec, tmp_f1]]) + '\n')
         roc_fn.close()
 
+    if args.log_som is not None and os.path.exists(args.log_som):
+            log_som = open(args.log_som)
+            for row in log_som.readlines():
+                if 'SNVs' not in row:
+                    continue
+
+                columns = row.rstrip().split(',')
+                # total_truth, total_query = [float(item) for item in columns[2:4]]
+                tp, fp, fn, unk, ambi = [float(item) for item in columns[4:9]]
+                recall,recall_lower, recall_upper, recall2 = [float(item) for item in columns[9:13]]
+                precision, precision_lower, precision_upper = [float(item) for item in columns[13:16]]
+                # na, ambiguous, fp_region_size, fp_rate = [float(item) for item in  columns[16:20]]
+                if int(tp_snv) != int(tp):
+                    print("True positives not match")
+                if int(fp_snv) != int(fp):
+                    print("False positives not match")
+                if int(fn_snv) != int(fn):
+                    print("False negatives not match")
+
+                print(fp, fn, tp, precision, recall)
 
     if output_dir is not None:
         if not os.path.exists(output_dir):
