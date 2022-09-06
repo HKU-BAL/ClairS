@@ -389,6 +389,13 @@ def check_contigs_intersection(args, fai_fn):
 
 def check_args(args):
 
+    try:
+        conda_prefix = os.environ['CONDA_PREFIX']
+    except:
+        # pass
+        sys.exit(log_error("[ERROR] Conda prefix not found, please activate clair3 conda environment first"))
+
+
     args.normal_bam_fn = file_path_from(file_name=args.normal_bam_fn, exit_on_not_found=True, allow_none=True)
     normal_bai_fn = file_path_from(file_name=args.normal_bam_fn, suffix=".bai", exit_on_not_found=True, sep='.', allow_none=True)
     args.tumor_bam_fn = file_path_from(file_name=args.tumor_bam_fn, exit_on_not_found=True)
@@ -397,10 +404,18 @@ def check_args(args):
     fai_fn = file_path_from(file_name=args.ref_fn, suffix=".fai", exit_on_not_found=True, sep='.')
     args.bed_fn = file_path_from(file_name=args.bed_fn, exit_on_not_found=True, allow_none=True)
     args.vcf_fn = file_path_from(file_name=args.vcf_fn, exit_on_not_found=True, allow_none=True)
-    args.model_dir = file_path_from(file_name=args.model_dir, is_directory=True)
+
+    if args.pileup_model_path is None:
+        args.pileup_model_path = os.path.join(conda_prefix, 'bin', 'pileup.pkl')
+
+    if args.full_alignment_model_path is None:
+        args.full_alignment_model_path = os.path.join(conda_prefix, 'bin', 'full_alignment.pkl')
+
+    args.pileup_model_path = file_path_from(file_name=args.pileup_model_path, exit_on_not_found=True, is_directory=False, allow_none=False)
+    args.full_alignment_model_path = file_path_from(file_name=args.full_alignment_model_path, exit_on_not_found=True, is_directory=False, allow_none=False)
 
     if args.snv_min_af is None:
-        args.snv_min_af = 0.08
+        args.snv_min_af = param.snv_min_af
     if args.indel_min_af is None:
         args.indel_min_af = 1.0
     if args.qual is None:
@@ -408,9 +423,12 @@ def check_args(args):
     if args.chunk_size is None:
         args.chunk_size = 1000000
     if args.platform != 'ont' and args.platform != 'hifi' and args.platform != 'ilmn':
-        print(log_error('[ERROR] Invalid platform input, optional: {ont, hifi, ilmn}'))
+        logging(log_error('[ERROR] Invalid platform input, optional: {ont, hifi, ilmn}'))
     if args.skip_steps is not None:
         check_skip_steps_legal(args)
+    if args.enable_realignment and args.platform != 'ilmn':
+        args.enable_realignment = False
+        # logging(log_error('[ERROR] Realignment only work for Illumina short read data. Exit!'))
 
     legal_range_from(param_name="threads", x=args.threads, min_num=1, exit_out_of_range=True)
     legal_range_from(param_name="qual", x=args.qual, min_num=0, exit_out_of_range=True)
@@ -418,7 +436,7 @@ def check_args(args):
     legal_range_from(param_name="indel_min_af", x=args.indel_min_af, min_num=0, max_num=1, exit_out_of_range=True)
     # print (args)
     args.output_path = create_output_folder(args)
-    # check_tools_version(args=args)
+    check_tools_version(args=args)
     args = check_threads(args=args)
     args = check_contigs_intersection(args=args, fai_fn=fai_fn)
 
@@ -428,41 +446,37 @@ def check_args(args):
 def print_args(args):
 
     # set default options
-    try:
-        conda_prefix = os.environ['CONDA_PREFIX']
-    except:
-        sys.exit(log_error("[ERROR] Conda prefix not found, please activate clair3 conda environment first"))
+    conda_prefix = os.environ['CONDA_PREFIX']
 
-    if args.model_dir is None:
-        args.model_dir = os.path.join(conda_prefix, 'bin')
-
-    print("")
-    print("[INFO] CLAIR SOMATIC VERSION: {}".format(version))
-    print("[INFO] NORMAL BAM FILE PATH: {}".format(args.normal_bam_fn))
-    print("[INFO] TUMOR BAM FILE PATH: {}".format(args.tumor_bam_fn))
-    print("[INFO] REFERENCE FILE PATH: {}".format(args.ref_fn))
-    print("[INFO] MODEL FOLDER: {}".format(args.model_dir))
-    print("[INFO] OUTPUT FOLDER: {}".format(args.output_dir))
-    print("[INFO] PLATFORM: {}".format(args.platform))
-    print("[INFO] THREADS: {}".format(args.threads))
-    print("[INFO] BED FILE PATH: {}".format(args.bed_fn))
-    print("[INFO] VCF FILE PATH: {}".format(args.vcf_fn))
-    print("[INFO] CONTIGS: {}".format(args.ctg_name))
-    print("[INFO] CONDA PREFIX: {}".format(conda_prefix))
-    print("[INFO] SAMTOOLS PATH: {}".format(args.samtools))
-    print("[INFO] PYTHON PATH: {}".format(args.python))
-    print("[INFO] PYPY PATH: {}".format(args.pypy))
-    print("[INFO] CHUNK SIZE: {}".format(args.chunk_size))
-    print("[INFO] SNV THRESHOLD: {}".format(args.snv_min_af))
-    print("[INFO] INDEL THRESHOLD: {}".format(args.indel_min_af))
-    print("[INFO] SKIP STEPS: {}".format(args.skip_steps))
-    print("[INFO] ENABLE USE GPU: {}".format(args.use_gpu))
-    print("[INFO] ENABLE COMMAND DRY RUN: {}".format(args.dry_run))
-    # print("[INFO] ENABLE CALLING SNV CANDIDATES ONLY: {}".format(args.call_snp_only))
-    print("[INFO] ENABLE PRINTING REFERENCE CALLS: {}".format(args.print_ref_calls))
-    print("[INFO] ENABLE INCLUDE ALL CTGS CALLING: {}".format(args.include_all_ctgs))
-    print("[INFO] ENABLE REMOVING INTERMEDIATE FILES: {}".format(args.remove_intermediate_dir))
-    print("")
+    logging("")
+    # logging("[INFO] CLAIR SOMATIC VERSION: {}".format(version))
+    logging("[INFO] CLAIR SOMATIC VERSION: {}".format(version))
+    logging("[INFO] NORMAL BAM FILE PATH: {}".format(args.normal_bam_fn))
+    logging("[INFO] TUMOR BAM FILE PATH: {}".format(args.tumor_bam_fn))
+    logging("[INFO] REFERENCE FILE PATH: {}".format(args.ref_fn))
+    logging("[INFO] PILEUP MODEL PATH: {}".format(args.pileup_model_path))
+    logging("[INFO] FULL-ALIGNMENT MODEL PATH: {}".format(args.full_alignment_model_path))
+    logging("[INFO] OUTPUT FOLDER: {}".format(args.output_dir))
+    logging("[INFO] PLATFORM: {}".format(args.platform))
+    logging("[INFO] THREADS: {}".format(args.threads))
+    logging("[INFO] BED FILE PATH: {}".format(args.bed_fn))
+    logging("[INFO] VCF FILE PATH: {}".format(args.vcf_fn))
+    logging("[INFO] CONTIGS: {}".format(args.ctg_name))
+    logging("[INFO] CONDA PREFIX: {}".format(conda_prefix))
+    logging("[INFO] SAMTOOLS PATH: {}".format(args.samtools))
+    logging("[INFO] PYTHON PATH: {}".format(args.python))
+    logging("[INFO] PYPY PATH: {}".format(args.pypy))
+    logging("[INFO] CHUNK SIZE: {}".format(args.chunk_size))
+    logging("[INFO] SNV THRESHOLD: {}".format(args.snv_min_af))
+    logging("[INFO] INDEL THRESHOLD: {}".format(args.indel_min_af))
+    logging("[INFO] SKIP STEPS: {}".format(args.skip_steps))
+    logging("[INFO] ENABLE USE GPU: {}".format(args.use_gpu))
+    logging("[INFO] ENABLE COMMAND DRY RUN: {}".format(args.dry_run))
+    # logging("[INFO] ENABLE CALLING SNV CANDIDATES ONLY: {}".format(args.call_snp_only))
+    logging("[INFO] ENABLE PRINTING REFERENCE CALLS: {}".format(args.print_ref_calls))
+    logging("[INFO] ENABLE INCLUDE ALL CTGS CALLING: {}".format(args.include_all_ctgs))
+    logging("[INFO] ENABLE REMOVING INTERMEDIATE FILES: {}".format(args.remove_intermediate_dir))
+    logging("")
 
     return args
 
@@ -811,7 +825,7 @@ def somatic_parser():
     optional_params.add_argument(
         "--chunk_num",
         type=int,
-        default=30,
+        default=None,
         help=SUPPRESS
     )
 
@@ -825,6 +839,20 @@ def somatic_parser():
     optional_params.add_argument(
         "--skip_steps",
         type=str,
+        default=None,
+        help=SUPPRESS
+    )
+
+    optional_params.add_argument(
+        "--tee",
+        type=str,
+        default=None,
+        help=SUPPRESS
+    )
+
+    optional_params.add_argument(
+        "--clair3",
+        type=namedtuple,
         default=None,
         help=SUPPRESS
     )
@@ -853,6 +881,8 @@ def main():
     args = print_args(args)
     somatic_calling(args)
 
+    if args.tee is not None:
+        args.tee.stdin.close()
 
 if __name__ == '__main__':
     main()
