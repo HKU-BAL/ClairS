@@ -128,7 +128,7 @@ def compare_vcf(args):
                 if fn_snv or fp_snv:
                     fp_fn_set.add(key)
 
-            truth_set.add(pos)
+            truth_set.add(key)
 
     for key, vcf_infos in truth_variant_dict.items():
         pos = key if ctg_name is not None else key[1]
@@ -138,7 +138,7 @@ def compare_vcf(args):
                                                               region_start=pos - 1,
                                                               region_end=pos)
 
-        if pos in truth_set:
+        if key in truth_set:
             continue
         if not pass_bed_region and args.remove_fn_out_of_fp_bed:
             continue
@@ -221,11 +221,13 @@ def compare_vcf(args):
         for vcf_type, variant_set in zip(candidate_types, variant_sets):
             vcf_fn = os.path.join(output_dir, '{}.vcf'.format(vcf_type))
             vcf_writer = VcfWriter(vcf_fn=vcf_fn, ctg_name=ctg_name, write_header=False)
-            for pos in variant_set:
-                if pos in input_variant_dict:
-                    vcf_infos = input_variant_dict[pos]
-                elif pos in truth_variant_dict:
-                    vcf_infos = truth_variant_dict[pos]
+            pos = key if ctg_name is not None else key[1]
+
+            for key in variant_set:
+                if key in input_variant_dict:
+                    vcf_infos = input_variant_dict[key]
+                elif key in truth_variant_dict:
+                    vcf_infos = truth_variant_dict[key]
                 else:
                     continue
                 # ref_base = vcf_infos.reference_bases
@@ -287,6 +289,10 @@ def main():
 
     parser.add_argument('--caller', type=str, default=None,
                         help=SUPPRESS)
+
+    parser.add_argument('--strat_bed_fn', type=str, default=None,
+                        help="Genome stratifications v2 bed region")
+
     args = parser.parse_args()
 
     compare_vcf(args)
