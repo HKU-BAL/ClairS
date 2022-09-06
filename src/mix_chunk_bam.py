@@ -58,11 +58,19 @@ def MixBin(args):
     normal_coverage_proportion = args.normal_coverage_proportion
     normal_coverage_log = os.path.join(cov_dir, 'raw_normal_' + ctg_name + cov_suffix)
     tumor_coverage_log = os.path.join(cov_dir, 'raw_tumor_' + ctg_name + cov_suffix)
-    normal_bam_coverage = get_coverage(normal_coverage_log)
-    tumor_bam_coverage = get_coverage(tumor_coverage_log)
+    normal_bam_coverage = args.normal_bam_coverage if args.normal_bam_coverage else get_coverage(normal_coverage_log)
+    tumor_bam_coverage = args.tumor_bam_coverage if args.tumor_bam_coverage else get_coverage(tumor_coverage_log)
 
-    normal_bin_num = int(int(normal_bam_coverage) / int(min_coverage))
-    tumor_bin_num = int(int(tumor_bam_coverage) / int(min_coverage))
+    normal_bin_num = int(int(normal_bam_coverage) / int(min_bin_coverage))
+    tumor_bin_num = int(int(tumor_bam_coverage) / int(min_bin_coverage))
+
+    if normal_coverage_proportion is not None and ctg_name is not None and type(int(ctg_name[3:])) == int:
+        if int(ctg_name[3:]) <= 8:
+            normal_coverage_proportion = 1.0
+        elif int(ctg_name[3:]) > 16:
+            normal_coverage_proportion = 0.5
+        else:
+            normal_coverage_proportion = 0.75
 
     bam_list = os.listdir(input_dir)
     normal_bam_list = [bam for bam in bam_list if bam.startswith('normal_' + ctg_name + '_')]
