@@ -4,33 +4,22 @@ import os
 import json
 import logging
 import random
-from subprocess import PIPE
-from os.path import isfile
 import subprocess
+
 from argparse import ArgumentParser, SUPPRESS
 from collections import Counter, defaultdict, OrderedDict
 
 import shared.param as param
 from shared.vcf import VcfReader
 from shared.utils import subprocess_popen, file_path_from, IUPAC_base_to_num_dict as BASE2NUM, region_from, \
-    reference_sequence_from, str2bool, vcf_candidates_from
+    reference_sequence_from, str2bool
 from shared.interval_tree import bed_tree_from, is_region_in
 from shared.intervaltree.intervaltree import IntervalTree
 
 logging.basicConfig(format='%(message)s', level=logging.INFO)
-BASES = set(list(BASE2NUM.keys()) + ["-"])
+
 no_of_positions = param.no_of_positions
 flanking_base_num = param.flankingBaseNum
-channel_size = param.channel_size
-BASE2NUMBER = dict(zip("ACGTURYSWKMBDHVN-", (0, 1, 2, 3, 3, 0, 1, 1, 0, 2, 0, 1, 0, 0, 0, 0, 4)))
-NORMALIZE_NUM = param.NORMALIZE_NUM
-MAX_BQ = 40.0
-MAX_MQ = 60.0
-MAX_AF = 1.0
-STRAND_0 = 100
-STRAND_1 = 50
-HAP_TYPE = dict(zip((1, 0, 2), (30, 60, 90)))  # hap1 UNKNOWN H2
-ACGT_NUM = dict(zip("ACGT+-*#N", (100, 25, 75, 50, -50, -100, 0, 0, 100)))
 
 
 
@@ -317,18 +306,17 @@ def extract_candidates(args):
     samtools_execute_command = args.samtools
     output_depth = args.output_depth
     output_alt_info = args.output_alt_info
-    bam_file_path = args.bam_fn
+    tumor_bam_file_path = args.tumor_bam_fn
     chunk_id = args.chunk_id - 1 if args.chunk_id else None  # 1-base to 0-base
     chunk_num = args.chunk_num
     is_full_aln_regions_given = full_aln_regions is not None
-    phasing_info_in_bam = args.phasing_info_in_bam
     phasing_window_size = args.phasing_window_size
-    extend_bp = param.extend_bp
-    minimum_snp_af_for_candidate = args.snp_min_af
+    # extend_bp = param.extend_bp
+    minimum_snv_af_for_candidate = args.snv_min_af
     minimum_indel_af_for_candidate = args.indel_min_af
-    minimum_snp_af_for_truth = args.min_truth_snp_af
-    minimum_indel_af_for_truth = args.min_truth_snp_af
-    alternative_base_num=args.alternative_base_num
+    minimum_snv_af_for_truth = args.min_truth_snv_af
+    minimum_indel_af_for_truth = args.min_truth_snv_af
+    alternative_base_num = args.alternative_base_num
     split_bed_size = param.split_bed_size
     candidates_folder = args.candidates_folder
     min_coverage = args.min_coverage
@@ -344,11 +332,12 @@ def extract_candidates(args):
     flankingBaseNum = param.flankingBaseNum
     vcf_fn = args.vcf_fn
     genotyping_mode = vcf_fn is not None
-    unified_vcf_fn = args.unified_vcf_fn
-    is_truth_vcf_provided = unified_vcf_fn is not None
+    truth_vcf_fn = args.truth_vcf_fn
+    is_truth_vcf_provided = truth_vcf_fn is not None
+
     truths_variant_dict = {}
     if is_truth_vcf_provided:
-        unified_vcf_reader = VcfReader(vcf_fn=unified_vcf_fn, ctg_name=ctg_name, is_var_format=False)
+        unified_vcf_reader = VcfReader(vcf_fn=truth_vcf_fn, ctg_name=ctg_name, is_var_format=False)
         unified_vcf_reader.read_vcf()
         truths_variant_dict = unified_vcf_reader.variant_dict
 
@@ -718,7 +707,7 @@ def main():
     parser.add_argument('--vcf_fn', type=str, default=None,
                         help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file, default: %(default)s")
 
-    parser.add_argument('--snv_min_af', type=float, default=0.1,
+    parser.add_argument('--snv_min_af', type=float, default=param.snv_min_af,
                         help="Minimum SNV allele frequency for a site to be considered as a candidate site, default: %(default)f")
 
     parser.add_argument('--ctg_name', type=str, default=None,
@@ -746,7 +735,7 @@ def main():
     parser.add_argument('--min_bq', type=int, default=param.min_bq,
                         help="EXPERIMENTAL: If set, bases with base quality with <$min_bq are filtered, default: %(default)d")
 
-    parser.add_argument('--max_depth', type=int, default=param.max_depth,
+    parser.add_argument('--max_depth', type=int, default=None,
                         help="EXPERIMENTAL: Maximum depth to be processed. default: %(default)s")
 
     parser.add_argument('--alternative_base_num', type=int, default=param.alternative_base_num,
