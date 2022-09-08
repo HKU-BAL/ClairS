@@ -24,25 +24,29 @@ flanking_base_num = param.flankingBaseNum
 channel_size = param.channel_size
 BASE2NUMBER = dict(zip("ACGTURYSWKMBDHVN-", (0, 1, 2, 3, 3, 0, 1, 1, 0, 2, 0, 1, 0, 0, 0, 0, 4)))
 NORMALIZE_NUM = param.NORMALIZE_NUM
-MAX_BQ = 40.0
+ILMN_MAX_BQ = 40.0
+ONT_MAX_BQ = 40.0
 MAX_MQ = 60.0
 MAX_AF = 1.0
-STRAND_0 = 100
-STRAND_1 = 50
-HAP_TYPE = dict(zip((1, 0, 2), (30, 60, 90)))  # hap1 UNKNOWN H2
+STRAND_0 = -100
+STRAND_1 = 100
+HAP_TYPE = dict(zip((1, 0, 2), (30, 60, 90)))  # hap1 UNKNOWN H2 # should be better using
+from src.create_tensor import NORMAL_HAP_TYPE, TUMOR_HAP_TYPE
 ACGT_NUM = dict(zip("ACGT+-*#N", (100, 25, 75, 50, -50, -100, 0, 0, 100)))
 
 
-def _normalize_bq(x, platform='ont'):
+def normalize_bq(x, platform='ont'):
+    MAX_BQ = ONT_MAX_BQ
     if platform == "ilmn":
-    # only work for short reads
+        # only work for short reads
         x = x // 10 * 10
-    return int(NORMALIZE_NUM * min(x, MAX_BQ) / MAX_BQ)
+        MAX_BQ = ILMN_MAX_BQ
+    return int(2 * NORMALIZE_NUM * min(x, MAX_BQ) / MAX_BQ - NORMALIZE_NUM)
 
 
-def _normalize_mq(x):
+def normalize_mq(x):
     x = 0 if x <= 20 else (20 if x <= 40 else 60)
-    return int(NORMALIZE_NUM * min(x, MAX_MQ) / MAX_MQ)
+    return int(2 * NORMALIZE_NUM * min(x, MAX_MQ) / MAX_MQ - NORMALIZE_NUM)
 
 
 def _normalize_af(x):
