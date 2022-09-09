@@ -75,24 +75,26 @@ class Position(object):
         self.genotype = genotype
         self.read_name_seq = defaultdict(str)
 
-    def update_infos(self, is_tumor=False, platform='ont'):
+    def update_infos(self, is_tumor=False, hap_dict=None, platform='ont'):
         # only proceed when variant exists in candidate windows which greatly improves efficiency
         self.read_name_dict = dict(zip(self.read_name_list, self.base_list))
         self.update_info = True
-        self.mapping_quality = [_normalize_mq(phredscore2raw_score(item)) for item in self.raw_mapping_quality]
-        self.base_quality = [_normalize_bq(phredscore2raw_score(item), platform) for item in self.raw_base_quality]
+        self.mapping_quality = [normalize_mq(phredscore2raw_score(item)) for item in self.raw_mapping_quality]
+        self.base_quality = [normalize_bq(phredscore2raw_score(item), platform) for item in self.raw_base_quality]
 
         for read_name, base_info, bq, mq in zip(self.read_name_list, self.base_list, self.base_quality,
                                                 self.mapping_quality):
-            read_channel, ins_base, query_base = get_tensor_info(base_info, bq, self.ref_base, mq, is_tumor)
+            hp = hap_dict[read_name] if hap_dict is not None and read_name in hap_dict else 0
+            read_channel, ins_base, query_base = get_tensor_info(base_info, bq, self.ref_base, mq, is_tumor, hp=hp)
             self.read_info[read_name] = (read_channel, ins_base)
 
 
-class PhasingRead(object):
-    def __init__(self):
-        self.read_seq = defaultdict(str)
-        self.read_start = None
-        self.read_end = None
+#
+# class PhasingRead(object):
+#     def __init__(self):
+#         self.read_seq = defaultdict(str)
+#         self.read_start = None
+#         self.read_end = None
 
 
 def phredscore2raw_score(qual):
@@ -115,7 +117,7 @@ def evc_base_from(base):
 def sorted_by_hap_read_name(center_pos, haplotag_dict, pileup_dict, hap_dict, max_depth, use_tensor_sample_mode=False):
     """
     Sort by reads haplotype after haplotag reads otherwise sort by read start position.
-    center_pos: define the center candidate position for proccessing.
+    center_pos: define the center candidate position for processing.
     haplotag_dict: dictionary (read name : hap type) which keep the read name and haplotype mapping.
     pileup_dict: dictionary (pos: pos info) which keep read information that cover specific position .
     hap_dict: similar to haplotag_dict, dictionary (pos: pos info) which keep the read name and haplotype mapping,
@@ -139,11 +141,11 @@ def sorted_by_hap_read_name(center_pos, haplotag_dict, pileup_dict, hap_dict, ma
         hap = max(haplotag_dict[read_name], hap_dict[read_name])  # no phasing is 0
         sorted_read_name_list.append((hap, order, read_name))
 
-    sorted_read_name_list = sorted(sorted_read_name_list)
+    sorted_read_name_list = sorted(sorted_read_name_list, key=lambda x: (x[0],x[1]))
     return sorted_read_name_list
 
 
-def get_tensor_info(base_info, bq, ref_base, read_mq=None, is_tumor=False):
+def get_tensor_info(base_info, bq, ref_base, read_mq=None, is_tumor=False, hp=0):
     """
     Create tensor information for each read level position.
     base_info: base information include all alternative bases.
@@ -152,7 +154,7 @@ def get_tensor_info(base_info, bq, ref_base, read_mq=None, is_tumor=False):
     read_mq: read mapping quality.
     """
 
-    hap_type = 100 if is_tumor else 50
+    hap_type = TUMOR_HAP_TYPE[hp] if is_tumor else NORMAL_HAP_TYPE[hp]
 
     base, indel = base_info
     ins_base = ""
@@ -340,7 +342,8 @@ def generate_tensor(ctg_name,
                     is_tumor,
                     candidates_type_dict,
                     use_tensor_sample_mode=False,
-                    truths_variant_dict=None):
+                    truths_variant_dict=None,
+                    hap_dict=None):
     """
     Generate full alignment input tensor
     ctg_name: provided contig name.
@@ -376,7 +379,7 @@ def generate_tensor(ctg_name,
 
     for p in range(start_pos, end_pos):
         if p in pileup_dict and not pileup_dict[p].update_info:
-            pileup_dict[p].update_infos(is_tumor=is_tumor, platform=platform)
+            pileup_dict[p].update_infos(is_tumor=is_tumor, hap_dict=hap_dict, platform=platform)
         for read_idx, read_name_info in enumerate(sorted_read_name_list):
             hap, read_order, read_name = read_name_info
             offset = p - start_pos
@@ -453,7 +456,7 @@ def generate_tensor(ctg_name,
                         alt_dict[indel.upper()] += 1
                 elif base.upper() != reference_base:
                     alt_dict[base.upper()] += 1
-
+            use_alt_base = False
             if use_alt_base:
                 alt_dict[truths_variant_dict[center_pos].alternate_bases[0]] -= alt_base_num
             # for row_idx, read_name in enumerate(tmp_read_name_list):
