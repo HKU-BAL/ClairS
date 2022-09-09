@@ -73,8 +73,12 @@ def MixBin(args):
             normal_coverage_proportion = 0.75
 
     bam_list = os.listdir(input_dir)
-    normal_bam_list = [bam for bam in bam_list if bam.startswith('normal_' + ctg_name + '_')]
-    tumor_bam_list = [bam for bam in bam_list if bam.startswith('tumor_' + ctg_name + '_')]
+    if args.dry_run:
+        normal_bam_list = ['normal_' + str(idx) for idx in range(normal_bin_num)]
+        tumor_bam_list = ['tumor_' + str(idx) for idx in range(tumor_bin_num)]
+    else:
+        normal_bam_list = [bam for bam in bam_list if bam.startswith('normal_' + ctg_name + '_')]
+        tumor_bam_list = [bam for bam in bam_list if bam.startswith('tumor_' + ctg_name + '_')]
     assert len(normal_bam_list) == normal_bin_num
     assert len(tumor_bam_list) == tumor_bin_num
 
@@ -138,6 +142,12 @@ def MixBin(args):
                                                                        ' '.join(pair_normal_bam_list)))
     print("[INFO] Synthetic coverage: {}, Normal sampled BAMs intersection: {}\n".format(synthetic_coverage, set(
         pair_normal_bam_list).intersection(set(sampled_normal_bam_list + sampled_tumor_bam_list))))
+
+    print(tumor_bam_fn is not None and synthetic_proportion == 1.0 and len(sampled_normal_bam_list + sampled_tumor_bam_list) == tumor_bin_num \
+            and len(sampled_normal_bam_list) == 0)
+
+    if args.dry_run:
+        return
 
     tumor_sampled_bam_list = sampled_normal_bam_list + sampled_tumor_bam_list
     tumor_sampled_bam_list = ' '.join([os.path.join(input_dir, bam) for bam in tumor_sampled_bam_list])
@@ -254,6 +264,10 @@ def main():
 
     parser.add_argument('--normal_coverage_proportion', type=float, default=1,
                         help="EXPERIMENTAL: Normal synthetic normal and tumor pair proportion")
+
+    parser.add_argument('--dry_run', type=str2bool, default=0,
+                        help="EXPERIMENTAL: Only print the synthetic log, debug only")
+
 
     # parser.add_argument('--normal_bam_fn', type=str, default=None,
     #                     help="Sorted normal BAM file input, required")
