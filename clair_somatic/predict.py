@@ -1,31 +1,19 @@
 import sys
 import os
-import math
 import tables
-# import tensorflow as tf
 import numpy as np
 import logging
 import torch
 import shlex
+
 from time import time
 from argparse import ArgumentParser, SUPPRESS
 from threading import Thread
 from subprocess import PIPE, run
 from clair_somatic.call_variants import output_vcf_from_probability, OutputConfig
-from math import log, e
-from collections import namedtuple
 
-from clair_somatic.task.gt21 import (
-    GT21_Type, gt21_enum_from_label,
-    HOMO_SNP_GT21, HOMO_SNP_LABELS,
-    HETERO_SNP_GT21, HETERO_SNP_LABELS, GT21_LABELS, partial_label_from, mix_two_partial_labels
-)
-import clair_somatic.utils as utils
-from clair_somatic.task.genotype import Genotype, genotype_string_from, genotype_enum_from, genotype_enum_for_task
 from shared.utils import IUPAC_base_to_ACGT_base_dict as BASE2ACGT, BASIC_BASES, str2bool, file_path_from, log_error, log_warning, subprocess_popen, TensorStdout
-from clair_somatic.task.variant_length import VariantLength
 import shared.param as param
-# os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 def batches_from(iterable, item_from, batch_size=1):
     iterable = iter(iterable)
@@ -78,7 +66,7 @@ def print_output_message(
                 extra_infomation_string
             ))
 
-def tensor_generator_from(tensor_file_path, batch_size, pileup=False, platform='ont'):
+def tensor_generator_from(tensor_file_path, batch_size, pileup=False, min_rescale_cov=None, platform='ont'):
     float_type = 'float32'
 
     if tensor_file_path != "PIPE":
@@ -112,19 +100,34 @@ def tensor_generator_from(tensor_file_path, batch_size, pileup=False, platform='
 
         if pileup:
             apply_normalize = False
+            if min_rescale_cov is not None:
+                normal_coverage = float(normal_alt_info.split('-')[0])
+                tumor_coverage = float(tumor_alt_info.split('-')[0])
+                normal_rescale = float(min_rescale_cov) / normal_coverage if normal_coverage > min_rescale_cov else None
+                tumor_rescale = float(min_rescale_cov) / tumor_coverage if tumor_coverage > min_rescale_cov else None
+
             channel_size = param.pileup_channel_size
             tensor = []
             for idx in range(param.no_of_positions):
                 if apply_normalize:
-                    normal_coverage = float(normal_alt_info.split('-')[0])
-                    tumor_coverage = float(tumor_alt_info.split('-')[0])
+
                     tensor += [float(item) / normal_coverage for item in
                                      normal_matrix[idx * channel_size: (idx + 1) * channel_size]]
                     tensor += [float(item) / tumor_coverage for item in
                                      tumor_matrix[idx * channel_size: (idx + 1) * channel_size]]
                 else:
-                    tensor += normal_matrix[idx * channel_size: (idx + 1) * channel_size]
-                    tensor += tumor_matrix[idx * channel_size: (idx + 1) * channel_size]
+                    if normal_rescale is not None:
+                        tensor += [item * normal_rescale for item in
+                                     normal_matrix[idx * channel_size: (idx + 1) * channel_size]]
+                    else:
+                        tensor += normal_matrix[idx * channel_size: (idx + 1) * channel_size]
+
+                    if tumor_rescale is not None:
+                        tensor += [item * tumor_rescale for item in
+                                     tumor_matrix[idx * channel_size: (idx + 1) * channel_size]]
+                    else:
+                        tensor += tumor_matrix[idx * channel_size: (idx + 1) * channel_size]
+
         else:
             normal_depth = len(normal_matrix) // tensor_shape[1] // tensor_shape[2]
             tumor_depth = len(tumor_matrix) // tensor_shape[1] // tensor_shape[2]
