@@ -811,12 +811,13 @@ def create_pair_tensor(args):
     #     output_alt_fn = alt_fn
     #     alt_fp = open(output_alt_fn, 'w')
 
-    hap_dict = defaultdict(int)
+    normal_hap_dict = defaultdict(int)
+    tumor_hap_dict = defaultdict(int)
     haplotag_dict = defaultdict(int)
     normal_pileup_dict = defaultdict(str)
     tumor_pileup_dict = defaultdict(str)
 
-    phasing_read_seq = defaultdict(PhasingRead)
+    # phasing_read_seq = defaultdict(PhasingRead)
     extend_bp_distance = phasing_window_size if need_phasing else no_of_positions + param.extend_bp
     confident_bed_tree = bed_tree_from(bed_file_path=confident_bed_fn,
                                        contig_name=ctg_name,
@@ -828,11 +829,13 @@ def create_pair_tensor(args):
                                     bed_ctg_start=extend_start,
                                     bed_ctg_end=extend_end)
 
-    def samtools_pileup_generator_from(samtools_mpileup_process, is_tumor=True):
+    def samtools_pileup_generator_from(samtools_mpileup_process, is_tumor=True, phasing_info_in_bam=False):
         need_phasing_pos_list = sorted(list(candidates_pos_set))
         current_pos_index = 0
         has_pileup_candidates = len(candidates_pos_set)
         pileup_dict = tumor_pileup_dict if is_tumor else normal_pileup_dict
+        hap_dict = tumor_hap_dict if is_tumor else normal_hap_dict
+
         for row in samtools_mpileup_process.stdout:  # chr position N depth seq BQ read_name mapping_quality phasing_info
             columns = row.strip().split('\t')
             pos = int(columns[1])
@@ -865,6 +868,18 @@ def create_pair_tensor(args):
                         read_name_list[b_idx] += '_1'  # reverse
                     else:
                         read_name_list[b_idx] += '_0'  # forward
+
+            if phasing_info_in_bam:
+                phasing_info = columns[8].split(',')
+                # https://github.com/HKU-BAL/Clair3/issues/32, skip adding phase info when BAM phase info lacks
+                # add read name list size check in following steps
+                if len(read_name_list) != len(phasing_info):
+                    continue
+                else:
+                    for hap_idx, hap in enumerate(phasing_info):
+                        if hap in '12' and read_name_list[hap_idx] not in hap_dict:
+                            hap_dict[read_name_list[hap_idx]] = int(hap)
+
 
             if len(read_name_list) != len(base_list):
                 continue
@@ -903,8 +918,8 @@ def create_pair_tensor(args):
                     break
             current_pos_index += 1
 
-    normal_bam_pileup_generator = samtools_pileup_generator_from(samtools_mpileup_process=samtools_mpileup_normal_process,is_tumor=False)
-    tumor_bam_pileup_generator = samtools_pileup_generator_from(samtools_mpileup_process=samtools_mpileup_tumor_process)
+    normal_bam_pileup_generator = samtools_pileup_generator_from(samtools_mpileup_process=samtools_mpileup_normal_process, is_tumor=False, phasing_info_in_bam=phase_normal)
+    tumor_bam_pileup_generator = samtools_pileup_generator_from(samtools_mpileup_process=samtools_mpileup_tumor_process, phasing_info_in_bam=phase_tumor)
 
     for pos in heapq_merge_generator_from(normal_bam_pileup_generator=normal_bam_pileup_generator, tumor_bam_pileup_generator=tumor_bam_pileup_generator):
         if pos not in normal_pileup_dict or pos not in tumor_pileup_dict:
@@ -918,6 +933,7 @@ def create_pair_tensor(args):
         for pileup_dict, is_tumor, tumor_flag in zip((normal_pileup_dict, tumor_pileup_dict), (False, True), ('normal', 'tumor')):
             use_tensor_sample_mode = tensor_sample_mode and candidates_type_dict[pos] == 'homo_somatic' and pos in truths_variant_dict
             max_depth = param.tumor_matrix_depth_dict[platform] if is_tumor else param.normal_matrix_depth_dict[platform]
+            hap_dict = tumor_hap_dict if is_tumor else normal_hap_dict
             sorted_read_name_list = sorted_by_hap_read_name(pos, haplotag_dict, pileup_dict, hap_dict, max_depth, use_tensor_sample_mode)
 
             tensor_string_list, alt_info_list = generate_tensor(ctg_name=ctg_name,
@@ -932,7 +948,8 @@ def create_pair_tensor(args):
                                                    is_tumor=is_tumor,
                                                    candidates_type_dict=candidates_type_dict,
                                                    use_tensor_sample_mode=use_tensor_sample_mode,
-                                                   truths_variant_dict=truths_variant_dict)
+                                                   truths_variant_dict=truths_variant_dict,
+                                                   hap_dict=hap_dict)
             if tensor_string_list is None:
                 continue
 
