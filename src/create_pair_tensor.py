@@ -645,7 +645,7 @@ def get_key_list(input_dict, normal_tensor_infos_dict, tumor_tensor_infos_dict, 
         # output_list.append((x, y))
     # return output_list
 
-def create_tensor(args):
+def create_pair_tensor(args):
     ctg_start = args.ctg_start
     ctg_end = args.ctg_end
     candidates_bed_regions = args.candidates_bed_regions
@@ -659,7 +659,9 @@ def create_tensor(args):
     chunk_num = args.chunk_num
     tensor_can_output_path = args.tensor_can_fn
     is_candidates_bed_regions_given = candidates_bed_regions is not None
-    phasing_info_in_bam = args.phasing_info_in_bam
+    # phasing_info_in_bam = args.phasing_info_in_bam
+    phase_normal = args.phase_normal
+    phase_tumor = args.phase_tumor
     phasing_window_size = args.phasing_window_size
     minimum_snp_af_for_candidate = args.snp_min_af
     minimum_indel_af_for_candidate = args.indel_min_af
@@ -772,7 +774,8 @@ def create_tensor(args):
     if reference_sequence is None or len(reference_sequence) == 0:
         sys.exit("[ERROR] Failed to load reference sequence from file ({}).".format(fasta_file_path))
 
-    phasing_option = " --output-extra HP" if phasing_info_in_bam else " "
+    nomral_phasing_option = " --output-extra HP" if phase_normal else " "
+    tumor_phasing_option = " --output-extra HP" if phase_tumor else " "
     mq_option = ' --min-MQ {}'.format(min_mapping_quality)
     output_mq, output_read_name = True, True
     output_mq_option = ' --output-MQ ' if output_mq else ""
@@ -788,12 +791,12 @@ def create_tensor(args):
     # print (add_read_regions, ctg_start, ctg_end, reference_start)
 
     samtools_command = "{} mpileup --reverse-del".format(samtools_execute_command) + \
-                       output_read_name_option + output_mq_option + reads_regions_option + phasing_option + mq_option + bq_option + bed_option + flags_option + max_depth_option
+                       output_read_name_option + output_mq_option + reads_regions_option + mq_option + bq_option + bed_option + flags_option + max_depth_option
     samtools_mpileup_normal_process = subprocess_popen(
-        shlex.split(samtools_command + ' ' + normal_bam_file_path))
+        shlex.split(samtools_command + ' ' + nomral_phasing_option + ' ' + normal_bam_file_path))
 
     samtools_mpileup_tumor_process = subprocess_popen(
-        shlex.split(samtools_command + ' ' + tumor_bam_file_path))
+        shlex.split(samtools_command + ' ' + tumor_phasing_option + ' ' + tumor_bam_file_path))
 
 
     if tensor_can_output_path != "PIPE":
