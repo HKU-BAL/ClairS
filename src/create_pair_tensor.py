@@ -183,7 +183,7 @@ def get_tensor_info(base_info, bq, ref_base, read_mq=None, is_tumor=False, hp=0)
     return read_channel, ins_base, query_base
 
 
-def decode_pileup_bases(pos, pileup_bases, reference_base, minimum_snp_af_for_candidate, minimum_indel_af_for_candidate,
+def decode_pileup_bases(pos, pileup_bases, reference_base, minimum_snv_af_for_candidate, minimum_indel_af_for_candidate,
                         has_pileup_candidates, candidates_type_dict, is_tumor, platform="ont"):
     """
     Decode mpileup input string.
@@ -236,30 +236,30 @@ def decode_pileup_bases(pos, pileup_bases, reference_base, minimum_snp_af_for_ca
         elif len(key) > 1 and key[1] == '-':
             pileup_dict['D'] += count
 
-    minimum_snp_af_for_candidate = minimum_snp_af_for_candidate if minimum_snp_af_for_candidate > 0 else param.min_af
+    minimum_snv_af_for_candidate = minimum_snv_af_for_candidate if minimum_snv_af_for_candidate > 0 else param.min_af
     minimum_indel_af_for_candidate = minimum_indel_af_for_candidate if minimum_indel_af_for_candidate > 0 else param.min_af_dict[platform]
 
     denominator = depth if depth > 0 else 1
     pileup_list = sorted(list(pileup_dict.items()), key=lambda x: x[1], reverse=True)
 
-    pass_snp_af = False
+    pass_snv_af = False
     pass_indel_af = False
 
     for item, count in pileup_list:
-        if pass_snp_af or pass_indel_af:
+        if pass_snv_af or pass_indel_af:
             break
         if item == reference_base:
             continue
         elif item[0] in 'ID':
             pass_indel_af = (pass_indel_af or (float(count) / denominator >= minimum_indel_af_for_candidate))
             continue
-        pass_snp_af = pass_snp_af or (float(count) / denominator >= minimum_snp_af_for_candidate)
+        pass_snv_af = pass_snv_af or (float(count) / denominator >= minimum_snv_af_for_candidate)
 
     af = (float(pileup_list[1][1]) / denominator) if len(pileup_list) > 1 else 0.0
     af = (float(pileup_list[0][1]) / denominator) if len(pileup_list) >= 1 and pileup_list[0][
         0] != reference_base else af
 
-    pass_af = pass_snp_af or pass_indel_af
+    pass_af = pass_snv_af or pass_indel_af
 
     return base_list, depth, pass_af, af
 
@@ -314,7 +314,7 @@ def find_tumor_alt_match(center_pos, sorted_read_name_list, pileup_dict, truths_
     ref_base, alt_base = truths_variant_dict[center_pos].reference_bases, truths_variant_dict[center_pos].alternate_bases[0]
     is_ins = len(alt_base) > 1 and len(ref_base) == 1
     is_del = len(ref_base) > 1 and len(alt_base) == 1
-    is_snp = len(ref_base) == 1 and len(alt_base) == 1
+    is_snv = len(ref_base) == 1 and len(alt_base) == 1
 
     matched_read_name_set = set()
     normal_read_name_set = set(normal_reads)
@@ -326,7 +326,7 @@ def find_tumor_alt_match(center_pos, sorted_read_name_list, pileup_dict, truths_
                 matched_read_name_set.add(read_name)
             elif is_del and indel[1:].upper() == ref_base[1:]:
                 matched_read_name_set.add(read_name)
-            elif is_snp and base_upper == alt_base:
+            elif is_snv and base_upper == alt_base:
                 matched_read_name_set.add(read_name)
     return matched_read_name_set, normal_read_name_set
 
@@ -599,7 +599,7 @@ class TensorStdout(object):
 
 
 def update_hetero_ref(pos, reference_sequence, reference_start, extend_bp, alt_base):
-    # if need phasing option enables, will store reference sequence near hetero snp candidate.
+    # if need phasing option enables, will store reference sequence near hetero snv candidate.
     ref_start = pos - extend_bp
     ref_end = pos + extend_bp + 1
     ref_seq = reference_sequence[ref_start - reference_start: ref_end - reference_start]
@@ -663,7 +663,7 @@ def create_pair_tensor(args):
     phase_normal = args.phase_normal
     phase_tumor = args.phase_tumor
     phasing_window_size = args.phasing_window_size
-    minimum_snp_af_for_candidate = args.snp_min_af
+    minimum_snv_af_for_candidate = args.snv_min_af
     minimum_indel_af_for_candidate = args.indel_min_af
     min_coverage = args.min_coverage
     platform = args.platform
@@ -677,8 +677,8 @@ def create_pair_tensor(args):
     tensor_sample_mode = args.tensor_sample_mode
     global test_pos
     test_pos = None
-    hetero_snp_pos_dict = defaultdict()
-    hetero_snp_tree = IntervalTree()
+    hetero_snv_pos_dict = defaultdict()
+    hetero_snv_tree = IntervalTree()
     candidates_pos_set = set()
     candidates_type_dict = defaultdict(str)
     add_read_regions = True
@@ -697,7 +697,7 @@ def create_pair_tensor(args):
         """
         If given full alignment bed regions, all candidate positions will be directly selected from each row, define as 
         'ctg start end', where 0-based center position is the candidate for full alignment calling.
-        if 'need_phasing' option enables, full alignment bed regions will also include nearby heterozygous snp candidates for reads
+        if 'need_phasing' option enables, full alignment bed regions will also include nearby heterozygous snv candidates for reads
         haplotag, which is faster than whatshap haplotag with more memory occupation.
         """
 
@@ -856,7 +856,7 @@ def create_pair_tensor(args):
             base_list, depth, pass_af, af = decode_pileup_bases(pos=pos,
                                                                 pileup_bases=pileup_bases,
                                                                 reference_base=reference_base,
-                                                                minimum_snp_af_for_candidate=minimum_snp_af_for_candidate,
+                                                                minimum_snv_af_for_candidate=minimum_snv_af_for_candidate,
                                                                 minimum_indel_af_for_candidate=minimum_indel_af_for_candidate,
                                                                 has_pileup_candidates=has_pileup_candidates,
                                                                 candidates_type_dict=candidates_type_dict,
@@ -1017,8 +1017,8 @@ def main():
     parser.add_argument('--vcf_fn', type=str, default=None,
                         help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file,  default: %(default)s")
 
-    parser.add_argument('--snp_min_af', type=float, default=0.1,
-                        help="Minimum snp allele frequency for a site to be considered as a candidate site, default: %(default)f")
+    parser.add_argument('--snv_min_af', type=float, default=0.1,
+                        help="Minimum snv allele frequency for a site to be considered as a candidate site, default: %(default)f")
 
     parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of sequence to be processed, required if --bed_fn is not defined")
