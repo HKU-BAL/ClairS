@@ -73,9 +73,9 @@ def extract_base(POS):
     realign_command = "{} {} realign_reads --pos {} --ctg_name {} --bam_fn {} --ref_fn {}".format(python, main_entry, pos, ctg_name, bam_fn, ref_fn)
     samtools_pile_command = "{} mpileup - --reverse-del --min-MQ {} --min-BQ {} --excl-flags 2316 | grep -w {}".format(samtools, min_mq, min_bq, pos)
     realign_command += " | " + samtools_pile_command
-    realign_output = subprocess.run(realign_command, shell=True, stdout=subprocess.PIPE, universal_newlines=True )
+    realign_output = subprocess.run(realign_command, shell=True, stdout=subprocess.PIPE, universal_newlines=True)
 
-    realign_output = realign_output.stdout.read().rstrip()
+    realign_output = realign_output.stdout.rstrip()
     # print(realign_command)
     # print(realign_output)
     columns = realign_output.split('\t')
