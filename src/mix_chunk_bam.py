@@ -130,17 +130,23 @@ def MixBin(args):
                                            seed=int(synthetic_proportion * 100))]
         pair_normal_bam_list = resample_bin_list + rest_normal_bam_list
 
+    normal_coverage_in_normal = len(pair_normal_bam_list) * min_bin_coverage
+    normal_coverage_in_tumor = sampled_normal_bin_num * min_bin_coverage
+    tumor_coverage_in_tumor =  sampled_tumor_bin_num * min_bin_coverage
     print(
         "[INFO] Raw normal BAM coverage/Raw tumor BAM coverage: {}x/{}x, normal sampled bins/tumor sampled bins:{}/{}".format(
             normal_bam_coverage, tumor_bam_coverage, sampled_normal_bin_num, sampled_tumor_bin_num))
     print("[INFO] Tumor sampled normal chunked BAMs coverage/bins: {}x/{}:{}".format(
-        len(sampled_normal_bam_list) * min_coverage, len(sampled_normal_bam_list), ' '.join(sampled_normal_bam_list)))
+        len(sampled_normal_bam_list) * min_bin_coverage, len(sampled_normal_bam_list), ' '.join(sampled_normal_bam_list)))
     print("[INFO] Tumor sampled tumor chunked BAMs coverage/bins: {}x/{}:{}".format(
-        len(sampled_tumor_bam_list) * min_coverage, len(sampled_tumor_bam_list), ' '.join(sampled_tumor_bam_list)))
-    print("[INFO] Normal sampled BAMs coverage/bins: {}x/{}:{}".format(len(pair_normal_bam_list) * min_coverage,
+        len(sampled_tumor_bam_list) * min_bin_coverage, len(sampled_tumor_bam_list), ' '.join(sampled_tumor_bam_list)))
+    print("[INFO] Normal sampled BAMs coverage/bins: {}x/{}:{}".format(len(pair_normal_bam_list) * min_bin_coverage,
                                                                        len(pair_normal_bam_list),
                                                                        ' '.join(pair_normal_bam_list)))
-    print("[INFO] Synthetic coverage: {}, Normal sampled BAMs intersection: {}\n".format(synthetic_coverage, set(
+    print("[INFO] NN/TN/TT synthetic coverage: {}/{}/{}".format(\
+        normal_coverage_in_normal, normal_coverage_in_tumor, tumor_coverage_in_tumor))
+    print("[INFO] Synthetic proportion: {}, normal coverage proportion: {}, normal sampled BAMs intersection: {}\n".format(\
+        synthetic_proportion, normal_coverage_proportion, set(
         pair_normal_bam_list).intersection(set(sampled_normal_bam_list + sampled_tumor_bam_list))))
 
     print(tumor_bam_fn is not None and synthetic_proportion == 1.0 and len(sampled_normal_bam_list + sampled_tumor_bam_list) == tumor_bin_num \
