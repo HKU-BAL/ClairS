@@ -218,27 +218,28 @@ def decode_pileup_bases(pileup_bases, reference_base,minimum_snp_af_for_candidat
         elif item[0] in 'ID':
             pass_indel_af = (pass_indel_af or (float(count) / denominator >= minimum_indel_af_for_candidate))
             continue
-        pass_snp_af = pass_snp_af or (float(count) / denominator >= minimum_snp_af_for_candidate) and (alternative_base_num is not None and count >= alternative_base_num)
+        pass_snv_af = pass_snv_af or (float(count) / denominator >= minimum_snv_af_for_candidate) and (
+                    alternative_base_num is not None and count >= alternative_base_num)
 
     af = (float(pileup_list[1][1]) / denominator) if len(pileup_list) > 1 else 0.0
     af = (float(pileup_list[0][1]) / denominator) if len(pileup_list) >= 1 and pileup_list[0][
         0] != reference_base else af
 
-    pass_af = (pass_snp_af or pass_indel_af) and pass_depth
+    pass_af = (pass_snv_af or pass_indel_af) and pass_depth
 
     if not pass_af:
         return base_list, depth, pass_af, af, "", "", ""
 
-    pileup_list = [[item[0], str(round(item[1]/denominator,3))] for item in pileup_list]
+    pileup_list = [[item[0], str(round(item[1] / denominator, 3))] for item in pileup_list]
     af_infos = ','.join([item[1] for item in pileup_list if item[0] != reference_base])
 
     alt_list = sorted(list(alt_dict.items()), key=lambda x: x[1], reverse=True)
-    alt_list = [[item[0], str(round(item[1]/denominator,3))] for item in alt_list]
+    alt_list = [[item[0], str(round(item[1] / denominator, 3))] for item in alt_list]
     pileup_infos = ' '.join([item[0] + ':' + item[1] for item in alt_list])
 
     if tumor_alt_dict is not None:
         tumor_alt_list = sorted(list(tumor_alt_dict.items()), key=lambda x: x[1], reverse=True)
-        tumor_alt_list = [[item[0], str(round(item[1]/denominator,3))] for item in tumor_alt_list]
+        tumor_alt_list = [[item[0], str(round(item[1] / denominator, 3))] for item in tumor_alt_list]
         tumor_pileup_infos = ' '.join([item[0] + ':' + item[1] for item in tumor_alt_list])
     else:
         tumor_pileup_infos = ""
@@ -603,7 +604,7 @@ def main():
     parser.add_argument('--min_bq', type=int, default=param.min_bq,
                         help="EXPERIMENTAL: If set, bases with base quality with <$min_bq are filtered, default: %(default)d")
 
-    parser.add_argument('--max_depth', type=int, default=param.max_depth,
+    parser.add_argument('--max_depth', type=int, default=None,
                         help="EXPERIMENTAL: Maximum depth to be processed. default: %(default)s")
 
     parser.add_argument('--alternative_base_num', type=int, default=param.alternative_base_num,
