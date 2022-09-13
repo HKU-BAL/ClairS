@@ -85,7 +85,7 @@ def select_hetero_snp_for_phasing(args):
                 intersect_pos_set.add(pos)
                 # variant_dict[pos][-1] += ':' + ':'.join(row.split(':')[-2:])
 
-    var_pct_full = 0.2
+    var_pct_full = 0.1
     # if found_qual_cut_off:
     #     remove_low_qual_list = [[k,v] for k,v in normal_qual_dict.items() if v < phase_qual_cut_off ]
     # else:
