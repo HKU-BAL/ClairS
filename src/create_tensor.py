@@ -182,7 +182,7 @@ def get_tensor_info(base_info, bq, ref_base, read_mq=None, is_tumor=False):
     return read_channel, ins_base, query_base
 
 
-def decode_pileup_bases(pos, pileup_bases, reference_base, minimum_snp_af_for_candidate, minimum_indel_af_for_candidate,
+def decode_pileup_bases(pos, pileup_bases, reference_base, minimum_snv_af_for_candidate, minimum_indel_af_for_candidate,
                         has_pileup_candidates, candidates_type_dict, is_tumor, platform="ont"):
     """
     Decode mpileup input string.
@@ -235,30 +235,31 @@ def decode_pileup_bases(pos, pileup_bases, reference_base, minimum_snp_af_for_ca
         elif len(key) > 1 and key[1] == '-':
             pileup_dict['D'] += count
 
-    minimum_snp_af_for_candidate = minimum_snp_af_for_candidate if minimum_snp_af_for_candidate > 0 else param.min_af
-    minimum_indel_af_for_candidate = minimum_indel_af_for_candidate if minimum_indel_af_for_candidate > 0 else param.min_af_dict[platform]
+    minimum_snv_af_for_candidate = minimum_snv_af_for_candidate if minimum_snv_af_for_candidate > 0 else param.min_af
+    minimum_indel_af_for_candidate = minimum_indel_af_for_candidate if minimum_indel_af_for_candidate > 0 else \
+    param.min_af_dict[platform]
 
     denominator = depth if depth > 0 else 1
     pileup_list = sorted(list(pileup_dict.items()), key=lambda x: x[1], reverse=True)
 
-    pass_snp_af = False
+    pass_snv_af = False
     pass_indel_af = False
 
     for item, count in pileup_list:
-        if pass_snp_af or pass_indel_af:
+        if pass_snv_af or pass_indel_af:
             break
         if item == reference_base:
             continue
         elif item[0] in 'ID':
             pass_indel_af = (pass_indel_af or (float(count) / denominator >= minimum_indel_af_for_candidate))
             continue
-        pass_snp_af = pass_snp_af or (float(count) / denominator >= minimum_snp_af_for_candidate)
+        pass_snv_af = pass_snv_af or (float(count) / denominator >= minimum_snv_af_for_candidate)
 
     af = (float(pileup_list[1][1]) / denominator) if len(pileup_list) > 1 else 0.0
     af = (float(pileup_list[0][1]) / denominator) if len(pileup_list) >= 1 and pileup_list[0][
         0] != reference_base else af
 
-    pass_af = pass_snp_af or pass_indel_af
+    pass_af = pass_snv_af or pass_indel_af
 
     return base_list, depth, pass_af, af
 
@@ -317,10 +318,10 @@ def find_tumor_alt_match(center_pos, sorted_read_name_list, pileup_dict, truths_
         tumor_reads = [read_name for (hap, _, read_name) in sorted_read_name_list if read_name.startswith('t')]
         normal_reads = [read_name for (hap, _, read_name) in sorted_read_name_list if read_name.startswith('n')]
     ref_base, alt_base = truths_variant_dict[center_pos].reference_bases, \
-                             truths_variant_dict[center_pos].alternate_bases[0]
+                         truths_variant_dict[center_pos].alternate_bases[0]
     is_ins = len(alt_base) > 1 and len(ref_base) == 1
     is_del = len(ref_base) > 1 and len(alt_base) == 1
-    is_snp = len(ref_base) == 1 and len(alt_base) == 1
+    is_snv = len(ref_base) == 1 and len(alt_base) == 1
 
     matched_read_name_set = set()
     normal_read_name_set = set(normal_reads)
@@ -333,7 +334,7 @@ def find_tumor_alt_match(center_pos, sorted_read_name_list, pileup_dict, truths_
                 matched_read_name_set.add(read_name)
             elif is_del and indel[1:].upper() == ref_base[1:]:
                 matched_read_name_set.add(read_name)
-            elif is_snp and base_upper == alt_base:
+            elif is_snv and base_upper == alt_base:
                 matched_read_name_set.add(read_name)
     return matched_read_name_set, normal_read_name_set, tumor_read_name_set
 
@@ -352,7 +353,8 @@ def generate_tensor(ctg_name,
                     candidates_type_dict,
                     use_tensor_sample_mode=False,
                     truths_variant_dict=None,
-                    proportion=None):
+                    proportion=None,
+                    keep_phase_only=False):
     """
     Generate full alignment input tensor
     ctg_name: provided contig name.
