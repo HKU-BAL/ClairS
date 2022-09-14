@@ -32,25 +32,30 @@ NORMAL_HAP_TYPE = dict(zip((1, 0, 2), (13, 25, 37)))  # set normal hap tag
 # TUMOR_HAP_TYPE = dict(zip((1, 0, 2), (75, 88, 100)))  # set tumor hap tag
 TUMOR_HAP_TYPE = dict(zip((1, 0, 2), (50, 75, 100)))  # set tumor hap tag
 
+
+NORMAL_HAP_TYPE = dict(zip((1, 0, 2), (-90, -60, -30)))  # set normal hap tag
+# TUMOR_HAP_TYPE = dict(zip((1, 0, 2), (75, 88, 100)))  # set tumor hap tag
+TUMOR_HAP_TYPE = dict(zip((1, 0, 2), (30, 60, 90)))  # set tumor hap tag
+
 # NORMAL_HAP_TYPE = dict(zip((1, 0, 2), (13, 50, 37)))  # set normal hap tag
 # TUMOR_HAP_TYPE = dict(zip((1, 0, 2), (75, 100, 88)))  # set tumor hap tag
 ACGT_NUM = dict(zip("ACGT+-*#N", (100, 25, 75, 50, -50, -100, 0, 0, 100)))
 
 
-def _normalize_bq(x, platform='ont'):
+def normalize_bq(x, platform='ont'):
+    MAX_BQ = ONT_MAX_BQ
     if platform == "ilmn":
         # only work for short reads
         x = x // 10 * 10
-    return int(NORMALIZE_NUM * min(x, MAX_BQ) / MAX_BQ)
+        MAX_BQ = ILMN_MAX_BQ
+    return int(2 * NORMALIZE_NUM * min(x, MAX_BQ) / MAX_BQ - NORMALIZE_NUM)
 
 
-def _normalize_mq(x):
+def normalize_mq(x):
     x = 0 if x <= 20 else (20 if x <= 40 else 60)
-    return int(NORMALIZE_NUM * min(x, MAX_MQ) / MAX_MQ)
+    return int(2 * NORMALIZE_NUM * min(x, MAX_MQ) / MAX_MQ - NORMALIZE_NUM)
 
 
-def _normalize_af(x):
-    return int(NORMALIZE_NUM * min(x, MAX_AF) / MAX_AF)
 
 
 class Position(object):
@@ -79,8 +84,8 @@ class Position(object):
         # only proceed when variant exists in candidate windows which greatly improves efficiency
         self.read_name_dict = dict(zip(self.read_name_list, self.base_list))
         self.update_info = True
-        self.mapping_quality = [_normalize_mq(phredscore2raw_score(item)) for item in self.raw_mapping_quality]
-        self.base_quality = [_normalize_bq(phredscore2raw_score(item), platform) for item in self.raw_base_quality]
+        self.mapping_quality = [normalize_mq(phredscore2raw_score(item)) for item in self.raw_mapping_quality]
+        self.base_quality = [normalize_bq(phredscore2raw_score(item), platform) for item in self.raw_base_quality]
 
         for read_name, base_info, bq, mq in zip(self.read_name_list, self.base_list, self.base_quality,
                                                 self.mapping_quality):
@@ -375,6 +380,9 @@ def generate_tensor(ctg_name,
     tensor_shape = param.ont_input_shape if platform == 'ont' else param.input_shape
     reference_base = ref_seq[flanking_base_num]
     tensor_depth = len(sorted_read_name_list)
+
+    use_alt_base = False if platform == 'ont' else param.use_alt_base
+
     if tensor_depth == 0:
         return None, None
     tensor = [[[0] * tensor_shape[2] for _ in range(tensor_shape[1])] for _ in range(tensor_depth)]
@@ -428,7 +436,7 @@ def generate_tensor(ctg_name,
                                                                                                         truths_variant_dict,
                                                                                                         proportion=proportion)
         if len(tumor_reads_meet_alt_info_set) == 0:
-            print ("No reads support tumor alternative in pos:{}".format(center_pos))
+            print("No reads support tumor alternative in pos:{}".format(center_pos))
             return None, None
         # print(len(tumor_reads_meet_alt_info_set), len(normal_read_name_set), len(tumor_read_name_set))
         tumor_read_name_list = list(tumor_read_name_set)
@@ -441,6 +449,7 @@ def generate_tensor(ctg_name,
 
         if param.use_beta_subsampling:
             beta_acc_per = param.beta_acc_per
+            sampled_reads_num_list.append(len(tumor_read_name_list))
             for s_idx in range(3):
                 random.seed(center_pos + s_idx)
                 random_af = random.random()
@@ -468,7 +477,6 @@ def generate_tensor(ctg_name,
         #                           min_tumor_support_read_num is None or read_num >= min_tumor_support_read_num]
 
         for read_num in sampled_reads_num_list:
-            use_alt_base = param.use_alt_base
 
             sampled_tumor_read_name_list = random.sample(tumor_read_name_list, read_num)
             sampled_tumor_read_name_meet_alt_set = set(sampled_tumor_read_name_list).intersection(
@@ -494,7 +502,9 @@ def generate_tensor(ctg_name,
             alt_base_num = 0
             for row_idx, (hap, _, read_name) in enumerate(sorted_read_name_list):
                 if read_name in re_sorted_read_name_set:
-                    if use_alt_base and read_name not in sampled_tumor_read_name_meet_alt_set and tensor[row_idx][flanking_base_num][1] == ACGT_NUM[truths_variant_dict[center_pos].alternate_bases[0]]:
+                    if use_alt_base and read_name not in sampled_tumor_read_name_meet_alt_set and \
+                            tensor[row_idx][flanking_base_num][1] == ACGT_NUM[
+                        truths_variant_dict[center_pos].alternate_bases[0]]:
                         tensor_copy = deepcopy(tensor[row_idx])
                         tensor_copy[flanking_base_num][1] = 0
                         tmp_tensor.append(tensor_copy)
