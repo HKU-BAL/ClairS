@@ -487,7 +487,7 @@ def somatic_calling(args):
 
     # STEP 1: EXTRACT CANDIDATES
     echo_list.append("[INFO] STEP 1: Extract Candidates")
-    ec_command = 'time ' + args.parallel
+    ec_command = '(time ' + args.parallel
     ec_command += ' --joblog ' + args.output_dir + '/logs/parallel_1_extract_tumor_candidates.log'
     ec_command += ' -C " " -j ' + str(args.threads)
     ec_command += ' ' + args.pypy + ' ' + main_entry + ' extract_pair_candidates'
@@ -503,42 +503,40 @@ def somatic_calling(args):
     ec_command += ' --bed_fn ' + str(args.bed_fn)
     ec_command += ' --extend_bed ' + str(args.bed_fn)
     ec_command += ' --candidates_folder ' + args.output_dir + '/tmp/candidates'
-    ec_command += ' --test_pos False '
     ec_command += ' --output_depth True '
     ec_command += ' :::: ' + os.path.join(args.output_dir, 'tmp', 'CHUNK_LIST')
-    ec_command += ' |& tee ' + args.output_dir + '/logs/1_EC.log'
+    ec_command += ') |& tee ' + args.output_dir + '/logs/1_EC.log'
     ec_command += ' && cat {}/tmp/candidates/CANDIDATES_FILE_* > {}/tmp/candidates/CANDIDATES_FILES '.format(args.output_dir, args.output_dir)
 
     # STEP 2: CREATE PAIR TENSOR
-    echo_list.append("[INFO] STEP 2: Create Pair Tensor")
-    cpt_command = 'time ' + args.parallel
-    cpt_command += ' --joblog ' + args.output_dir + '/logs/parallel_2_create_pair_tensor.log'
+    echo_list.append("[INFO] STEP 2: Pileup Model Calling\n")
+    echo_list[-1] += ("[INFO] Create Pair Tensor")
+    cpt_command = '(time ' + args.parallel
+    cpt_command += ' --joblog ' + args.output_dir + '/logs/parallel_2-1_create_pair_tensor.log'
     cpt_command += ' -j ' + str(args.threads)
-    cpt_command += ' ' + args.pypy + ' ' + main_entry + ' create_pair_tensor' + "_pileup" if args.pileup else ""
+    cpt_command += ' ' + args.pypy + ' ' + main_entry + ' create_pair_tensor_pileup'
     cpt_command += ' --normal_bam_fn ' + args.normal_bam_fn
     cpt_command += ' --tumor_bam_fn ' + args.tumor_bam_fn
     cpt_command += ' --ref_fn ' + args.ref_fn
-    cpt_command += ' --ctg_name ' + str(args.ctg_name)
+    cpt_command += ' --ctg_name {1/.}'
     cpt_command += ' --samtools ' + args.samtools
     cpt_command += ' --candidates_bed_regions {1}'
     cpt_command += ' --tensor_can_fn ' + args.output_dir + '/tmp/tensor_can/{1/} '
     cpt_command += ' --platform ' + args.platform
-    cpt_command += ' --test_pos False '
-
     cpt_command += ' :::: ' + args.output_dir + '/tmp/candidates/CANDIDATES_FILES'
-    cpt_command += ' |& tee ' + args.output_dir + '/logs/2_CPT.log'
+    cpt_command += ') |& tee ' + args.output_dir + '/logs/2-1_CPT.log'
 
     # STEP 3: PREDICT
-    echo_list.append("[INFO] STEP 3: Model Prediction")
-    predict_command = 'time ' + args.parallel
-    predict_command += ' --joblog ' + args.output_dir + '/logs/parallel_3_predict.log'
-    predict_command += ' -j ' + str(args.threads)
-    predict_command += ' ' + args.python + ' ' + main_entry + ' predict'
-    predict_command += ' --tensor_fn ' + args.output_dir + '/tmp/tensor_can/{1/} '
-    predict_command += ' --call_fn ' + args.output_dir + '/tmp/vcf_output/{1/}.vcf'
-    predict_command += ' --chkpnt_fn ' + args.model_dir
-    predict_command += ' --use_gpu ' + str(args.use_gpu)
-    predict_command += ' --platform ' + args.platform
+    echo_list.append("[INFO] Pileup Model Prediction")
+    p_predict_command = '(time ' + args.parallel
+    p_predict_command += ' --joblog ' + args.output_dir + '/logs/parallel_2-2_predict.log'
+    p_predict_command += ' -j ' + str(args.threads)
+    p_predict_command += ' ' + args.python + ' ' + main_entry + ' predict'
+    p_predict_command += ' --tensor_fn ' + args.output_dir + '/tmp/tensor_can/{1/} '
+    p_predict_command += ' --call_fn ' + args.output_dir + '/tmp/vcf_output/pileup_{1/}.vcf'
+    p_predict_command += ' --chkpnt_fn ' + args.pileup_model_path
+    p_predict_command += ' --use_gpu ' + str(args.use_gpu)
+    p_predict_command += ' --platform ' + args.platform
     if args.pileup:
         predict_command += ' --pileup '
     predict_command += ' :::: ' + args.output_dir + '/tmp/candidates/CANDIDATES_FILES'
@@ -819,6 +817,14 @@ def somatic_parser():
         "--chunk_list",
         type=str,
         default=None,
+        help=SUPPRESS
+    )
+
+    ##Apply realignment for short-read data
+    optional_params.add_argument(
+        "--enable_realignment",
+        type=str2bool,
+        default=True,
         help=SUPPRESS
     )
 
