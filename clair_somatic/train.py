@@ -1,14 +1,14 @@
 import logging
 import tables
 import sys
-
 import os
 import random
 import numpy as np
 import torch
+
+from tqdm import tqdm
 import torch.nn as nn
 import torch.optim as optim
-from time import time
 from subprocess import run
 from argparse import ArgumentParser, SUPPRESS
 from torch.optim.lr_scheduler import StepLR
@@ -16,13 +16,11 @@ from torch.utils.tensorboard import SummaryWriter
 import torch.nn.functional as F
 from torch.autograd import Variable
 
-from tqdm import tqdm
-
 from shared.utils import str2bool
 import shared.param as param
 import clair_somatic.model as model_path
 
-# reuqired package  torchsummary, tqdm tables,  einops
+# reuqired package  torchsummary, tqdm tables, einops
 logging.basicConfig(format='%(message)s', level=logging.INFO)
 tables.set_blosc_max_threads(512)
 os.environ['NUMEXPR_MAX_THREADS'] = '256'
@@ -36,7 +34,7 @@ torch.manual_seed(seed)
 torch.cuda.manual_seed(seed)
 torch.cuda.manual_seed_all(seed)
 torch.backends.cudnn.deterministic = True
-from torch.autograd import Variable
+
 #
 # class FocalLoss(nn.Module):
 #     def __init__(self, gamma=2, alpha=None, size_average=True):
@@ -203,6 +201,7 @@ def train_model(args):
     chkpnt_fn = args.chkpnt_fn
     ochk_prefix = args.ochk_prefix
     add_writer = args.add_writer
+    smoothing = args.smoothing
 
     add_validation_dataset = args.random_validation or (args.validation_fn is not None)
     validation_fn = args.validation_fn
@@ -286,7 +285,7 @@ def train_model(args):
     random.seed(param.RANDOM_SEED)
     np.random.seed(param.RANDOM_SEED)
     learning_rate = args.learning_rate if args.learning_rate else param.initialLearningRate
-    max_epoch = args.maxEpoch if args.maxEpoch else param.maxEpoch
+    max_epoch = args.max_epoch if args.max_epoch else param.maxEpoch
     bin_list = os.listdir(args.bin_fn)
 
     bin_list = [f for f in bin_list if pass_chr(f, ctg_name_list) and not exist_file_prefix(exclude_training_samples, f)]
@@ -386,10 +385,15 @@ def train_model(args):
                 # input_matrix = np.concatenate((normal_matrix, tumor_matrix), axis=1)
                 # if add_contrastive:
                 # label_for_normal = [[0,1] if np.argmax(item) == 1 else [1,0] for item in label]
+                positive = 1 - smoothing if smoothing is not None else 1
+                negative = smoothing if smoothing is not None else 0
                 if discard_germline:
-                    label_for_tumor = [[0,1] if np.argmax(item[:3]) == 2 else ([1,0] if np.argmax(item[:3]) == 1 else [1,0]) for item in label]
+                    label_for_tumor = [[negative,positive] if np.argmax(item[:3]) == 2 else \
+                                           ([positive,negative] if np.argmax(item[:3]) == 1 else [positive,negative]) for item in label]
                 else:
-                    label_for_tumor = [[0,0,1] if np.argmax(item[:3]) == 2 else ([0,1,0] if np.argmax(item[:3]) == 1 else [1,0,0]) for item in label]
+                    label_for_tumor = [[negative,negative,positive] if np.argmax(item[:3]) == 2 else \
+                                           ([negative,positive,negative] if np.argmax(item[:3]) == 1 else [positive,negative,negative]) for item in label]
+
                 # label_for_normal = np.array(label_for_normal, dtype=np.float32)
                 label_for_tumor = np.array(label_for_tumor, dtype=np.float32)
                 af_tensor = []
@@ -414,8 +418,11 @@ def train_model(args):
         from torchinfo import summary
         print (summary(model, input_size=tuple([100] + tensor_shape), device=device))
     else:
-        from torchsummary import summary
-        print(summary(model, input_size=(param.channel_size,param.max_depth,param.no_of_positions), device=device))
+        try:
+            from torchsummary import summary
+            print(summary(model, input_size=(param.channel_size,param.max_depth,param.no_of_positions), device=device))
+        except:
+            pass
     train_dataset_loder = DataGenerator(table_dataset_list, train_shuffle_chunk_list, True)
     validate_dataset_loder = DataGenerator(validate_table_dataset_list if validation_fn else table_dataset_list, validate_shuffle_chunk_list, False)
 
