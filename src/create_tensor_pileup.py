@@ -921,6 +921,8 @@ def create_tensor(args):
     pileup_info_dict = defaultdict()
     need_phasing_pos_list = sorted(list(candidates_pos_set))
     has_pileup_candidates = len(candidates_pos_set)
+    use_alt_base = False if platform == 'ont' else param.use_alt_base
+
     def samtools_pileup_generator_from(samtools_mpileup_process):
         current_pos_index = 0
         for row in samtools_mpileup_process.stdout:  # chr position N depth seq BQ read_name mapping_quality phasing_info
