@@ -25,14 +25,14 @@ channel_size = param.channel_size
 BASE2NUMBER = dict(zip("ACGTURYSWKMBDHVN-", (0, 1, 2, 3, 3, 0, 1, 1, 0, 2, 0, 1, 0, 0, 0, 0, 4)))
 NORMALIZE_NUM = param.NORMALIZE_NUM
 ILMN_MAX_BQ = 40.0
-ONT_MAX_BQ = 40.0
+ONT_MAX_BQ = 60.0
 MAX_MQ = 60.0
 MAX_AF = 1.0
 STRAND_0 = -100
 STRAND_1 = 100
 HAP_TYPE = dict(zip((1, 0, 2), (30, 60, 90)))  # hap1 UNKNOWN H2 # should be better using
 from src.create_tensor import NORMAL_HAP_TYPE, TUMOR_HAP_TYPE
-ACGT_NUM = dict(zip("ACGT+-*#N", (100, 25, 75, 50, -50, -100, 0, 0, 100)))
+ACGT_NUM = dict(zip("ACGT+-*#N", (100, 25, 75, 50, -50, -100, -100, -100, 100)))
 
 
 def normalize_bq(x, platform='ont'):
@@ -161,6 +161,7 @@ def get_tensor_info(base_info, bq, ref_base, read_mq=None, is_tumor=False, hp=0)
     query_base = ""
     read_channel = [0] * channel_size
     if base[0] in '*#':
+        read_channel[1] = ACGT_NUM[base[0]]
         return read_channel, ins_base, query_base
     strand = STRAND_1
     if base[0] in 'ACGT':
@@ -675,8 +676,6 @@ def create_pair_tensor(args):
     vcf_fn = args.vcf_fn
     is_known_vcf_file_provided = vcf_fn is not None
     tensor_sample_mode = args.tensor_sample_mode
-    global test_pos
-    test_pos = None
     hetero_snv_pos_dict = defaultdict()
     hetero_snv_tree = IntervalTree()
     candidates_pos_set = set()

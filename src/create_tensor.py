@@ -22,11 +22,12 @@ flanking_base_num = param.flankingBaseNum
 channel_size = param.channel_size
 BASE2NUMBER = dict(zip("ACGTURYSWKMBDHVN-", (0, 1, 2, 3, 3, 0, 1, 1, 0, 2, 0, 1, 0, 0, 0, 0, 4)))
 NORMALIZE_NUM = param.NORMALIZE_NUM
-MAX_BQ = 40.0
+ILMN_MAX_BQ = 40.0
+ONT_MAX_BQ = 60.0
 MAX_MQ = 60.0
 MAX_AF = 1.0
-STRAND_0 = 100
-STRAND_1 = 50
+STRAND_0 = -100
+STRAND_1 = 100
 HAP_TYPE = dict(zip((1, 0, 2), (30, 60, 90)))  # hap1 UNKNOWN H2 # should be better using
 NORMAL_HAP_TYPE = dict(zip((1, 0, 2), (13, 25, 37)))  # set normal hap tag
 # TUMOR_HAP_TYPE = dict(zip((1, 0, 2), (75, 88, 100)))  # set tumor hap tag
@@ -39,7 +40,7 @@ TUMOR_HAP_TYPE = dict(zip((1, 0, 2), (30, 60, 90)))  # set tumor hap tag
 
 # NORMAL_HAP_TYPE = dict(zip((1, 0, 2), (13, 50, 37)))  # set normal hap tag
 # TUMOR_HAP_TYPE = dict(zip((1, 0, 2), (75, 100, 88)))  # set tumor hap tag
-ACGT_NUM = dict(zip("ACGT+-*#N", (100, 25, 75, 50, -50, -100, 0, 0, 100)))
+ACGT_NUM = dict(zip("ACGT+-*#N", (100, 25, 75, 50, -50, -100, -100, -100, 100)))
 
 
 def normalize_bq(x, platform='ont'):
