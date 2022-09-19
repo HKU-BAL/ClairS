@@ -410,6 +410,11 @@ def get_candidates(args):
         # random sample reference calls in training mode, with seed
         random.seed(0)
         references = random.sample(references, int(len(references) * maximum_non_variant_ratio))
+        random.seed(0)
+        homo_germline = random.sample(homo_germline, int(len(homo_germline) * maximum_non_variant_ratio))
+        random.seed(0)
+        hetero_germline = random.sample(hetero_germline, int(len(hetero_germline) * maximum_non_variant_ratio))
+
     fp_list = homo_germline + references + hetero_germline
 
     homo_somatic_set = sorted(list(tumor_homo_variant_set - normal_variant_set))
