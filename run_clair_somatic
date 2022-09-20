@@ -553,6 +553,7 @@ def somatic_calling(args):
     commands_list = [ec_command, cpt_command, predict_command, mv_command]
     # EXECUTE COMMAND
     skip_steps = args.skip_steps.rstrip().split(',') if args.skip_steps else None
+    stdout = sys.stdout if args.tee is None else args.tee.stdin
     for i, (command, echo) in enumerate(zip(commands_list, echo_list)):
 
         logging(echo)
@@ -638,19 +639,19 @@ def somatic_parser():
 
     optional_params = parser.add_argument_group('Optional parameters')
     optional_params.add_argument(
-        "-n",
-        "--normal_bam_fn",
+        "-P",
+        "--pileup_model_path",
         type=str,
         default=None,
-        help="Normal BAM file input. The input file must be samtools indexed."
+        help="Pileup somatic model path."
     )
 
     optional_params.add_argument(
-        "-m",
-        "--model_dir",
+        "-F",
+        "--full_alignment_model_path",
         type=str,
         default=None,
-        help="The folder path containing a somatic model."
+        help="Full-alignment somatic model path."
     )
 
     optional_params.add_argument(
