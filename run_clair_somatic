@@ -555,24 +555,22 @@ def somatic_calling(args):
     skip_steps = args.skip_steps.rstrip().split(',') if args.skip_steps else None
     for i, (command, echo) in enumerate(zip(commands_list, echo_list)):
 
-        print(echo)
-        print("[INFO] RUN THE FOLLOWING COMMAND:")
-        print(command)
-        print("")
+        logging(echo)
+        logging("[INFO] RUN THE FOLLOWING COMMAND:")
+        logging(command)
         if not args.dry_run:
             if skip_steps is not None and str(i+1) in skip_steps:
-                print("[INFO] --skip_steps is enabled, skip running step {}!".format(i+1))
-                print("")
+                logging("[INFO] --skip_steps is enabled, skip running step {}!".format(i+1))
+                logging("")
                 continue
             try:
-                return_code = subprocess.check_call(command, shell=True)
+                return_code = subprocess.check_call(command, shell=True, stdout=stdout)
             except subprocess.CalledProcessError as e:
                 sys.stderr.write("ERROR in STEP {}, THE FOLLOWING COMMAND FAILED: {}\n".format(i+1, command))
                 exit(1)
+        logging("")
 
-        print("")
-
-    print("[INFO] Finish calling, output file: {}/somatic_output.vcf.gz".format(args.output_dir))
+    logging("[INFO] Finish calling, output file: {}/somatic_output.vcf.gz\n".format(args.output_dir))
 
 
 def somatic_parser():
@@ -586,7 +584,15 @@ def somatic_parser():
 
     required_params = parser.add_argument_group('Required parameters')
     required_params.add_argument(
-        '-t',
+        "-N",
+        "--normal_bam_fn",
+        type=str,
+        default=None,
+        help="Normal BAM file input. The input file must be samtools indexed."
+    )
+
+    required_params.add_argument(
+        '-T',
         "--tumor_bam_fn",
         type=str,
         required=True,
@@ -613,7 +619,7 @@ def somatic_parser():
     )
 
     required_params.add_argument(
-        "-@",
+        "-t",
         "--threads",
         required=True,
         type=int,
