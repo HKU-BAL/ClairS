@@ -308,14 +308,13 @@ def extract_candidates(args):
     chunk_id = args.chunk_id - 1 if args.chunk_id else None  # 1-base to 0-base
     chunk_num = args.chunk_num
     is_full_aln_regions_given = full_aln_regions is not None
-    phasing_info_in_bam = args.phasing_info_in_bam
     phasing_window_size = args.phasing_window_size
-    extend_bp = param.extend_bp
-    minimum_snp_af_for_candidate = args.snp_min_af
+    # extend_bp = param.extend_bp
+    minimum_snv_af_for_candidate = args.snv_min_af
     minimum_indel_af_for_candidate = args.indel_min_af
-    minimum_snp_af_for_truth = args.min_truth_snp_af
-    minimum_indel_af_for_truth = args.min_truth_snp_af
-    alternative_base_num=args.alternative_base_num
+    minimum_snv_af_for_truth = args.min_truth_snv_af
+    minimum_indel_af_for_truth = args.min_truth_snv_af
+    alternative_base_num = args.alternative_base_num
     split_bed_size = param.split_bed_size
     candidates_folder = args.candidates_folder
     min_coverage = args.min_coverage
@@ -331,11 +330,12 @@ def extract_candidates(args):
     flankingBaseNum = param.flankingBaseNum
     vcf_fn = args.vcf_fn
     genotyping_mode = vcf_fn is not None
-    unified_vcf_fn = args.unified_vcf_fn
-    is_truth_vcf_provided = unified_vcf_fn is not None
+    truth_vcf_fn = args.truth_vcf_fn
+    is_truth_vcf_provided = truth_vcf_fn is not None
+
     truths_variant_dict = {}
     if is_truth_vcf_provided:
-        unified_vcf_reader = VcfReader(vcf_fn=unified_vcf_fn, ctg_name=ctg_name, is_var_format=False)
+        unified_vcf_reader = VcfReader(vcf_fn=truth_vcf_fn, ctg_name=ctg_name, is_var_format=False)
         unified_vcf_reader.read_vcf()
         truths_variant_dict = unified_vcf_reader.variant_dict
 
