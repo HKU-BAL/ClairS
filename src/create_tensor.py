@@ -574,29 +574,41 @@ def generate_tensor(ctg_name,
             tensor_string_list.append(" ".join(
                 (" ".join(" ".join(str(x) for x in innerlist) for innerlist in outerlist)) for outerlist in tmp_tensor))
 
-            if add_hetero_phasing and candidates_type_dict[center_pos] == 'hetero_somatic':
+            if add_hetero_phasing and candidates_type_dict[center_pos] != 'homo_somatic':
                 HAP_TYPE = TUMOR_HAP_TYPE if is_tumor else NORMAL_HAP_TYPE
+                unphased_num = TUMOR_HAP_TYPE[0] if is_tumor else NORMAL_HAP_TYPE[0]
                 all_hap = [item[0] for item in sorted_read_name_list]
                 # skip if no phased reads exist
                 if sum(all_hap) != 0:
 
-                    sorted_phased_read_name_list = sorted(sorted_read_name_list, key=lambda x: x[0])
+                    # require phasable haplotype for hetero somatic
+                    if candidates_type_dict[center_pos] == 'hetero_somatic':
+                        hap_counter = Counter([hap_dict[rn] for rn in sampled_tumor_read_name_meet_alt_set])
+                        if hap_counter[1] * hap_counter[2] > 0:
+                            # print(hap_counter[1], hap_counter[2])
+                            continue
+
+                    sorted_phased_read_name_list = sorted(sorted_read_name_list, key=lambda x: (x[0], x[1]))
                     phase_read_name_index_mapping = [item[1] for item in sorted_phased_read_name_list]
 
-                    phased_tensor = [tensor[read_idx] for read_idx in phase_read_name_index_mapping]
+                    phased_tensor = [deepcopy(tensor[read_idx]) for read_idx in phase_read_name_index_mapping]
 
                     for row_idx in range(len(phased_tensor)):
                         hap = sorted_phased_read_name_list[row_idx][0]
                         if hap in HAP_TYPE:
                             for p in range(no_of_positions):
-                                if phased_tensor[row_idx][p][5] > 0:
+                                if phased_tensor[row_idx][p][5] == unphased_num:
                                     phased_tensor[row_idx][p][5] = HAP_TYPE[hap]
 
                     phasing_tensor_string = " ".join(
                         (" ".join(" ".join(str(x) for x in innerlist) for innerlist in outerlist)) for outerlist in
                         phased_tensor)
-                    tensor_string_list.append(phasing_tensor_string)
-                    alt_info_list.append(alt_info)
+                    if keep_phase_only:
+
+                        tensor_string_list[-1] = phasing_tensor_string
+                    else:
+                        tensor_string_list.append(phasing_tensor_string)
+                        alt_info_list.append(alt_info)
 
         variant_type = candidates_type_dict[center_pos] if center_pos in candidates_type_dict else 'unknown'
 
