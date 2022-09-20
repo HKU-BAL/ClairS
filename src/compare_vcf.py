@@ -33,6 +33,7 @@ def compare_vcf(args):
     skip_genotyping = args.skip_genotyping
     input_filter_tag = args.input_filter_tag
     truth_filter_tag = args.truth_filter_tag
+    remove_fn_out_of_fp_bed = args.remove_fn_out_of_fp_bed
     fp_bed_tree = bed_tree_from(bed_file_path=bed_fn, contig_name=ctg_name)
     # fp_bed_tree = {}
 
@@ -44,6 +45,15 @@ def compare_vcf(args):
     input_vcf_reader.read_vcf()
     input_variant_dict = input_vcf_reader.variant_dict
 
+    strat_bed_tree_list = []
+    if args.strat_bed_fn is not None and ',' in args.strat_bed_fn:
+        for strat_bed_fn in args.strat_bed_fn.split(','):
+            strat_bed_tree_list.append(bed_tree_from(bed_file_path=strat_bed_fn, contig_name=ctg_name))
+    elif args.strat_bed_fn is not None:
+        strat_bed_tree_list = [bed_tree_from(bed_file_path=args.strat_bed_fn, contig_name=ctg_name)]
+
+
+    # print(len(truth_variant_dict), len(input_variant_dict))
 
     low_qual_truth = set()
     if high_confident_only:
@@ -56,6 +66,63 @@ def compare_vcf(args):
         output_file = open(output_fn, 'w')
     else:
         output_file = None
+
+
+    input_out_of_bed = 0
+    truth_out_of_bed = 0
+    
+    for key in list(input_variant_dict.keys()):
+        pos = key if ctg_name is not None else key[1]
+        contig = ctg_name if ctg_name is not None else key[0]
+        pass_bed_region = len(fp_bed_tree) == 0 or is_region_in(tree=fp_bed_tree,
+                                                                contig_name=contig,
+                                                                region_start=pos - 1,
+                                                                region_end=pos)
+
+
+        if not pass_bed_region:
+            del input_variant_dict[key]
+            input_out_of_bed += 1
+            continue
+
+        pass_straed_region = len(strat_bed_tree_list) == 0 or sum([1 if is_region_in(tree=strat_bed_tree,
+                                                                contig_name=contig,
+                                                                region_start=pos - 1,
+                                                                region_end=pos) else 0 for strat_bed_tree in strat_bed_tree_list]) == len(strat_bed_tree_list)
+
+        if not pass_straed_region and key in input_variant_dict:
+            del input_variant_dict[key]
+            input_out_of_bed += 1
+            continue
+
+        if high_confident_only and key in low_qual_truth:
+            continue
+
+    for key in list(truth_variant_dict.keys()):
+        pos = key if ctg_name is not None else key[1]
+        contig = ctg_name if ctg_name is not None else key[0]
+        pass_bed_region = len(fp_bed_tree) == 0 or is_region_in(tree=fp_bed_tree,
+                                                                contig_name=contig,
+                                                                region_start=pos - 1,
+                                                                region_end=pos)
+        if not pass_bed_region:
+            truth_out_of_bed += 1
+            del truth_variant_dict[key]
+            continue
+
+        if high_confident_only and key in low_qual_truth:
+            continue
+
+        pass_straed_region = len(strat_bed_tree_list) == 0 or sum([1 if is_region_in(tree=strat_bed_tree,
+                                                                contig_name=contig,
+                                                                region_start=pos - 1,
+                                                                region_end=pos) else 0 for strat_bed_tree in strat_bed_tree_list]) == len(strat_bed_tree_list)
+
+
+        if not pass_straed_region and key in truth_variant_dict:
+            del truth_variant_dict[key]
+            input_out_of_bed += 1
+            continue
 
     tp_snv, tp_ins, tp_del, fp_snv, fp_ins, fp_del, fn_snv, fn_ins, fn_del, fp_snv_truth, fp_ins_truth, fp_del_truth = 0,0,0,0,0,0,0,0,0,0,0,0
     truth_set = set()
