@@ -147,8 +147,9 @@ def get_tensor_info(base_info, bq, ref_base, read_mq=None):
     query_base = "" if base_upper not in "ACGT" else base_upper
     return read_channel, ins_base, query_base
 
-
-def decode_pileup_bases(pileup_bases, reference_base, minimum_snp_af_for_candidate, minimum_indel_af_for_candidate, alternative_base_num, has_pileup_candidates, read_name_list, is_tumor,platform="ont"):
+def decode_pileup_bases(pileup_bases, reference_base, min_coverage, minimum_snv_af_for_candidate,
+                        minimum_indel_af_for_candidate, alternative_base_num, has_pileup_candidates, read_name_list,
+                        is_tumor, platform="ont"):
     """
     Decode mpileup input string.
     pileup_bases: pileup base string for each position, include all mapping information.
@@ -190,7 +191,8 @@ def decode_pileup_bases(pileup_bases, reference_base, minimum_snp_af_for_candida
     base_counter = Counter([''.join(item) for item in base_list])
     alt_dict = dict(Counter([''.join(item).upper() for item in base_list]))
 
-    tumor_alt_dict = dict(Counter([''.join(item).upper() for item, read_name in zip(base_list, read_name_list) if read_name.startswith('t')])) if is_tumor else None
+    tumor_alt_dict = dict(Counter([''.join(item).upper() for item, read_name in zip(base_list, read_name_list) if
+                                   read_name.startswith('t')])) if is_tumor else None
     depth = 0
 
     for key, count in base_counter.items():
@@ -207,40 +209,42 @@ def decode_pileup_bases(pileup_bases, reference_base, minimum_snp_af_for_candida
     denominator = depth if depth > 0 else 1
     pileup_list = sorted(list(pileup_dict.items()), key=lambda x: x[1], reverse=True)
 
-    pass_snp_af = False
+    pass_snv_af = False
     pass_indel_af = False
 
-    pass_depth = depth > param.min_coverage
+    pass_depth = depth > min_coverage
     for item, count in pileup_list:
         if item == reference_base:
             continue
         elif item[0] in 'ID':
             pass_indel_af = (pass_indel_af or (float(count) / denominator >= minimum_indel_af_for_candidate))
             continue
-        pass_snp_af = pass_snp_af or (float(count) / denominator >= minimum_snp_af_for_candidate) and (alternative_base_num is not None and count >= alternative_base_num)
-        if pass_snp_af:
+        pass_snv_af = pass_snv_af or (float(count) / denominator >= minimum_snv_af_for_candidate) and (
+                    alternative_base_num is not None and count >= alternative_base_num)
+        if pass_snv_af:
             support_alt_base = item
 
     af = (float(pileup_list[1][1]) / denominator) if len(pileup_list) > 1 else 0.0
     af = (float(pileup_list[0][1]) / denominator) if len(pileup_list) >= 1 and pileup_list[0][
         0] != reference_base else af
 
-    pass_af = (pass_snp_af or pass_indel_af) and pass_depth
+    pass_af = (pass_snv_af or pass_indel_af) and pass_depth
 
     alt_list = sorted(list(alt_dict.items()), key=lambda x: x[1], reverse=True)
-    alt_list = [[item[0], str(round(item[1]/denominator,3))] for item in alt_list if item[0].upper() != reference_base]
+    alt_list = [[item[0], str(round(item[1] / denominator, 3))] for item in alt_list if
+                item[0].upper() != reference_base]
 
     if not pass_af:
         return base_list, depth, pass_af, af, "", "", "", alt_list
 
-    pileup_list = [[item[0], str(round(item[1]/denominator,3))] for item in pileup_list]
+    pileup_list = [[item[0], str(round(item[1] / denominator, 3))] for item in pileup_list]
     af_infos = ','.join([item[1] for item in pileup_list if item[0] != reference_base])
 
     pileup_infos = ' '.join([item[0] + ':' + item[1] for item in alt_list])
 
     if tumor_alt_dict is not None:
         tumor_alt_list = sorted(list(tumor_alt_dict.items()), key=lambda x: x[1], reverse=True)
-        tumor_alt_list = [[item[0], str(round(item[1]/denominator,3))] for item in tumor_alt_list]
+        tumor_alt_list = [[item[0], str(round(item[1] / denominator, 3))] for item in tumor_alt_list]
         tumor_pileup_infos = ' '.join([item[0] + ':' + item[1] for item in tumor_alt_list])
     else:
         tumor_pileup_infos = ""
