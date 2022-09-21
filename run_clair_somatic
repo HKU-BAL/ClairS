@@ -538,19 +538,81 @@ def somatic_calling(args):
     p_predict_command += ' --use_gpu ' + str(args.use_gpu)
     p_predict_command += ' --platform ' + args.platform
     if args.pileup:
-        predict_command += ' --pileup '
-    predict_command += ' :::: ' + args.output_dir + '/tmp/candidates/CANDIDATES_FILES'
-    predict_command += ' |& tee ' + args.output_dir + '/logs/3_PREDICT.log'
+        p_predict_command += ' --pileup '
+    p_predict_command += ' :::: ' + args.output_dir + '/tmp/candidates/CANDIDATES_FILES'
+    p_predict_command += ') |& tee ' + args.output_dir + '/logs/2-2_PREDICT.log'
 
     # STEP 4: MERGE VCF
-    echo_list.append("[INFO] STEP 4: Merge VCF")
-    mv_command = 'time ' + args.pypy + ' ' + main_entry + ' sort_vcf'
-    mv_command += ' --ref_fn ' + args.ref_fn
-    mv_command += ' --contigs_fn ' + os.path.join(args.output_dir, 'tmp', 'CONTIGS')
-    mv_command += ' --input_dir ' + args.output_dir + '/tmp/vcf_output'
-    mv_command += ' --output_fn ' + args.output_dir + '/somatic_output.vcf'
+    echo_list.append("[INFO] Merge Pileup VCF")
+    p_mv_command = 'time ' + args.pypy + ' ' + main_entry + ' sort_vcf'
+    p_mv_command += ' --ref_fn ' + args.ref_fn
+    p_mv_command += ' --contigs_fn ' + os.path.join(args.output_dir, 'tmp', 'CONTIGS')
+    p_mv_command += ' --input_dir ' + args.output_dir + '/tmp/vcf_output'
+    p_mv_command += ' --vcf_fn_prefix ' + 'pileup'
+    p_mv_command += ' --output_fn ' + args.output_dir + '/pileup.vcf'
 
-    commands_list = [ec_command, cpt_command, predict_command, mv_command]
+    commands_list = [ec_command, cpt_command, p_predict_command, p_mv_command]
+
+    # FA
+    echo_list.append("[INFO] STEP 3: Full-alignment Model Calling\n")
+    echo_list[-1] += "[INFO] Create FA Pair Tensor"
+    cpt_fa_command = '(time ' + args.parallel
+    cpt_fa_command += ' --joblog ' + args.output_dir + '/logs/parallel_3-1_create_pair_tensor_fa.log'
+    cpt_fa_command += ' -j ' + str(args.threads)
+    cpt_fa_command += ' ' + args.pypy + ' ' + main_entry + ' create_pair_tensor'
+    cpt_fa_command += ' --normal_bam_fn ' + args.normal_bam_fn
+    cpt_fa_command += ' --tumor_bam_fn ' + args.tumor_bam_fn
+    cpt_fa_command += ' --ref_fn ' + args.ref_fn
+    cpt_fa_command += ' --ctg_name {1/.}'
+    cpt_fa_command += ' --samtools ' + args.samtools
+    cpt_fa_command += ' --candidates_bed_regions {1}'
+    cpt_fa_command += ' --tensor_can_fn ' + args.output_dir + '/tmp/fa_tensor_can/{1/} '
+    cpt_fa_command += ' --platform ' + args.platform
+    cpt_fa_command += ' :::: ' + args.output_dir + '/tmp/candidates/CANDIDATES_FILES'
+    cpt_fa_command += ') |& tee ' + args.output_dir + '/logs/3-1_CPT.log'
+
+    # STEP 3: PREDICT
+    echo_list.append("[INFO] STEP 3: FA Model Prediction")
+    fa_predict_command = '(time ' + args.parallel
+    fa_predict_command += ' --joblog ' + args.output_dir + '/logs/parallel_3-2_predict.log'
+    fa_predict_command += ' -j ' + str(args.threads)
+    fa_predict_command += ' ' + args.python + ' ' + main_entry + ' predict'
+    fa_predict_command += ' --tensor_fn ' + args.output_dir + '/tmp/fa_tensor_can/{1/} '
+    fa_predict_command += ' --call_fn ' + args.output_dir + '/tmp/vcf_output/fa_{1/}.vcf'
+    fa_predict_command += ' --chkpnt_fn ' + args.full_alignment_model_path
+    fa_predict_command += ' --use_gpu ' + str(args.use_gpu)
+    fa_predict_command += ' --platform ' + args.platform
+    fa_predict_command += ' :::: ' + args.output_dir + '/tmp/candidates/CANDIDATES_FILES'
+    fa_predict_command += ') |& tee ' + args.output_dir + '/logs/3-2_PREDICT.log'
+
+    # STEP 4: MERGE VCF
+    echo_list.append("[INFO] STEP 4: Merge FA VCF")
+    fa_mv_command = 'time ' + args.pypy + ' ' + main_entry + ' sort_vcf'
+    fa_mv_command += ' --ref_fn ' + args.ref_fn
+    fa_mv_command += ' --contigs_fn ' + os.path.join(args.output_dir, 'tmp', 'CONTIGS')
+    fa_mv_command += ' --input_dir ' + args.output_dir + '/tmp/vcf_output'
+    fa_mv_command += ' --vcf_fn_prefix ' + 'fa'
+    fa_mv_command += ' --output_fn ' + args.output_dir + '/full_alignment.vcf'
+
+    commands_list += [cpt_fa_command, fa_predict_command,
+                     fa_mv_command]
+
+
+    if args.enable_realignment:
+        echo_list.append("[INFO] STEP 5: Short-read realignment")
+        realign_command = '( time ' + args.python + ' ' + main_entry + ' realign_variants'
+        realign_command += ' --bam_fn ' + args.tumor_bam_fn
+        realign_command += ' --ref_fn ' + args.ref_fn
+        realign_command += ' --pileup_input_vcf_fn ' + args.output_dir + '/pileup.vcf.gz'
+        realign_command += ' --fa_input_vcf_fn ' + args.output_dir + '/full_alignment.vcf.gz'
+        realign_command += ' --output_vcf_fn ' + args.output_dir + '/output.vcf.gz'
+        realign_command += ' --samtools ' + args.samtools
+        realign_command += ' --threads ' + str(args.threads)
+        realign_command += ') |& tee ' + args.output_dir + '/logs/3_REALIGN.log'
+
+        commands_list.append(realign_command)
+
+
     # EXECUTE COMMAND
     skip_steps = args.skip_steps.rstrip().split(',') if args.skip_steps else None
     stdout = sys.stdout if args.tee is None else args.tee.stdin
