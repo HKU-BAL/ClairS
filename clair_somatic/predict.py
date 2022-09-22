@@ -189,6 +189,96 @@ def tensor_generator_from(tensor_file_path, batch_size, pileup=False, min_rescal
         f.wait()
 
 
+
+def get_bins(tensor_file_path, batch_size=10000, pileup=False, platform='ont'):
+
+    def subprocess_popen(args, stdin=None, stdout=PIPE, stderr=stderr, bufsize=8388608):
+        return Popen(args, stdin=stdin, stdout=stdout, stderr=stderr, bufsize=bufsize, universal_newlines=True,
+                     shell=True)
+
+    if tensor_file_path != "PIPE":
+        f = subprocess_popen(shlex.split("{} -fdc {}".format('gzip', tensor_file_path)))
+        fo = f.stdout
+    else:
+        fo = sys.stdin
+
+    processed_tensors = 0
+    if pileup:
+        channel_size = param.pileup_channel_size
+        tensor_shape = [param.no_of_positions, channel_size * 2]
+    else:
+        tensor_shape = param.ont_input_shape if platform == 'ont' else param.input_shape
+    prod_tensor_shape = np.prod(tensor_shape)
+
+    # def item_from(row):
+    #
+    #     return tensor, pos, seq, normal_alt_info, tumor_alt_info, variant_type
+
+    tensors = np.empty(([batch_size, prod_tensor_shape]), dtype=np.dtype(float_type))
+    positions = []
+    normal_alt_info_list = []
+    tumor_alt_info_list = []
+    variant_type_list = []
+
+    for row in fo.readline():
+
+        contig, coord, seq, normal_tensor, normal_alt_info, tumor_tensor, tumor_alt_info, variant_type = row.split("\t")
+
+        # need add padding if depth is lower than maximum depth.
+        normal_matrix = [float(item) for item in normal_tensor.split()]
+        tumor_matrix = [float(item) for item in tumor_tensor.split()]
+
+        if pileup:
+            apply_normalize = False
+            channel_size = param.pileup_channel_size
+            tensor = []
+            for idx in range(param.no_of_positions):
+                if apply_normalize:
+                    normal_coverage = float(normal_alt_info.split('-')[0])
+                    tumor_coverage = float(tumor_alt_info.split('-')[0])
+                    tensor += [float(item) / normal_coverage for item in
+                               normal_matrix[idx * channel_size: (idx + 1) * channel_size]]
+                    tensor += [float(item) / tumor_coverage for item in
+                               tumor_matrix[idx * channel_size: (idx + 1) * channel_size]]
+                else:
+                    tensor += normal_matrix[idx * channel_size: (idx + 1) * channel_size]
+                    tensor += tumor_matrix[idx * channel_size: (idx + 1) * channel_size]
+        else:
+            normal_depth = len(normal_matrix) // tensor_shape[1] // tensor_shape[2]
+            tumor_depth = len(tumor_matrix) // tensor_shape[1] // tensor_shape[2]
+            tensor_depth = normal_depth + tumor_depth
+            center_padding_depth = param.center_padding_depth
+            padding_depth = tensor_shape[0] - tensor_depth - center_padding_depth
+            prefix_padding_depth = int(padding_depth / 2)
+            suffix_padding_depth = padding_depth - int(padding_depth / 2)
+            prefix_zero_padding = [0] * prefix_padding_depth * tensor_shape[1] * tensor_shape[2]
+            center_zero_padding = [0] * center_padding_depth * tensor_shape[1] * tensor_shape[2]
+            suffix_zero_padding = [0] * suffix_padding_depth * tensor_shape[1] * tensor_shape[2]
+            tensor = prefix_zero_padding + normal_matrix + center_zero_padding + tumor_matrix + suffix_zero_padding
+        tensor = np.array(tensor, dtype=np.dtype(float_type))
+
+
+        pos = contig + ":" + coord + ":" + seq
+
+        # for tensor, pos, seq, normal_alt_info, tumor_alt_info, variant_type in batch:
+        if seq[param.flankingBaseNum] not in "ACGT":
+            continue
+        tensors[len(positions)] = tensor
+        positions.append(pos)
+        normal_alt_info_list.append(normal_alt_info)
+        tumor_alt_info_list.append(tumor_alt_info)
+        variant_type_list.append(variant_type)
+
+        current_batch_size = len(positions)
+
+    X = np.reshape(tensors, ([batch_size] + tensor_shape))
+
+
+    if tensor_file_path != "PIPE":
+        fo.close()
+        f.wait()
+
+
 # def Run(args):
 #     os.environ["OMP_NUM_THREADS"] = "1"
 #     os.environ["OPENBLAS_NUM_THREADS"] = "1"
@@ -203,52 +293,52 @@ def tensor_generator_from(tensor_file_path, batch_size, pileup=False, min_rescal
 #
 #     predict(args=args)
 
-def batch_output_for_ensemble(X, batch_chr_pos_seq, alt_info_list, batch_Y, output_config, output_utilities):
-    batch_size = len(batch_chr_pos_seq)
-    batch_gt21_probabilities, batch_genotype_probabilities, = batch_Y
-
-    if len(batch_gt21_probabilities) != batch_size:
-        sys.exit(
-            "Inconsistent shape between input tensor and output predictions %d/%d" %
-            (batch_size, len(batch_gt21_probabilities))
-        )
-
-    tensor_position_center = param.flankingBaseNum
-
-    for (
-            x,
-            chr_pos_seq,
-            gt21_probabilities,
-            genotype_probabilities,
-            alt_info
-    ) in zip(
-        X,
-        batch_chr_pos_seq,
-        batch_gt21_probabilities,
-        batch_genotype_probabilities,
-        alt_info_list
-    ):
-        if output_config.tensor_fn != 'PIPE':
-            chromosome, position, reference_sequence = chr_pos_seq.decode().rstrip().split(":")
-        else:
-            chromosome, position, reference_sequence = chr_pos_seq
-
-        position = int(position)
-
-        if reference_sequence[tensor_position_center] not in BASIC_BASES:
-            continue
-
-        output_utilities.output(
-            "\t".join(
-                [
-                    chromosome,
-                    str(position),
-                    reference_sequence,
-                    alt_info.decode(),
-                    ' '.join(["{:0.6f}".format(p) for p in list(gt21_probabilities)]),
-                    ' '.join(["{:0.6f}".format(p) for p in list(genotype_probabilities)])]
-            )
-        )
+# def batch_output_for_ensemble(X, batch_chr_pos_seq, alt_info_list, batch_Y, output_config, output_utilities):
+#     batch_size = len(batch_chr_pos_seq)
+#     batch_gt21_probabilities, batch_genotype_probabilities, = batch_Y
+#
+#     if len(batch_gt21_probabilities) != batch_size:
+#         sys.exit(
+#             "Inconsistent shape between input tensor and output predictions %d/%d" %
+#             (batch_size, len(batch_gt21_probabilities))
+#         )
+#
+#     tensor_position_center = param.flankingBaseNum
+#
+#     for (
+#             x,
+#             chr_pos_seq,
+#             gt21_probabilities,
+#             genotype_probabilities,
+#             alt_info
+#     ) in zip(
+#         X,
+#         batch_chr_pos_seq,
+#         batch_gt21_probabilities,
+#         batch_genotype_probabilities,
+#         alt_info_list
+#     ):
+#         if output_config.tensor_fn != 'PIPE':
+#             chromosome, position, reference_sequence = chr_pos_seq.decode().rstrip().split(":")
+#         else:
+#             chromosome, position, reference_sequence = chr_pos_seq
+#
+#         position = int(position)
+#
+#         if reference_sequence[tensor_position_center] not in BASIC_BASES:
+#             continue
+#
+#         output_utilities.output(
+#             "\t".join(
+#                 [
+#                     chromosome,
+#                     str(position),
+#                     reference_sequence,
+#                     alt_info.decode(),
+#                     ' '.join(["{:0.6f}".format(p) for p in list(gt21_probabilities)]),
+#                     ' '.join(["{:0.6f}".format(p) for p in list(genotype_probabilities)])]
+#             )
+#         )
 
 
 def batch_output(output_file, batch_chr_pos_seq, normal_alt_info_list, tumor_alt_info_list, batch_Y):
