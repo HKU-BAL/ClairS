@@ -623,10 +623,10 @@ def predict(args):
 
 
 def main():
-    parser = ArgumentParser(description="Call variants using a trained model and tensors of candidate variants")
+    parser = ArgumentParser(description="Candidate variants probability prediction using tensors and a trained model")
 
     parser.add_argument('--platform', type=str, default="ont",
-                        help="Sequencing platform of the input. Options: 'ont,hifi,ilmn', default: %(default)s")
+                        help="Sequencing platform of the input, default: %(default)s")
 
     parser.add_argument('--tensor_fn', type=str, default="PIPE",
                         help="Tensor input filename, or stdin if not set")
@@ -637,11 +637,8 @@ def main():
     parser.add_argument('--call_fn', type=str, default=None,
                         help="VCF output filename, or stdout if not set")
 
-    parser.add_argument('--gvcf', type=str2bool, default=False,
-                        help="Enable GVCF output, default: disabled")
-
     parser.add_argument('--ref_fn', type=str, default=None,
-                        help="Reference fasta file input, required if --gvcf is enabled")
+                        help="Reference fasta file input")
 
     parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of the sequence to be processed")
@@ -661,15 +658,8 @@ def main():
     parser.add_argument('--samtools', type=str, default="samtools",
                         help="Path to the 'samtools', samtools version >= 1.10 is required, default: %(default)s")
 
-    # options for advanced users
-    parser.add_argument('--temp_file_dir', type=str, default='./',
-                        help="EXPERIMENTAL: The cache directory for storing temporary non-variant information if --gvcf is enabled, default: %(default)s")
-
-    parser.add_argument('--haploid_precise', action='store_true',
-                        help="EXPERIMENTAL: Enable haploid calling mode. Only 1/1 is considered as a variant")
-
-    parser.add_argument('--haploid_sensitive', action='store_true',
-                        help="EXPERIMENTAL: Enable haploid calling mode. 0/1 and 1/1 are considered as a variant")
+    parser.add_argument('--min_rescale_cov', type=int, default=None,
+                        help="Minimum rescale coverage for high-coverage calling data")
 
     # options for debug purpose
     parser.add_argument('--use_gpu', type=str2bool, default=False,
@@ -687,10 +677,6 @@ def main():
     # options for internal process control
     ## In pileup mode or not (full alignment mode), default: False
     parser.add_argument('--pileup', action='store_true',
-                        help=SUPPRESS)
-
-    ## Include indel length in training and calling, false for pileup and true for raw alignment
-    parser.add_argument('--add_indel_length', type=str2bool, default=False,
                         help=SUPPRESS)
 
     ## The number of chucks to be divided into for parallel processing
