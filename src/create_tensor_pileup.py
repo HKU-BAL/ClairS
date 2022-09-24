@@ -718,8 +718,8 @@ def create_tensor(args):
     phasing_info_in_bam = args.phasing_info_in_bam
     phasing_window_size = args.phasing_window_size
     extend_bp = param.extend_bp
-    unify_repre = args.unify_repre
-    minimum_af_for_candidate = args.min_af
+    # unify_repre = args.unify_repre
+    # minimum_af_for_candidate = args.min_af
     minimum_snp_af_for_candidate = args.snp_min_af
     minimum_indel_af_for_candidate = args.indel_min_af
     min_coverage = args.min_coverage
@@ -730,8 +730,7 @@ def create_tensor(args):
     is_extend_bed_file_given = extend_bed is not None
     min_mapping_quality = args.min_mq
     min_base_quality = args.min_bq
-    unify_repre_fn = args.unify_repre_fn
-    add_no_phasing_data_training = args.add_no_phasing_data_training
+    # unify_repre_fn = args.unify_repre_fn
     vcf_fn = args.vcf_fn
     is_known_vcf_file_provided = vcf_fn is not None
     tensor_sample_mode = args.tensor_sample_mode
@@ -872,8 +871,8 @@ def create_tensor(args):
     bed_option = ' -l {}'.format(
         extend_bed) if is_extend_bed_file_given else ""
     bed_option = ' -l {}'.format(candidates_bed_regions) if is_candidates_bed_regions_given else bed_option
-    flags_option = ' --excl-flags {}'.format(param.SAMTOOLS_VIEW_FILTER_FLAG)
-    max_depth_option = ' --max-depth {}'.format(args.max_depth) if args.max_depth > 0 else ""
+    flags_option = ' --excl-flags {} '.format(param.SAMTOOLS_VIEW_FILTER_FLAG)
+    max_depth_option = ' --max-depth {}'.format(args.max_depth) if args.max_depth is not None else " "
     reads_regions_option = ' -r {}'.format(" ".join(reads_regions)) if add_read_regions else ""
     # print (add_read_regions, ctg_start, ctg_end, reference_start)
     stdin = None if bam_file_path != "PIPE" else sys.stdin
@@ -890,11 +889,11 @@ def create_tensor(args):
     if tensor_can_output_path != "PIPE":
         tensor_can_fpo = open(tensor_can_output_path, "wb")
         tensor_can_fp = subprocess_popen(shlex.split("{} -c".format(args.zstd)), stdin=PIPE, stdout=tensor_can_fpo)
-    elif not unify_repre:
+    else:
         tensor_can_fp = TensorStdout(sys.stdout)
 
-    if unify_repre_fn:
-        label_fp = open(unify_repre_fn, 'w')
+    # if unify_repre_fn:
+    #     label_fp = open(unify_repre_fn, 'w')
     if alt_fn:
         output_alt_fn = alt_fn
         alt_fpo = open(output_alt_fn, "wb")
@@ -903,12 +902,11 @@ def create_tensor(args):
     hap_dict = defaultdict(int)
     haplotag_dict = defaultdict(int)
     pileup_dict = defaultdict(str)
-    phasing_read_seq = defaultdict(PhasingRead)
     extend_bp_distance = phasing_window_size if need_phasing else no_of_positions + param.extend_bp
-    confident_bed_tree = bed_tree_from(bed_file_path=confident_bed_fn,
-                                       contig_name=ctg_name,
-                                       bed_ctg_start=extend_start,
-                                       bed_ctg_end=extend_end)
+    # confident_bed_tree = bed_tree_from(bed_file_path=confident_bed_fn,
+    #                                    contig_name=ctg_name,
+    #                                    bed_ctg_start=extend_start,
+    #                                    bed_ctg_end=extend_end)
 
     extend_bed_tree = bed_tree_from(bed_file_path=extend_bed,
                                     contig_name=ctg_name,
@@ -1041,7 +1039,6 @@ def create_tensor(args):
         if pos not in alt_info_dict:
             continue
         if use_tensor_sample_mode:
-            use_alt_base = param.use_alt_base
             base_list, read_name_list = pileup_info_dict[pos][0], pileup_info_dict[pos][1]
             read_name_dict = dict(zip(read_name_list, base_list))
             center_pos = pos
@@ -1065,7 +1062,6 @@ def create_tensor(args):
             max_af_for_sampling = 1.0
             chunk_read_size = 4
             min_tumor_support_read_num = param.min_tumor_support_read_num
-            min_tumor_support_read_num = 3
             tumor_read_name_list = list(tumor_read_name_set)
             normal_read_name_list = list(normal_read_name_set)
             tumor_reads_num = len(tumor_read_name_set)
@@ -1074,9 +1070,11 @@ def create_tensor(args):
             paired_reads_num = len(normal_read_name_set)
             sampled_reads_num_list = []
 
+            partition = 3
             if param.use_beta_subsampling:
                 beta_acc_per = param.beta_acc_per
-                for s_idx in range(3):
+                sampled_reads_num_list.append(len(tumor_read_name_list))
+                for s_idx in range(partition):
                     random.seed(pos + s_idx)
                     random_af = random.random()
                     af = None
@@ -1086,12 +1084,12 @@ def create_tensor(args):
                             break
                     if af == None:
                         continue
+
                     sampled_read_num = int((len(tumor_read_name_set) * af) / tumor_read_porportion)
                     if sampled_read_num >= min_tumor_support_read_num and sampled_read_num <= len(tumor_read_name_set):
                         sampled_reads_num_list.append(sampled_read_num)
 
             elif param.use_exp_subsampling:
-                partition = 5
                 for p in range(1, partition):
                     af = 1 / float(2 ** p)
                     sampled_read_num = int((len(tumor_read_name_set) * af ) / tumor_read_porportion)
@@ -1226,7 +1224,7 @@ def create_tensor(args):
     samtools_mpileup_process.stdout.close()
     samtools_mpileup_process.wait()
 
-    if not unify_repre and tensor_can_output_path != "PIPE":
+    if tensor_can_output_path != "PIPE":
         tensor_can_fp.stdin.close()
         tensor_can_fp.wait()
         tensor_can_fpo.close()
@@ -1236,8 +1234,8 @@ def create_tensor(args):
         alt_fp.wait()
         alt_fpo.close()
 
-    if unify_repre_fn:
-        label_fp.close()
+    # if unify_repre_fn:
+    #     label_fp.close()
 
 
 def main():
