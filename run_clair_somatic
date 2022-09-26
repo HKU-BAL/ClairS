@@ -385,6 +385,36 @@ def check_contigs_intersection(args, fai_fn):
                 output_file.write(contig_name + ' ' + str(chunk_id) + ' ' + str(chunk_num) + '\n')
                 chunk_list.append((contig_name, chunk_id, chunk_num))
     args.chunk_list = chunk_list
+    if args.clair3_path is not None and args.platform != 'ilmn':
+        args.clair3_option = args.clair3_option._replace(ctg_name_str=','.join(sorted_contig_list))
+
+    return args
+
+def check_clair3_options(args):
+    conda_prefix = os.environ['CONDA_PREFIX']
+    if args.clair3_path is None:
+        args.clair3_path = os.path.join(conda_prefix, 'bin')
+        if os.path.exists(args.clair3_path + 'run_clair3.sh'):
+            sys.exit(log_error("[ERROR] Cannot find clair3 main entry"))
+
+    if args.clair3_model_path is None:
+        # TODO update to q20
+        args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', "ont_guppy5")
+        if os.path.exists(args.clair3_model_path):
+            sys.exit(log_error("[ERROR] Cannot find clair3 model path"))
+    if args.whatshap is None:
+        args.whatshap = os.path.join(conda_prefix, 'bin', 'whatshap')
+    longphase = os.path.join(args.clair3_path, 'longphase')
+    args.clair3_option = Clair3Option(
+        clair3_path=args.clair3_path,
+        model_path=args.clair3_model_path,
+        longphase_for_phasing=True,
+        ctg_name_str=None,
+        min_coverage=str(8),
+        snp_min_af=str(0.2),
+        indel_min_af=str(0.2),
+        longphase=longphase)
+
     return args
 
 def check_args(args):
@@ -438,6 +468,9 @@ def check_args(args):
     args.output_path = create_output_folder(args)
     check_tools_version(args=args)
     args = check_threads(args=args)
+    if args.platform != 'ilmn':
+        args = check_clair3_options(args)
+
     args = check_contigs_intersection(args=args, fai_fn=fai_fn)
 
     return args
@@ -598,7 +631,7 @@ def somatic_calling(args):
                      fa_mv_command]
 
 
-    if args.enable_realignment:
+    if args.enable_realignment and args.platform == 'ilmn':
         echo_list.append("[INFO] STEP 5: Short-read realignment")
         realign_command = '( time ' + args.python + ' ' + main_entry + ' realign_variants'
         realign_command += ' --bam_fn ' + args.tumor_bam_fn
@@ -664,7 +697,7 @@ def somatic_parser():
     )
 
     required_params.add_argument(
-        "-f",
+        "-R",
         "--ref_fn",
         type=str,
         required=True,
@@ -924,9 +957,49 @@ def somatic_parser():
         default=None,
         help=SUPPRESS
     )
+    ont_params = parser.add_argument_group('ONT parameters')
 
-    optional_params.add_argument(
-        "--clair3",
+    ont_params.add_argument(
+        "--phase_normal",
+        type=str,
+        default=False,
+        action='store_true',
+        help=SUPPRESS
+    )
+
+    ont_params.add_argument(
+        "--phase_tumor",
+        type=str,
+        default=False,
+        action='store_true',
+        help=SUPPRESS
+    )
+
+    clair3_params = parser.add_argument_group('Clair3 parameters')
+
+    clair3_params.add_argument(
+        "--clair3_path",
+        type=str,
+        default=None,
+        help='123'
+    )
+
+    clair3_params.add_argument(
+        "--clair3_model_path",
+        type=str,
+        default=None,
+        help=SUPPRESS
+    )
+
+    clair3_params.add_argument(
+        "--whatshap",
+        type=str,
+        default=None,
+        help=SUPPRESS
+    )
+
+    clair3_params.add_argument(
+        "--clair3_option",
         type=namedtuple,
         default=None,
         help=SUPPRESS
@@ -950,7 +1023,6 @@ def main():
         args.tee = subprocess.Popen(['tee', tee_logger], stdin=subprocess.PIPE, bufsize=0)
     except:
         args.tee = None
-
 
     args = check_args(args)
     args = print_args(args)
