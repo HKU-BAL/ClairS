@@ -36,19 +36,22 @@ channel = ['A', 'C', 'G', 'T', 'I', 'I1', 'D', 'D1', '*', 'a', 'c', 'g','t', 'i'
 channel += [
  'ALMQ', 'CLMQ', 'GLMQ', 'TLMQ', 'aLMQ', 'cLMQ', 'gLMQ', 'tLMQ', 'ALBQ', 'CLBQ', 'GLBQ', 'TLBQ', 'aLBQ', 'cLBQ', 'gLBQ', 'tLBQ']
 
+phase_channel = [
+ 'AHP1', 'CHP1', 'GHP1', 'THP1', 'aHP1', 'cHP1', 'gHP1', 'tHP1', 'AHP2', 'CHP2', 'GHP2', 'THP2', 'aHP2', 'cHP2', 'gHP2', 'tHP2']
 channel_size = len(channel)
 BASE2INDEX = dict(zip(channel, tuple(range(channel_size))))
+base_index = dict(zip('ACGTacgt', list(range(8))))
 
-def _normalize_bq(x):
-    return int(NORMALIZE_NUM * min(x, MAX_BQ) / MAX_BQ)
-
-
-def _normalize_mq(x):
-    return int(NORMALIZE_NUM * min(x, MAX_MQ) / MAX_MQ)
-
-
-def _normalize_af(x):
-    return int(NORMALIZE_NUM * min(x, MAX_AF) / MAX_AF)
+# def _normalize_bq(x):
+#     return int(NORMALIZE_NUM * min(x, MAX_BQ) / MAX_BQ)
+#
+#
+# def _normalize_mq(x):
+#     return int(NORMALIZE_NUM * min(x, MAX_MQ) / MAX_MQ)
+#
+#
+# def _normalize_af(x):
+#     return int(NORMALIZE_NUM * min(x, MAX_AF) / MAX_AF)
 
 
 class Position(object):
@@ -112,7 +115,7 @@ def evc_base_from(base):
 def sorted_by_hap_read_name(center_pos, haplotag_dict, pileup_dict, hap_dict, max_depth, use_tensor_sample_mode=False):
     """
     Sort by reads haplotype after haplotag reads otherwise sort by read start position.
-    center_pos: define the center candidate position for proccessing.
+    center_pos: define the center candidate position for processing.
     haplotag_dict: dictionary (read name : hap type) which keep the read name and haplotype mapping.
     pileup_dict: dictionary (pos: pos info) which keep read information that cover specific position .
     hap_dict: similar to haplotag_dict, dictionary (pos: pos info) which keep the read name and haplotype mapping,
@@ -191,7 +194,7 @@ def decode_pileup_bases(pos, pileup_bases, reference_base,  minimum_snp_af_for_c
 
     base_idx = 0
     base_list = []
-    pileup_tensor = [0] * channel_size
+    pileup_tensor = [0] * (channel_size if phasing_info is None else  channel_size + len(phase_channel))
     is_candidate = pos in candidates_type_dict
     while base_idx < len(pileup_bases):
         base = pileup_bases[base_idx]
@@ -219,6 +222,12 @@ def decode_pileup_bases(pos, pileup_bases, reference_base,  minimum_snp_af_for_c
     base_counter = Counter([''.join(item) for item, mq in zip(base_list, mapping_quality) if mq >= 20])
     low_mq_base_counter = Counter([''.join(item) for item, mq in zip(base_list, mapping_quality) if mq < 20])
     low_bq_base_counter = Counter([''.join(item) for item, bq in zip(base_list, base_quality) if bq < 10])
+    if phasing_info is not None:
+        for b, hap in zip(base_list, phasing_info):
+            base = ''.join(b)
+            if hap in '12' and base in 'ACGTacgt':
+                pileup_tensor[channel_size + (int(hap) - 1) * base_index[base]] += 1
+
     depth, max_ins_0, max_del_0, max_ins_1, max_del_1 = 0, 0, 0, 0, 0
     max_del_length = 0
     alt_info_dict = defaultdict(int)
@@ -251,7 +260,7 @@ def decode_pileup_bases(pos, pileup_bases, reference_base,  minimum_snp_af_for_c
             # alt_dict['D' + del_base] += count
             pileup_dict['D'] += count
             if is_candidate:
-                alt_info_dict['D' + key[0].upper() + key[2:].upper()] +=  count
+                alt_info_dict['D' + key[0].upper() + key[2:].upper()] += count
             max_del_length = max(max_del_length, len(key[1:]))
             # two strand
             if key[0] in 'N*ACGT':
@@ -739,6 +748,7 @@ def create_tensor(args):
     vcf_fn = args.vcf_fn
     is_known_vcf_file_provided = vcf_fn is not None
     tensor_sample_mode = args.tensor_sample_mode
+    phasing_info_in_bam = args.phase_tumor and args.platform == 'ont'
     global test_pos
     test_pos = None
     hetero_snp_pos_dict = defaultdict()
@@ -838,7 +848,8 @@ def create_tensor(args):
     if reference_sequence is None or len(reference_sequence) == 0:
         sys.exit("[ERROR] Failed to load reference sequence from file ({}).".format(fasta_file_path))
 
-    phasing_option = " --output-extra HP" if phasing_info_in_bam else " "
+    normal_phasing_option = " "
+    tumor_phasing_option = " --output-extra HP " if phasing_info_in_bam else " "
     samtools_view_min_mq = 0
     # mq_option = ' --min-MQ {}'.format(min_mapping_quality)
     mq_option = ' --min-MQ {}'.format(samtools_view_min_mq)
@@ -857,12 +868,12 @@ def create_tensor(args):
     # print (add_read_regions, ctg_start, ctg_end, reference_start)
 
     samtools_command = "{} mpileup --reverse-del".format(samtools_execute_command) + \
-                       output_read_name_option + output_mq_option + reads_regions_option + phasing_option + mq_option + bq_option + bed_option + flags_option + max_depth_option
+                       output_read_name_option + output_mq_option + reads_regions_option + mq_option + bq_option + bed_option + flags_option + max_depth_option
     samtools_mpileup_normal_process = subprocess_popen(
-        shlex.split(samtools_command + ' ' + normal_bam_file_path))
+        shlex.split(samtools_command + normal_phasing_option + ' ' + normal_bam_file_path))
 
     samtools_mpileup_tumor_process = subprocess_popen(
-        shlex.split(samtools_command + ' ' + tumor_bam_file_path))
+        shlex.split(samtools_command + tumor_phasing_option + ' ' + tumor_bam_file_path))
 
 
     if tensor_can_output_path != "PIPE":
@@ -899,6 +910,7 @@ def create_tensor(args):
 
     normal_alt_info_dict = defaultdict()
     tumor_alt_info_dict = defaultdict()
+    hap_dict = defaultdict(int)
 
     def samtools_pileup_generator_from(samtools_mpileup_process, is_tumor=True):
         need_phasing_pos_list = sorted(list(candidates_pos_set))
@@ -1184,6 +1196,8 @@ def main():
     parser.add_argument('--tensor_sample_mode', type=str2bool, default=0,
                         help="Add all tumor tensor and only sampling in tensor generation")
 
+    parser.add_argument('--phase_tumor', type=str2bool, default=0,
+                        help=SUPPRESS)
 
     args = parser.parse_args()
 
