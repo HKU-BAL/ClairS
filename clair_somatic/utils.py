@@ -1,3 +1,4 @@
+import os
 import sys
 import gc
 import shlex
@@ -131,7 +132,8 @@ def variant_map_from(var_fn, tree, is_tree_empty):
     return Y, miss_variant_set
 
 
-def write_table_dict(table_dict, normal_matrix, tumor_matrix, label, pos, total, normal_alt_info, tumor_alt_info, tensor_shape, pileup):
+def write_table_dict(table_dict, normal_matrix, tumor_matrix, label, pos, total, normal_alt_info, tumor_alt_info,
+                     tensor_shape, pileup, proportion=None):
     """
     Write pileup or full alignment tensor into a dictionary.compressed bin file.
     table_dict: dictionary include all training information (tensor position, label, altnative bases).
@@ -171,6 +173,7 @@ def write_table_dict(table_dict, normal_matrix, tumor_matrix, label, pos, total,
     table_dict['label'].append(label)
     table_dict['normal_alt_info'].append(normal_alt_info)
     table_dict['tumor_alt_info'].append(tumor_alt_info)
+    table_dict['proportion'].append(proportion)
 
     return total + 1
 
@@ -183,6 +186,7 @@ def update_table_dict():
     table_dict['tumor_alt_info'] = []
     table_dict['position'] = []
     table_dict['label'] = []
+    table_dict['proportion'] = []
     return table_dict
 
 
@@ -208,6 +212,7 @@ def write_table_file(table_file, table_dict, tensor_shape, label_size, float_typ
     table_file.root.tumor_alt_info.append(np.array(table_dict['tumor_alt_info']).reshape(-1, 1))
     table_file.root.position.append(np.array(table_dict['position']).reshape(-1, 1))
     table_file.root.label.append(np.array(table_dict['label'], np.dtype(float_type)).reshape(-1, label_size))
+    table_file.root.proportion.append(np.array(table_dict['proportion'], np.dtype('float32')).reshape(-1, 1))
     table_dict = update_table_dict()
 
     return table_dict
@@ -231,12 +236,14 @@ def print_label(path):
     total = 0
     total_germline = 0
     total_somatic = 0
-    for file_name in os.listdir(path):
+    file_list = os.listdir(path) if not os.path.isfile(path) else [path]
+    for file_name in file_list:
         table = tables.open_file(os.path.join(path, file_name), 'r')
         print("[INFO] {} size is: {}".format(file_name, len(table.root.label)))
         total += sum(table.root.label[:, 0])
         total_germline += sum(table.root.label[:, 1])
         total_somatic += sum(table.root.label[:, 2])
+        table.close()
     print('[INFO] reference: {}, total germline:{}, total somatic:{}'.format(total,total_germline, total_somatic))
 
 def check_bin_af_distrbution(path):
