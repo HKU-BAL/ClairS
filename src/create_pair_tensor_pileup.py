@@ -19,14 +19,10 @@ logging.basicConfig(format='%(message)s', level=logging.INFO)
 BASES = set(list(BASE2NUM.keys()) + ["-"])
 no_of_positions = param.no_of_positions
 flanking_base_num = param.flankingBaseNum
-channel_size = param.channel_size
+
+
 BASE2NUMBER = dict(zip("ACGTURYSWKMBDHVN-", (0, 1, 2, 3, 3, 0, 1, 1, 0, 2, 0, 1, 0, 0, 0, 0, 4)))
 NORMALIZE_NUM = param.NORMALIZE_NUM
-MAX_BQ = 40.0
-MAX_MQ = 60.0
-MAX_AF = 1.0
-STRAND_0 = 100
-STRAND_1 = 50
 HAP_TYPE = dict(zip((1, 0, 2), (30, 60, 90)))  # hap1 UNKNOWN H2
 ACGT_NUM = dict(zip("ACGT+-*#N", (100, 25, 75, 50, -50, -100, 0, 0, 100)))
 
@@ -40,7 +36,8 @@ phase_channel = [
  'AHP1', 'CHP1', 'GHP1', 'THP1', 'aHP1', 'cHP1', 'gHP1', 'tHP1', 'AHP2', 'CHP2', 'GHP2', 'THP2', 'aHP2', 'cHP2', 'gHP2', 'tHP2']
 channel_size = len(channel)
 BASE2INDEX = dict(zip(channel, tuple(range(channel_size))))
-base_index = dict(zip('ACGTacgt', list(range(8))))
+from src.create_tensor_pileup import base_index, phase_channel
+
 
 # def _normalize_bq(x):
 #     return int(NORMALIZE_NUM * min(x, MAX_BQ) / MAX_BQ)
@@ -180,7 +177,8 @@ def get_tensor_info(base_info, bq, ref_base, read_mq=None):
 
 
 def decode_pileup_bases(pos, pileup_bases, reference_base,  minimum_snp_af_for_candidate, minimum_indel_af_for_candidate, \
-                        has_pileup_candidates, candidates_type_dict,is_tumor, mapping_quality, base_quality, platform="ont"):
+                        has_pileup_candidates, candidates_type_dict,is_tumor, mapping_quality, \
+                        base_quality, phasing_info=None, platform="ont"):
     """
     Decode mpileup input string.
     pileup_bases: pileup base string for each position, include all mapping information.
@@ -194,7 +192,7 @@ def decode_pileup_bases(pos, pileup_bases, reference_base,  minimum_snp_af_for_c
 
     base_idx = 0
     base_list = []
-    pileup_tensor = [0] * (channel_size if phasing_info is None else  channel_size + len(phase_channel))
+    pileup_tensor = [0] * (channel_size if phasing_info is None else (channel_size + len(phase_channel)))
     is_candidate = pos in candidates_type_dict
     while base_idx < len(pileup_bases):
         base = pileup_bases[base_idx]
@@ -226,7 +224,7 @@ def decode_pileup_bases(pos, pileup_bases, reference_base,  minimum_snp_af_for_c
         for b, hap in zip(base_list, phasing_info):
             base = ''.join(b)
             if hap in '12' and base in 'ACGTacgt':
-                pileup_tensor[channel_size + (int(hap) - 1) * base_index[base]] += 1
+                pileup_tensor[channel_size + base_index[base + "HP" + hap]] += 1
 
     depth, max_ins_0, max_del_0, max_ins_1, max_del_1 = 0, 0, 0, 0, 0
     max_del_length = 0
@@ -734,7 +732,6 @@ def create_tensor(args):
     chunk_num = args.chunk_num
     tensor_can_output_path = args.tensor_can_fn
     is_candidates_bed_regions_given = candidates_bed_regions is not None
-    phasing_info_in_bam = args.phasing_info_in_bam
     phasing_window_size = args.phasing_window_size
     minimum_snp_af_for_candidate = args.snp_min_af
     minimum_indel_af_for_candidate = args.indel_min_af
@@ -756,6 +753,8 @@ def create_tensor(args):
     candidates_pos_set = set()
     candidates_type_dict = defaultdict(str)
     add_read_regions = True
+    flanking_base_num = param.flankingBaseNum if args.flanking is None else args.flanking
+    no_of_positions = 2 * flanking_base_num + 1
 
     truth_vcf_fn = args.truth_vcf_fn
     is_truth_vcf_provided = truth_vcf_fn is not None
@@ -893,7 +892,7 @@ def create_tensor(args):
     normal_pileup_dict = defaultdict(str)
     tumor_pileup_dict = defaultdict(str)
 
-    phasing_read_seq = defaultdict(PhasingRead)
+    # phasing_read_seq = defaultdict(PhasingRead)
     extend_bp_distance = phasing_window_size if need_phasing else no_of_positions + param.extend_bp
     confident_bed_tree = bed_tree_from(bed_file_path=confident_bed_fn,
                                        contig_name=ctg_name,
@@ -933,7 +932,6 @@ def create_tensor(args):
             pileup_bases = columns[4]
             raw_base_quality = columns[5]
             raw_mapping_quality = columns[6]
-            # read_name_list = columns[7].split(',')
             reference_base = evc_base_from(reference_sequence[pos - reference_start]).upper()
             if reference_base not in 'ACGT':
                 continue
@@ -941,6 +939,15 @@ def create_tensor(args):
             mapping_quality = [ord(mq) - 33 for mq in raw_mapping_quality]
             base_quality = [ord(mq) - 33 for mq in raw_base_quality]
 
+            if phasing_info_in_bam and is_tumor:
+                # read_name_list = columns[7].split(',')
+                phasing_info = columns[7].split(',')
+                # for hap_idx, hap in enumerate(phasing_info):
+                #     if hap in '12' and read_name_list[hap_idx] not in hap_dict:
+                #         hap_dict[read_name_list[hap_idx]] = int(hap)
+
+            else:
+                phasing_info = None
             pileup_tensor, base_list, depth, pass_af, af, alt_info = decode_pileup_bases(pos=pos,
                                                                 pileup_bases=pileup_bases,
                                                                 reference_base=reference_base,
@@ -950,6 +957,7 @@ def create_tensor(args):
                                                                 candidates_type_dict=candidates_type_dict,
                                                                 mapping_quality=mapping_quality,
                                                                 base_quality=base_quality,
+                                                                phasing_info=phasing_info,
                                                                 # use_tensor_sample_mode=use_tensor_sample_mode,
                                                                 is_tumor=is_tumor)
 
@@ -1197,6 +1205,9 @@ def main():
                         help="Add all tumor tensor and only sampling in tensor generation")
 
     parser.add_argument('--phase_tumor', type=str2bool, default=0,
+                        help=SUPPRESS)
+
+    parser.add_argument('--flanking', type=int, default=None,
                         help=SUPPRESS)
 
     args = parser.parse_args()
