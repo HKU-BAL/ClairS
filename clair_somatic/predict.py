@@ -66,7 +66,7 @@ def print_output_message(
                 extra_infomation_string
             ))
 
-def tensor_generator_from(tensor_file_path, batch_size, pileup=False, min_rescale_cov=None, platform='ont'):
+def tensor_generator_from(tensor_file_path, batch_size, pileup=False, min_rescale_cov=None, phase_tumor=False, platform='ont'):
     float_type = 'float32'
 
     if tensor_file_path != "PIPE":
@@ -78,7 +78,8 @@ def tensor_generator_from(tensor_file_path, batch_size, pileup=False, min_rescal
     processed_tensors = 0
     if pileup:
         channel_size = param.pileup_channel_size
-        tensor_shape = [param.no_of_positions, channel_size * 2]
+        tumor_channel_size = param.tumor_channel_size if phase_tumor else channel_size
+        tensor_shape = [param.no_of_positions, channel_size + tumor_channel_size]
     else:
         tensor_shape = param.ont_input_shape if platform == 'ont' else param.input_shape
     prod_tensor_shape = np.prod(tensor_shape)
@@ -107,6 +108,7 @@ def tensor_generator_from(tensor_file_path, batch_size, pileup=False, min_rescal
                 tumor_rescale = float(min_rescale_cov) / tumor_coverage if tumor_coverage > min_rescale_cov else None
 
             channel_size = param.pileup_channel_size
+            tumor_channel_size = param.tumor_channel_size
             tensor = []
             for idx in range(param.no_of_positions):
                 if apply_normalize:
@@ -124,9 +126,9 @@ def tensor_generator_from(tensor_file_path, batch_size, pileup=False, min_rescal
 
                     if tumor_rescale is not None:
                         tensor += [item * tumor_rescale for item in
-                                     tumor_matrix[idx * channel_size: (idx + 1) * channel_size]]
+                                     tumor_matrix[idx * tumor_channel_size: (idx + 1) * tumor_channel_size]]
                     else:
-                        tensor += tumor_matrix[idx * channel_size: (idx + 1) * channel_size]
+                        tensor += tumor_matrix[idx * tumor_channel_size: (idx + 1) * tumor_channel_size]
 
         else:
             normal_depth = len(normal_matrix) // tensor_shape[1] // tensor_shape[2]
@@ -273,7 +275,18 @@ def get_bins(tensor_file_path, batch_size=10000, pileup=False, platform='ont'):
 
     X = np.reshape(tensors, ([batch_size] + tensor_shape))
 
+        # if processed_tensors > 0 and processed_tensors % 20000 == 0:
+        #     print("Processed %d tensors" % processed_tensors, file=sys.stderr)
+        #
+        # processed_tensors += current_batch_size
 
+        # if current_batch_size <= 0:
+        #     continue
+        # yield X[:current_batch_size], positions[:current_batch_size], normal_alt_info_list[:current_batch_size],tumor_alt_info_list[:current_batch_size], variant_type_list[:current_batch_size]
+        # for p, (pos, n_info, t_info) in enumerate(
+        #         zip(positions[:current_batch_size], normal_alt_info_list[:current_batch_size],
+        #             tumor_alt_info_list[:current_batch_size])):
+        #     print(p, pos, n_info, t_info)
     if tensor_file_path != "PIPE":
         fo.close()
         f.wait()
@@ -439,17 +452,15 @@ def predict(args):
     output_config = OutputConfig(
         is_show_reference=args.show_ref,
         is_show_germline=args.show_germline,
-        is_haploid_precise_mode_enabled=args.haploid_precise,
-        is_haploid_sensitive_mode_enabled=args.haploid_sensitive,
         is_output_for_ensemble=args.output_for_ensemble,
         quality_score_for_pass=args.qual,
         tensor_fn=args.tensor_fn,
         input_probabilities=args.input_probabilities,
-        add_indel_length=args.add_indel_length,
-        gvcf=args.gvcf,
         pileup=args.pileup
     )
-
+    param.flankingBaseNum = param.flankingBaseNum if args.flanking is None else args.flanking
+    param.no_of_positions = param.flankingBaseNum * 2 + 1
+    param.min_rescale_cov = param.min_rescale_cov if args.min_rescale_cov is None else args.min_rescale_cov
     chunk_id = args.chunk_id - 1 if args.chunk_id else None  # 1-base to 0-base
     chunk_num = args.chunk_num
     predict_fn = args.predict_fn
@@ -461,6 +472,8 @@ def predict(args):
     tensor_fn = args.tensor_fn
     platform = args.platform
     torch.set_num_threads(1)
+    torch.manual_seed(0)
+    np.random.seed(0)
     if use_gpu and not torch.cuda.is_available():
         print("[WARNING] --use_gpu is enabled, but cuda is not found")
         use_gpu = False
@@ -469,7 +482,6 @@ def predict(args):
     else:
         os.environ["CUDA_VISIBLE_DEVICES"] = ""
         device = 'cpu'
-
 
     if call_fn is not None:
         from shared.vcf import VcfWriter
@@ -502,8 +514,6 @@ def predict(args):
     # m.load_weights(args.chkpnt_fn)
     if param.use_tf:
         import clair_somatic.model_tf as model_path
-        # args.chkpnt_fn = "/autofs/bal36/zxzheng/TMP/test.19"
-        # import shared.param as param
         model = model_path.Clair3_P()
         model.load_weights(args.chkpnt_fn)
 
@@ -523,8 +533,12 @@ def predict(args):
             except StopIteration:
                 return
 
-        tensor_generator = tensor_generator_from(tensor_fn, param.predictBatchSize, pileup=args.pileup,
-                                                       platform=platform)
+        tensor_generator = tensor_generator_from(tensor_file_path=tensor_fn,
+                                                 batch_size=param.predictBatchSize,
+                                                 pileup=args.pileup,
+                                                 min_rescale_cov=param.min_rescale_cov,
+                                                 phase_tumor=args.phase_tumor,
+                                                 platform=platform)
 
         while True:
             thread_pool = []
@@ -695,9 +709,14 @@ def main():
     parser.add_argument('--is_from_tables', type=str2bool, default=False,
                         help=SUPPRESS)
 
+    parser.add_argument('--phase_tumor', type=str2bool, default=False,
+                        help=SUPPRESS)
+
     ## Output reference calls
     parser.add_argument('--show_ref', action='store_true',
                         help=SUPPRESS)
+
+    ## Output germline calls
     parser.add_argument('--show_germline', action='store_true',
                         help=SUPPRESS)
     args = parser.parse_args()
@@ -711,6 +730,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# /mnt/bal36/zxzheng/env/miniconda3/envs/clair3/bin/python3 ${CS} predict > tmp_alt
-# /autofs/bal33/zxzheng/env/miniconda2/envs/torch_3090/bin/python3 /autofs/bal36/zxzheng/somatic/Clair-somatic/clair-somatic.py predict --tensor_fn /autofs/bal36/zxzheng/somatic/ilmn/ilmn/chr20_add_germline_min_coverage_3_mq_20/build/tensor_can/chr20.13_2_3 --call_fn /autofs/bal36/zxzheng/somatic/ilmn/ilmn/chr20_add_germline_min_coverage_3_mq_20/predict/tmp.vcf --chkpnt_fn /autofs/bal36/zxzheng/somatic/ilmn/ilmn/training_add_germline_add_mq20/train/test_no_germline/12.pkl --use_gpu 1 --platform ilmn
