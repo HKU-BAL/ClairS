@@ -28,6 +28,7 @@ def Run(args):
         chunk_num=args.chunk_num,
         pileup=args.pileup,
         platform=args.platform,
+        phase_tumor=args.phase_tumor,
         merge_bins=args.merge_bins)
     logging.info("Finish!")
 
@@ -82,6 +83,9 @@ def main():
 
     ## Path to the variant candidate details
     parser.add_argument('--merge_bins', type=str2bool, default=False,
+                        help=SUPPRESS)
+
+    parser.add_argument('--phase_tumor', type=str2bool, default=False,
                         help=SUPPRESS)
 
     args = parser.parse_args()

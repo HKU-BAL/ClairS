@@ -23,16 +23,41 @@ min_tumor_support_read_num = 3
 alternative_base_num = 3
 
 # Full alignment input feature list
-channel = (
-'reference_base', 'alternative_base', 'base_quality', 'strand_info', 'variant_type', 'insert_base',
-'phasing_info', "mapping_quality")  # phasing info if add_phasing, 'mapping_quality',
+add_CP_channel = True
+channel = [
+'reference_base', 'alternative_base', 'base_quality', 'strand_info', 'insert_base',
+'phasing_info', "mapping_quality"]  # phasing info if add_phasing, 'mapping_quality',
+channel = channel + ['candidate_proportion'] if add_CP_channel else channel
 channel_size = len(channel)
-flankingBaseNum = 10
+
+#                  0    1    2    3    4    5    6    7     8    9    10   11  12   13    14  15   16    17  18      19      20      21
+pileup_channel = ['A', 'C', 'G', 'T', 'I', 'I1', 'D', 'D1', '*', 'a', 'c', 'g','t', 'i', 'i1','d', 'd1','#']
+# channel = ['A', 'C', 'G', 'T', 'I', 'D', '*', 'a', 'c', 'g','t', 'i','d','#']
+pileup_channel += [
+ 'ALMQ', 'CLMQ', 'GLMQ', 'TLMQ', 'aLMQ', 'cLMQ', 'gLMQ', 'tLMQ', 'ALBQ', 'CLBQ', 'GLBQ', 'TLBQ', 'aLBQ', 'cLBQ', 'gLBQ', 'tLBQ']
+no_indel = False #True
+no_mq = False # True
+no_bq = False #True
+pileup_channel_size = len(pileup_channel)
+pileup_channel_size = pileup_channel_size - 10 if no_indel else pileup_channel_size
+pileup_channel_size = pileup_channel_size - 8 if no_mq else pileup_channel_size
+pileup_channel_size = pileup_channel_size - 8 if no_bq else pileup_channel_size
+
+tumor_channel_size = pileup_channel_size
+
+
+flankingBaseNum = 16
 no_of_positions = 2 * flankingBaseNum + 1
 input_shape = [matrix_depth_dict['hifi'], no_of_positions, channel_size]
 ont_input_shape = [matrix_depth_dict['ont'], no_of_positions, channel_size]
 # label_shape = [21, 3, no_of_positions, no_of_positions]
-label_shape = [3]
+
+
+use_alt_base = True
+add_af_in_label = False
+
+
+label_shape = [3] if not add_af_in_label else [6]
 label_size = sum(label_shape)
 apply_focal_loss = True
 discard_germline = False
