@@ -333,7 +333,8 @@ def extract_candidates(args):
     is_extend_bed_file_given = extend_bed is not None
     min_mapping_quality = args.min_mq
     min_base_quality = args.min_bq
-    flankingBaseNum = param.flankingBaseNum
+    flankingBaseNum = param.flankingBaseNum if args.flanking is None else args.flanking
+    no_of_positions = 2 * flankingBaseNum + 1
     vcf_fn = args.vcf_fn
     genotyping_mode = vcf_fn is not None
     truth_vcf_fn = args.truth_vcf_fn
@@ -345,10 +346,51 @@ def extract_candidates(args):
         unified_vcf_reader.read_vcf()
         truths_variant_dict = unified_vcf_reader.variant_dict
 
+    global test_pos
+    test_pos = None
+    # test_pos = 6180744
+    if args.test_pos and test_pos:
+        platform = "ont"
+        sample_name = 'hg002'
+        subsample_ratio = 1000
+        ctg_name = "chr1"
+        ctg = ctg_name[3:]
+        minimum_af_for_candidate = 0.7
+        # minimum_af_for_truth = 0.05
+        samtools_execute_command = "/autofs/bal33/zxzheng/env/conda/envs/samtools/bin/samtools"
+        args.normal_bam_fn = "/autofs/bal36/zxzheng/somatic/data/ilmn_seqc/all/downsample/WGS_NV_N_1.bwa.dedup.50x.bam"
+        tumor_bam_file_path = "/autofs/bal36/zxzheng/somatic/data/ilmn_seqc/all/downsample/WGS_NV_T_1.bwa.dedup.50x.bam"
+        NORMAL_BAM_FILE_PATH = "/autofs/bal36/zxzheng/somatic/data/ilmn_seqc/all/WGS_NS_N_1.bwa.dedup.bam"  # novaseq
+        TUMOR_BAM_FILE_PATH = "/autofs/bal36/zxzheng/somatic/data/ilmn_seqc/all/WGS_NS_T_1.bwa.dedup.bam"
+        fasta_file_path = "/autofs/bal36/zxzheng/somatic/data/reference/GRCh38.d1.vd1.fa"
 
 
-    hetero_snp_pos_dict = defaultdict()
-    hetero_snp_tree = IntervalTree()
+        NORMAL_BAM_FILE_PATH = "/autofs/bal36/zxzheng/somatic/data/novogene/HCC1395BL_SUP/bam/HCC1395BL_SUP_ONT.bam"
+        NORMAL_BAM_FILE_PATH = "/autofs/bal36/zxzheng/somatic/data/hcc1395_data/hcc1395_normal.bam"
+        TUMOR_BAM_FILE_PATH = "/autofs/bal36/zxzheng/somatic/data/hcc1395_data/hcc1395_tumor.bam"
+        fasta_file_path = "/autofs/bal36/zxzheng/testData/ont/data/GRCh38_no_alt_analysis_set.fasta"
+
+        args.normal_bam_fn = NORMAL_BAM_FILE_PATH
+        tumor_bam_file_path = TUMOR_BAM_FILE_PATH
+
+        candidates_folder = "/autofs/bal33/zxzheng/use_test/candidate_folder"
+        extend_bed = "/autofs/bal36/zxzheng/somatic/callers_other/seqc2/High-Confidence_Regions_v1.2.bed"
+
+        chunk_num = 100
+        chunk_id = None
+        extend_bed = None
+        phasing_info_in_bam = True
+        output_alt_info = True
+        output_depth = True
+        alt_fn = None
+        # unify_repre_fn = "/autofs/bal33/zxzheng/TMP/tmp1"
+        ctg_start = test_pos - 100
+        ctg_end = test_pos + 100
+    else:
+        test_pos = None
+
+    hetero_snv_pos_dict = defaultdict()
+    hetero_snv_tree = IntervalTree()
     need_phasing_pos_set = set()
     add_read_regions = True
 
@@ -379,40 +421,40 @@ def extract_candidates(args):
                 output_file.write('\n'.join(all_full_aln_regions) + '\n')
         return
 
-    if full_aln_regions:
-
-        """
-        If given full alignment bed regions, all candidate positions will be directly selected from each row, define as 
-        'ctg start end', where 0-based center position is the candidate for full alignment calling.
-        if 'need_phasing' option enables, full alignment bed regions will also include nearby heterozygous snp candidates for reads
-        haplotag, which is faster than whatshap haplotag with more memory occupation.
-        """
-
-        candidate_file_path_process = subprocess_popen(shlex.split("gzip -fdc %s" % (full_aln_regions)))
-        candidate_file_path_output = candidate_file_path_process.stdout
-
-        ctg_start, ctg_end = float('inf'), 0
-        for row in candidate_file_path_output:
-            row = row.rstrip().split('\t')
-            if row[0] != ctg_name: continue
-            position = int(row[1]) + 1
-            end = int(row[2]) + 1
-            ctg_start = min(position, ctg_start)
-            ctg_end = max(end, ctg_end)
-
-            if platform == "ilmn":
-                continue
-            if len(row) > 3:  # hetero snp positions
-                center_pos = position + extend_bp + 1
-                ref_base, alt_base, genotype, phase_set = row[3].split('-')
-                hetero_snp_pos_dict[center_pos] = Position(pos=center_pos, ref_base=ref_base, alt_base=alt_base,
-                                                         genotype=int(genotype), phase_set=phase_set)
-                hetero_snp_tree.addi(begin=center_pos - extend_bp, end=center_pos + extend_bp + 1)
-            else:
-                center = position + (end - position) // 2 - 1
-                need_phasing_pos_set.add(center)
-        candidate_file_path_output.close()
-        candidate_file_path_process.wait()
+    # if full_aln_regions:
+    #
+    #     """
+    #     If given full alignment bed regions, all candidate positions will be directly selected from each row, define as
+    #     'ctg start end', where 0-based center position is the candidate for full alignment calling.
+    #     if 'need_phasing' option enables, full alignment bed regions will also include nearby heterozygous snv candidates for reads
+    #     haplotag, which is faster than whatshap haplotag with more memory occupation.
+    #     """
+    #
+    #     candidate_file_path_process = subprocess_popen(shlex.split("gzip -fdc %s" % (full_aln_regions)))
+    #     candidate_file_path_output = candidate_file_path_process.stdout
+    #
+    #     ctg_start, ctg_end = float('inf'), 0
+    #     for row in candidate_file_path_output:
+    #         row = row.rstrip().split('\t')
+    #         if row[0] != ctg_name: continue
+    #         position = int(row[1]) + 1
+    #         end = int(row[2]) + 1
+    #         ctg_start = min(position, ctg_start)
+    #         ctg_end = max(end, ctg_end)
+    #
+    #         if platform == "ilmn":
+    #             continue
+    #         if len(row) > 3:  # hetero snv positions
+    #             center_pos = position + extend_bp + 1
+    #             ref_base, alt_base, genotype, phase_set = row[3].split('-')
+    #             hetero_snv_pos_dict[center_pos] = Position(pos=center_pos, ref_base=ref_base, alt_base=alt_base,
+    #                                                      genotype=int(genotype), phase_set=phase_set)
+    #             hetero_snv_tree.addi(begin=center_pos - extend_bp, end=center_pos + extend_bp + 1)
+    #         else:
+    #             center = position + (end - position) // 2 - 1
+    #             need_phasing_pos_set.add(center)
+    #     candidate_file_path_output.close()
+    #     candidate_file_path_process.wait()
 
     fai_fn = file_path_from(fasta_file_path, suffix=".fai", exit_on_not_found=True, sep='.')
 
@@ -428,7 +470,8 @@ def extract_candidates(args):
                                                      contig_name=ctg_name,
                                                      return_bed_region=True)
 
-            chunk_size = (bed_end - bed_start) // chunk_num + 1 if (bed_end - bed_start) % chunk_num else (bed_end - bed_start) // chunk_num
+            chunk_size = (bed_end - bed_start) // chunk_num + 1 if (bed_end - bed_start) % chunk_num else (
+                                                                                                                      bed_end - bed_start) // chunk_num
             ctg_start = bed_start + 1 + chunk_size * chunk_id  # 0-base to 1-base
             ctg_end = ctg_start + chunk_size
         else:
@@ -445,7 +488,6 @@ def extract_candidates(args):
             ctg_start = chunk_size * chunk_id  # 0-base to 1-base
             ctg_end = ctg_start + chunk_size
 
-
     need_phasing_pos_set = set([item for item in need_phasing_pos_set if item >= ctg_start and item <= ctg_end])
     # 1-based regions [start, end] (start and end inclusive)
     ref_regions = []
@@ -455,7 +497,7 @@ def extract_candidates(args):
     is_ctg_range_given = is_ctg_name_given and ctg_start is not None and ctg_end is not None
     extend_start, extend_end = None, None
     if is_ctg_range_given:
-        extend_start = ctg_start - (phasing_window_size if need_phasing else no_of_positions)
+        extend_start = max(ctg_start - (phasing_window_size if need_phasing else no_of_positions), 1)
         extend_end = ctg_end + (phasing_window_size if need_phasing else no_of_positions)
         reads_regions.append(region_from(ctg_name=ctg_name, ctg_start=extend_start, ctg_end=extend_end))
         reference_start, reference_end = ctg_start - param.expandReferenceRegion, ctg_end + param.expandReferenceRegion
@@ -474,7 +516,6 @@ def extract_candidates(args):
     if reference_sequence is None or len(reference_sequence) == 0:
         sys.exit("[ERROR] Failed to load reference sequence from file ({}).".format(fasta_file_path))
 
-    phasing_option = " --output-extra HP" if phasing_info_in_bam else " "
     mq_option = ' --min-MQ {}'.format(min_mapping_quality)
     bq_option = ' --min-BQ {}'.format(min_base_quality)
     # pileup bed first
@@ -482,19 +523,18 @@ def extract_candidates(args):
     bed_option = ' -l {}'.format(
         confident_bed_fn) if is_confident_bed_file_given else ""
     bed_option = ' -l {}'.format(full_aln_regions) if is_full_aln_regions_given else bed_option
-    flags_option = ' --excl-flags {}'.format(param.SAMTOOLS_VIEW_FILTER_FLAG)
+    flags_option = ' --excl-flags {} '.format(param.SAMTOOLS_VIEW_FILTER_FLAG)
     # add max-depth cut-off for somatic?
-    max_depth_option = ' --max-depth {} '.format(args.max_depth) if args.max_depth > 0 else ""
-    max_depth_option = ' '
+    max_depth_option = ' --max-depth {} '.format(args.max_depth) if args.max_depth is not None else " "
     reads_regions_option = ' -r {}'.format(" ".join(reads_regions)) if add_read_regions else ""
     # print (add_read_regions, ctg_start, ctg_end, reference_start)
-    stdin = None if bam_file_path != "PIPE" else sys.stdin
-    bam_file_path = bam_file_path if bam_file_path != "PIPE" else "-"
+    stdin = None if tumor_bam_file_path != "PIPE" else sys.stdin
+    tumor_bam_file_path = tumor_bam_file_path if tumor_bam_file_path != "PIPE" else "-"
     samtools_command = samtools_execute_command + " mpileup --reverse-del" + read_name_option + reads_regions_option + \
-                       phasing_option + mq_option + bq_option + bed_option + flags_option + max_depth_option
+                       mq_option + bq_option + bed_option + flags_option + max_depth_option
 
     samtools_mpileup_process = subprocess_popen(
-        shlex.split(samtools_command + bam_file_path), stdin=stdin)
+        shlex.split(samtools_command + ' ' +tumor_bam_file_path), stdin=stdin)
 
     if alt_fn:
         output_alt_fn = alt_fn
@@ -505,6 +545,7 @@ def extract_candidates(args):
     candidates_list = []
 
     candidates_dict = defaultdict(str)
+    # alt_dict = defaultdict(str)
     for row in samtools_mpileup_process.stdout:  # chr position N depth seq BQ read_name mapping_quality phasing_info
         columns = row.strip().split('\t')
         pos = int(columns[1])
@@ -523,22 +564,20 @@ def extract_candidates(args):
         if reference_base.upper() not in "ACGT":
             continue
         is_truth_candidate = pos in truths_variant_dict
-        minimum_snp_af_for_candidate = minimum_snp_af_for_truth if is_truth_candidate and minimum_snp_af_for_truth else minimum_snp_af_for_candidate
+        minimum_snv_af_for_candidate = minimum_snv_af_for_truth if is_truth_candidate and minimum_snv_af_for_truth else minimum_snv_af_for_candidate
         minimum_indel_af_for_candidate = minimum_indel_af_for_truth if is_truth_candidate and minimum_indel_af_for_truth else minimum_indel_af_for_candidate
         base_list, depth, pass_af, af, af_infos, pileup_infos, tumor_pileup_infos, alt_list = decode_pileup_bases(
-                                                            pileup_bases=pileup_bases,
-                                                            reference_base=reference_base,
-                                                            minimum_snp_af_for_candidate=minimum_snp_af_for_candidate,
-                                                            minimum_indel_af_for_candidate=minimum_indel_af_for_candidate,
-                                                            alternative_base_num=alternative_base_num,
-                                                            has_pileup_candidates=has_pileup_candidates,
-                                                            read_name_list=read_name_list,
-                                                            is_tumor=is_tumor
-                                                            )
+            pileup_bases=pileup_bases,
+            reference_base=reference_base,
+            min_coverage=min_coverage,
+            minimum_snv_af_for_candidate=minimum_snv_af_for_candidate,
+            minimum_indel_af_for_candidate=minimum_indel_af_for_candidate,
+            alternative_base_num=alternative_base_num,
+            has_pileup_candidates=has_pileup_candidates,
+            read_name_list=read_name_list,
+            is_tumor=is_tumor
+        )
 
-
-        # if len(candidates_list) > 100:
-        #     break
         if pass_af and alt_fn:
             depth_list = [str(depth)] if output_depth else []
             alt_info_list = [af_infos, pileup_infos, tumor_pileup_infos] if output_alt_info else []
@@ -803,7 +842,7 @@ def main():
 
     args = parser.parse_args()
 
-    extract_candidates(args)
+    extract_pair_candidates(args)
 
 
 if __name__ == "__main__":
