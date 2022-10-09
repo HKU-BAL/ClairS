@@ -120,7 +120,25 @@ class VcfWriter(object):
         self.vcf_writer.write(vcf_format)
 
 class VcfReader(object):
-    def __init__(self, vcf_fn, ctg_name, ctg_start=None, ctg_end=None, is_var_format=False, is_happy_format=False, is_fp=None, show_ref=True, direct_open=False, keep_row_str=False,skip_genotype=False, filter_tag=None):
+    def __init__(self, vcf_fn,
+                 ctg_name=None,
+                 ctg_start=None,
+                 ctg_end=None,
+                 is_var_format=False,
+                 is_happy_format=False,
+                 is_fp=None,
+                 show_ref=True,
+                 direct_open=False,
+                 keep_row_str=False,
+                 skip_genotype=False,
+                 filter_tag=None,
+                 naf_filter=None,
+                 taf_filter=None,
+                 save_header=False,
+                 min_qual=None,
+                 max_qual=None,
+                 discard_indel=False,
+                 keep_af=False):
         self.vcf_fn = vcf_fn
         self.ctg_name = ctg_name
         self.ctg_start = ctg_start
@@ -176,7 +194,21 @@ class VcfReader(object):
                 genotype_2 = int(columns[5])
             else:
                 reference, alternate, last_column = columns[3], columns[4], columns[-1]
-                qual = columns[5] if len(columns) > 5 else None
+
+                if self.discard_indel and (len(reference) > 1 or len(alternate) > 1):
+                    continue
+
+                try:
+                    qual = columns[5] if len(columns) > 5 else None
+
+                    if self.min_qual is not None and float(qual) < self.min_qual:
+                        continue
+
+                    if self.max_qual is not None and float(qual) > self.max_qual:
+                        continue
+                except:
+                    qual = None
+
             # normal GetTruth
                 last_column = last_column if not tumor_in_last else columns[-2]
                 if self.is_happy_format and self.is_fp:
@@ -212,7 +244,9 @@ class VcfReader(object):
             extra_infos = columns[-1].split(':')[-1] if have_extra_infos else ''
             row_str = row if self.keep_row_str else False
             key = (chromosome, position) if self.ctg_name is None else position
-            self.variant_dict[key] = Position(pos=position,
+
+            self.variant_dict[key] = Position(ctg_name=chromosome,
+                                                   pos=position,
                                                    ref_base=reference,
                                                    alt_base=alternate,
                                                    genotype1=int(genotype_1),
