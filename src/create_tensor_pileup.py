@@ -20,7 +20,8 @@ logging.basicConfig(format='%(message)s', level=logging.INFO)
 BASES = set(list(BASE2NUM.keys()) + ["-"])
 no_of_positions = param.no_of_positions
 flanking_base_num = param.flankingBaseNum
-channel_size = param.channel_size
+
+
 BASE2NUMBER = dict(zip("ACGTURYSWKMBDHVN-", (0, 1, 2, 3, 3, 0, 1, 1, 0, 2, 0, 1, 0, 0, 0, 0, 4)))
 NORMALIZE_NUM = param.NORMALIZE_NUM
 HAP_TYPE = dict(zip((1, 0, 2), (30, 60, 90)))  # hap1 UNKNOWN H2
@@ -32,61 +33,11 @@ channel = ['A', 'C', 'G', 'T', 'I', 'I1', 'D', 'D1', '*', 'a', 'c', 'g','t', 'i'
 channel += [
  'ALMQ', 'CLMQ', 'GLMQ', 'TLMQ', 'aLMQ', 'cLMQ', 'gLMQ', 'tLMQ', 'ALBQ', 'CLBQ', 'GLBQ', 'TLBQ', 'aLBQ', 'cLBQ', 'gLBQ', 'tLBQ']
 
+phase_channel = [
+ 'AHP1', 'CHP1', 'GHP1', 'THP1', 'aHP1', 'cHP1', 'gHP1', 'tHP1', 'AHP2', 'CHP2', 'GHP2', 'THP2', 'aHP2', 'cHP2', 'gHP2', 'tHP2']
 channel_size = len(channel)
 BASE2INDEX = dict(zip(channel, tuple(range(channel_size))))
-
-def _normalize_bq(x):
-    return int(NORMALIZE_NUM * min(x, MAX_BQ) / MAX_BQ)
-
-
-def _normalize_mq(x):
-    return int(NORMALIZE_NUM * min(x, MAX_MQ) / MAX_MQ)
-
-
-def _normalize_af(x):
-    return int(NORMALIZE_NUM * min(x, MAX_AF) / MAX_AF)
-
-
-class Position(object):
-    def __init__(self, pos, ref_base=None, alt_base=None, read_name_list=None, base_list=None, raw_base_quality=None,
-                 raw_mapping_quality=None, af=None, depth=None, genotype=None, phase_set=None):
-        self.pos = pos
-        self.ref_base = ref_base
-        self.alt_base = alt_base
-        self.read_name_list = read_name_list
-        self.base_list = base_list
-        self.raw_base_quality = raw_base_quality
-        self.raw_mapping_quality = raw_mapping_quality
-        self.af = af
-        self.depth = depth
-        self.read_channel = None
-        self.mapping_quality = None
-        self.update_info = False
-        self.read_info = defaultdict()
-        self.ref_seq = None
-        self.alt_seq = None
-        self.phase_set = phase_set
-        self.genotype = genotype
-        self.read_name_seq = defaultdict(str)
-
-    def update_infos(self):
-        # only proceed when variant exists in candidate windows which greatly improves efficiency
-        self.read_name_dict = dict(zip(self.read_name_list, self.base_list))
-        self.update_info = True
-        self.mapping_quality = [_normalize_mq(phredscore2raw_score(item)) for item in self.raw_mapping_quality]
-        self.base_quality = [_normalize_bq(phredscore2raw_score(item)) for item in self.raw_base_quality]
-
-        for read_name, base_info, bq, mq in zip(self.read_name_list, self.base_list, self.base_quality, self.mapping_quality):
-            read_channel, ins_base, query_base = get_tensor_info(base_info, bq, self.ref_base, mq)
-            self.read_info[read_name] = (read_channel, ins_base)
-
-
-class PhasingRead(object):
-    def __init__(self):
-        self.read_seq = defaultdict(str)
-        self.read_start = None
-        self.read_end = None
-
+base_index = dict(zip(phase_channel, list(range(16))))
 
 def phredscore2raw_score(qual):
     return ord(qual) - 33
@@ -216,6 +167,12 @@ def decode_pileup_bases(pos, pileup_bases, reference_base,  minimum_snp_af_for_c
     base_counter = Counter([''.join(item) for item, mq in zip(base_list, mapping_quality) if mq >= 20])
     low_mq_base_counter = Counter([''.join(item) for item, mq in zip(base_list, mapping_quality) if mq < 20])
     low_bq_base_counter = Counter([''.join(item) for item, bq in zip(base_list, base_quality) if bq < 10])
+    if phasing_info is not None:
+        for b, hap in zip(base_list, phasing_info):
+            base = ''.join(b)
+            if hap in '12' and base in 'ACGTacgt':
+                pileup_tensor[channel_size + base_index[base + "HP" + hap]] += 1
+
     depth, max_ins_0, max_del_0, max_ins_1, max_del_1 = 0, 0, 0, 0, 0
     max_del_length = 0
     alt_info_dict = defaultdict(int)
@@ -248,7 +205,7 @@ def decode_pileup_bases(pos, pileup_bases, reference_base,  minimum_snp_af_for_c
             # alt_dict['D' + del_base] += count
             pileup_dict['D'] += count
             if is_candidate:
-                alt_info_dict['D' + key[0].upper() + key[2:].upper()] +=  count
+                alt_info_dict['D' + key[0].upper() + key[2:].upper()] += count
             max_del_length = max(max_del_length, len(key[1:]))
             # two strand
             if key[0] in 'N*ACGT':
@@ -1332,6 +1289,9 @@ def main():
                         help=SUPPRESS)
 
     parser.add_argument('--tensor_sample_mode', type=str2bool, default=0,
+                        help=SUPPRESS)
+
+    parser.add_argument('--phase_tumor', type=str2bool, default=0,
                         help=SUPPRESS)
 
     parser.add_argument('--training_mode', type=str2bool, default=0,
