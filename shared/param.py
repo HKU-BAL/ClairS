@@ -12,13 +12,28 @@ max_depth = tensor_max_depth + center_padding_depth
 normal_tumor_ratio = 1
 normal_pro = normal_tumor_ratio/(1+normal_tumor_ratio)
 min_af = 0.1
+snv_min_af = 0.05
 min_af_dict = {'ont':0.15, 'hifi':min_af, 'ilmn':min_af}
 max_normal_depth = int(tensor_max_depth * normal_pro)
 max_tumor_depth = tensor_max_depth - max_normal_depth
+
+
+
+ont_tensor_max_depth = 128
+center_padding_depth = 2
+ont_max_depth = ont_tensor_max_depth + center_padding_depth
+ont_normal_tumor_ratio = 0.7
+normal_pro = ont_normal_tumor_ratio/(1+ont_normal_tumor_ratio)
+min_af = 0.1
+snv_min_af = 0.05
+min_af_dict = {'ont':0.15, 'hifi':min_af, 'ilmn':min_af}
+ont_max_normal_depth = int(ont_tensor_max_depth * normal_pro)
+ont_max_tumor_depth = ont_tensor_max_depth - ont_max_normal_depth
+
 support_platform = {'ont', 'hifi','ilmn'}
-matrix_depth_dict = {'ont': max_depth, 'hifi': max_depth, 'ilmn': max_depth}
-normal_matrix_depth_dict = {'ont': max_normal_depth, 'hifi': max_normal_depth, 'ilmn': max_normal_depth}
-tumor_matrix_depth_dict = {'ont': max_tumor_depth, 'hifi': max_tumor_depth, 'ilmn': max_tumor_depth}
+matrix_depth_dict = {'ont': ont_max_depth, 'hifi': max_depth, 'ilmn': max_depth}
+normal_matrix_depth_dict = {'ont': ont_max_normal_depth, 'hifi': max_normal_depth, 'ilmn': max_normal_depth}
+tumor_matrix_depth_dict = {'ont': ont_max_tumor_depth, 'hifi': max_tumor_depth, 'ilmn': max_tumor_depth}
 min_tumor_support_read_num = 3
 alternative_base_num = 3
 
