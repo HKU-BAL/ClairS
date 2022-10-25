@@ -30,7 +30,7 @@ major_contigs_order = ["chr" + str(a) for a in list(range(1, 23))] + [str(a) for
 
 file_directory = os.path.dirname(os.path.realpath(__file__))
 main_entry = os.path.join(file_directory, "clair-somatic.py")
-MAX_STEP = 10
+MAX_STEP = 20
 OutputPath = namedtuple('OutputPath', [
     'log_path',
     'tmp_file_path',
@@ -42,6 +42,22 @@ OutputPath = namedtuple('OutputPath', [
 
 import sys
 
+class Tee(object):
+    def __init__(self, name, mode):
+        self.file = open(name, mode)
+        self.stdout = sys.stdout
+        sys.stdout = self
+
+    def __del__(self):
+        sys.stdout = self.stdout
+        self.file.close()
+
+    def write(self, data):
+        self.file.write(data)
+        self.stdout.write(data)
+
+    def flush(self):
+        self.file.flush()
 def logging(str):
     if args.tee is None:
         print(str)
