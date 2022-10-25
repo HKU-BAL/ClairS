@@ -120,9 +120,9 @@ def subprocess_popen(args, stdin=None, stdout=PIPE, stderr=stderr, bufsize=83886
 def str2bool(v):
     if isinstance(v, bool):
        return v
-    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+    if v.lower() in ('yes', 'ture', 'true', 't', 'y', '1'):
         return True
-    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+    elif v.lower() in ('no', 'flase', 'false', 'f', 'n', '0'):
         return False
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
@@ -234,8 +234,9 @@ def samtools_view_process_from(
     )
 
 class Position(object):
-    def __init__(self, genotype1=None, genotype2=None, pos=None,ref_base=None, alt_base=None, candidate=False, cigar_count=None,
+    def __init__(self, ctg_name=None, genotype1=None, genotype2=None, pos=None,ref_base=None, alt_base=None, candidate=False, cigar_count=None,
                  confident_variant=False, depth=None, alt_list=None, af=None, af_list=None, alt_type_mapping_dict=None, extra_infos="", qual=None,row_str=None):
+        self.ctg_name = ctg_name
         self.pos = pos
         self.reference_bases = ref_base
         self.candidate = candidate
