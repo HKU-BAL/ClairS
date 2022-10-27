@@ -1,8 +1,8 @@
 # Clair3 full alignment parameters
 REPO_NAME = "Clair3"
 from itertools import accumulate
-
-zstd='/mnt/bal36/zxzheng/env/miniconda3/envs/clair3/bin/zstd'
+from collections import namedtuple
+zstd='gzip'
 default_optimizer = "Radam"
 default_loss_function = "FocalLoss"
 
