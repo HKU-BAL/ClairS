@@ -34,14 +34,10 @@ Phred_Trans = (-10 * log(e, 10))
 OutputConfig = namedtuple('OutputConfig', [
     'is_show_reference',
     'is_show_germline',
-    'is_haploid_precise_mode_enabled',
-    'is_haploid_sensitive_mode_enabled',
     'is_output_for_ensemble',
     'quality_score_for_pass',
     'tensor_fn',
     'input_probabilities',
-    'add_indel_length',
-    'gvcf',
     'pileup'
 ])
 OutputUtilities = namedtuple('OutputUtilities', [
@@ -596,6 +592,7 @@ def possible_outcome_probabilites_from(
 
 def argmax(l):
     return max(zip(l, range(len(l))))[1]
+
 def find_alt_base(alt_info_dict, alternate_base=None):
     # double check whether alternate base exists, depth gap may happen when candidate depth is extreme high to infer.
     max_depth_gap = 9
@@ -1170,36 +1167,17 @@ def output_vcf_from_probability(
                          TDP=tumor_read_depth,
                          AF=tumor_allele_frequency,
                          NAF=normal_allele_frequency)
-        #
-        #
-        # "%s\t%s\t.\t%s\t%s\t%.2f\t%s\t%s\tGT:GQ:DP:AF\t%s:%d:%d:%.4f" % (
-        # chromosome,
-        # position,
-        # reference_base,
-        # alternate_base,
-        # quality_score,
-        # filtration_value,
-        # information_string,
-        # genotype_string,
-        # quality_score,
-        # tumor_read_depth,
-        # allele_frequency
-    # ))
+
 
 def call_variants_from_probability(args):
-    # args.predict_fn = "/mnt/bal36/zxzheng/TMP/tmp_alt"
-    # args.call_fn ="/mnt/bal36/zxzheng/TMP/tmp.vcf"
+
     output_config = OutputConfig(
         is_show_reference=args.show_ref,
         is_show_germline=args.show_germline,
-        is_haploid_precise_mode_enabled=args.haploid_precise,
-        is_haploid_sensitive_mode_enabled=args.haploid_sensitive,
         is_output_for_ensemble=args.output_for_ensemble,
         quality_score_for_pass=args.qual,
         tensor_fn=args.tensor_fn,
         input_probabilities=args.input_probabilities,
-        add_indel_length=args.add_indel_length,
-        gvcf=args.gvcf,
         pileup=args.pileup
     )
 
@@ -1287,9 +1265,6 @@ def main():
     parser.add_argument('--call_fn', type=str, default="clair3",
                         help="VCF output filename, or stdout if not set")
 
-    parser.add_argument('--gvcf', type=str2bool, default=False,
-                        help="Enable GVCF output, default: disabled")
-
     parser.add_argument('--ref_fn', type=str, default=None,
                         help="Reference fasta file input, required if --gvcf is enabled")
 
@@ -1311,16 +1286,6 @@ def main():
     parser.add_argument('--samtools', type=str, default="samtools",
                         help="Path to the 'samtools', samtools version >= 1.10 is required, default: %(default)s")
 
-    # options for advanced users
-    parser.add_argument('--temp_file_dir', type=str, default='./',
-                        help="EXPERIMENTAL: The cache directory for storing temporary non-variant information if --gvcf is enabled, default: %(default)s")
-
-    parser.add_argument('--haploid_precise', action='store_true',
-                        help="EXPERIMENTAL: Enable haploid calling mode. Only 1/1 is considered as a variant")
-
-    parser.add_argument('--haploid_sensitive', action='store_true',
-                        help="EXPERIMENTAL: Enable haploid calling mode. 0/1 and 1/1 are considered as a variant")
-
     # options for debug purpose
     parser.add_argument('--use_gpu', type=str2bool, default=False,
                         help="DEBUG: Use GPU for calling. Speed up is mostly insignficiant. Only use this for building your own pipeline")
@@ -1337,10 +1302,6 @@ def main():
     # options for internal process control
     ## In pileup mode or not (full alignment mode), default: False
     parser.add_argument('--pileup', action='store_true',
-                        help=SUPPRESS)
-
-    ## Include indel length in training and calling, false for pileup and true for raw alignment
-    parser.add_argument('--add_indel_length', type=str2bool, default=False,
                         help=SUPPRESS)
 
     ## The number of chucks to be divided into for parallel processing
