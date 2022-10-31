@@ -941,15 +941,15 @@ def somatic_parser():
         help="Full-alignment somatic model path."
     )
 
-    optional_params.add_argument(
+    region_group = optional_params.add_mutually_exclusive_group(required=False)
+
+    region_group.add_argument(
         "-c",
         "--ctg_name",
         type=str,
         default=None,
         help="The name of the contigs to be processed. Split by ',' for multiple contigs"
     )
-
-    region_group = optional_params.add_mutually_exclusive_group(required=False)
 
     region_group.add_argument(
         "-r",
@@ -1074,14 +1074,14 @@ def somatic_parser():
         "--pileup",
         default=False,
         action='store_true',
-        help="If true then only the commands will be printed."
+        help="If true then only run pileup output."
     )
 
     optional_params.add_argument(
         "--python",
         type=str,
         default="python3",
-        help="Path of python, python3 >= 3.6 is required."
+        help="Path of python, python3 >= 3.9 is required."
     )
 
     optional_params.add_argument(
@@ -1149,6 +1149,7 @@ def somatic_parser():
         default=None,
         help=SUPPRESS
     )
+
     ont_params = parser.add_argument_group('ONT parameters')
 
     ont_params.add_argument(
