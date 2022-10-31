@@ -77,12 +77,16 @@ label_size = sum(label_shape)
 apply_focal_loss = True
 discard_germline = False
 add_l2_regulation_loss = True
+use_tf = False
+smoothing = None
 somatic_arg_index = 1 if discard_germline else 2
 # label_size = 2
 label_shape_cum = list(accumulate(label_shape))
 expandReferenceRegion = 1000
 SAMTOOLS_VIEW_FILTER_FLAG = 2316
 NORMALIZE_NUM = 100
+min_rescale_cov = max_depth // 2
+# min_rescale_cov = 20
 
 # Realignment parameters
 partition_size = 500000
@@ -99,8 +103,8 @@ min_bq = 0
 min_coverage = 4
 split_bed_size = 10000
 # Training hyperparameters
-chunk_size = 50
-trainBatchSize = 400
+chunk_size = 100
+trainBatchSize = 800
 predictBatchSize = 250
 test_chunk_size = predictBatchSize
 initialLearningRate = 5e-4
@@ -112,5 +116,5 @@ OPERATION_SEED = None
 RANDOM_SEED = None
 NORMAL_PREFIX = 'n'
 TUMOR_PREFIX = 't'
-variant_type={'ref', 'homo_somatic', 'homo_germline', 'hete_germline'}
+variant_type={'ref', 'homo_somatic', 'homo_germline', 'hetero_germline'}
 grad_norm_clip = 1.0
