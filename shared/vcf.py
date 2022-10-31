@@ -152,6 +152,14 @@ class VcfReader(object):
         self.keep_row_str = keep_row_str
         self.skip_genotype = skip_genotype
         self.filter_tag = filter_tag #PASS;HighConf PASS;MedConf in hcc1395
+        self.naf_filter = naf_filter
+        self.taf_filter = taf_filter
+        self.header = ""
+        self.save_header = save_header
+        self.discard_indel = discard_indel
+        self.min_qual = min_qual
+        self.max_qual = max_qual
+        self.keep_af = keep_af
     def read_vcf(self):
         is_ctg_region_provided = self.ctg_start is not None and self.ctg_end is not None
 
@@ -236,6 +244,12 @@ class VcfReader(object):
                 except:
                     genotype_1 = -1
                     genotype_2 = -1
+            if self.keep_af:
+                tag_list = columns[8].split(':')
+                taf_index = tag_list.index('AF') if 'AF' in tag_list else tag_list.index('VAF')
+                taf = float(columns[9].split(':')[taf_index])
+            else:
+                taf = None
             position = int(position)
             have_extra_infos = 'VT' in row
 
@@ -253,6 +267,7 @@ class VcfReader(object):
                                                    genotype2=int(genotype_2),
                                                    qual=qual,
                                                    row_str=row_str,
+                                                   af=taf,
                                                    extra_infos=extra_infos)
     def get_alt_info(self, pos, extra_info=""):
         pos = int(pos)
