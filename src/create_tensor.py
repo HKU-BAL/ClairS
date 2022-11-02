@@ -79,7 +79,7 @@ class Position(object):
         self.genotype = genotype
         self.read_name_seq = defaultdict(str)
 
-    def update_infos(self, is_tumor=False, platform='ont'):
+    def update_infos(self, is_tumor=False, mask_low_bq=False, platform='ont'):
         # only proceed when variant exists in candidate windows which greatly improves efficiency
         self.read_name_dict = dict(zip(self.read_name_list, self.base_list))
         self.update_info = True
@@ -88,7 +88,7 @@ class Position(object):
 
         for read_name, base_info, bq, mq in zip(self.read_name_list, self.base_list, self.base_quality,
                                                 self.mapping_quality):
-            read_channel, ins_base, query_base = get_tensor_info(base_info, bq, self.ref_base, mq, is_tumor)
+            read_channel, ins_base, query_base = get_tensor_info(base_info, bq, self.ref_base, mask_low_bq, mq, is_tumor)
             self.read_info[read_name] = (read_channel, ins_base)
 
 
@@ -148,7 +148,7 @@ def sorted_by_hap_read_name(center_pos, haplotag_dict, pileup_dict, hap_dict, ma
     return sorted_read_name_list
 
 
-def get_tensor_info(base_info, bq, ref_base, read_mq=None, is_tumor=False):
+def get_tensor_info(base_info, bq, ref_base, mask_low_bq=False, read_mq=None, is_tumor=False):
     """
     Create tensor information for each read level position.
     base_info: base information include all alternative bases.
@@ -177,11 +177,16 @@ def get_tensor_info(base_info, bq, ref_base, read_mq=None, is_tumor=False):
     elif (base_upper != ref_base and base_upper in 'ACGT'):
         base_upper = evc_base_from(base_upper)
         ALT_BASE = ACGT_NUM[base_upper]
+        if mask_low_bq and bq < 33 and ALT_BASE:  # bq < 20
+            ALT_BASE = 0
+            bq = 0
 
     REF_BASE = ACGT_NUM[ref_base]
     if len(indel) and indel[0] in '+-':
         if indel[0] == "+":
             ins_base = indel[1:].upper()
+
+
     read_channel[:6] = REF_BASE, ALT_BASE, strand, bq, read_mq, hap_type
     query_base = "" if base_upper not in "ACGT" else base_upper
     return read_channel, ins_base, query_base
@@ -344,7 +349,8 @@ def find_tumor_alt_match(center_pos, sorted_read_name_list, pileup_dict, truths_
     return matched_read_name_set, normal_read_name_set, tumor_read_name_set
 
 
-def generate_tensor(ctg_name,
+def generate_tensor(args,
+                    ctg_name,
                     center_pos,
                     sorted_read_name_list,
                     pileup_dict,
@@ -399,7 +405,7 @@ def generate_tensor(ctg_name,
 
     for p in range(start_pos, end_pos):
         if p in pileup_dict and not pileup_dict[p].update_info:
-            pileup_dict[p].update_infos(is_tumor=is_tumor, platform=platform)
+            pileup_dict[p].update_infos(is_tumor=is_tumor, mask_low_bq=args.mask_low_bq, platform=platform)
         for read_idx, read_name_info in enumerate(sorted_read_name_list):
             hap, read_order, read_name = read_name_info
             offset = p - start_pos
