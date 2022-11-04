@@ -31,26 +31,8 @@ MAX_AF = 1.0
 STRAND_0 = -100
 STRAND_1 = 100
 HAP_TYPE = dict(zip((1, 0, 2), (30, 60, 90)))  # hap1 UNKNOWN H2 # should be better using
-from src.create_tensor import NORMAL_HAP_TYPE, TUMOR_HAP_TYPE
-ACGT_NUM = dict(zip("ACGT+-*#N", (100, 25, 75, 50, -50, -100, -100, -100, 100)))
+from src.create_tensor import NORMAL_HAP_TYPE, TUMOR_HAP_TYPE, normalize_bq, normalize_mq, ACGT_NUM
 
-
-def normalize_bq(x, platform='ont'):
-    MAX_BQ = ONT_MAX_BQ
-    if platform == "ilmn":
-        # only work for short reads
-        x = x // 10 * 10
-        MAX_BQ = ILMN_MAX_BQ
-    return int(2 * NORMALIZE_NUM * min(x, MAX_BQ) / MAX_BQ - NORMALIZE_NUM)
-
-
-def normalize_mq(x):
-    x = 0 if x <= 20 else (20 if x <= 40 else 60)
-    return int(2 * NORMALIZE_NUM * min(x, MAX_MQ) / MAX_MQ - NORMALIZE_NUM)
-
-
-def _normalize_af(x):
-    return int(NORMALIZE_NUM * min(x, MAX_AF) / MAX_AF)
 
 
 class Position(object):
@@ -75,7 +57,7 @@ class Position(object):
         self.genotype = genotype
         self.read_name_seq = defaultdict(str)
 
-    def update_infos(self, is_tumor=False, hap_dict=None, platform='ont'):
+    def update_infos(self, is_tumor=False, hap_dict=None, mask_low_bq=False, platform='ont'):
         # only proceed when variant exists in candidate windows which greatly improves efficiency
         self.read_name_dict = dict(zip(self.read_name_list, self.base_list))
         self.update_info = True
@@ -85,7 +67,7 @@ class Position(object):
         for read_name, base_info, bq, mq in zip(self.read_name_list, self.base_list, self.base_quality,
                                                 self.mapping_quality):
             hp = hap_dict[read_name] if hap_dict is not None and read_name in hap_dict else 0
-            read_channel, ins_base, query_base = get_tensor_info(base_info, bq, self.ref_base, mq, is_tumor, hp=hp)
+            read_channel, ins_base, query_base = get_tensor_info(base_info, bq, self.ref_base, mask_low_bq, mq, is_tumor, hp=hp)
             self.read_info[read_name] = (read_channel, ins_base)
 
 
@@ -145,7 +127,7 @@ def sorted_by_hap_read_name(center_pos, haplotag_dict, pileup_dict, hap_dict, ma
     return sorted_read_name_list
 
 
-def get_tensor_info(base_info, bq, ref_base, read_mq=None, is_tumor=False, hp=0):
+def get_tensor_info(base_info, bq, ref_base, mask_low_bq=False, read_mq=None, is_tumor=False, hp=0):
     """
     Create tensor information for each read level position.
     base_info: base information include all alternative bases.
@@ -174,6 +156,9 @@ def get_tensor_info(base_info, bq, ref_base, read_mq=None, is_tumor=False, hp=0)
     elif (base_upper != ref_base and base_upper in 'ACGT'):
         base_upper = evc_base_from(base_upper)
         ALT_BASE = ACGT_NUM[base_upper]
+        if mask_low_bq and bq < 33 and ALT_BASE:  # bq < 20
+            ALT_BASE = 0
+            bq = 0
 
     REF_BASE = ACGT_NUM[ref_base]
     if len(indel) and indel[0] in '+-':
@@ -331,7 +316,8 @@ def find_tumor_alt_match(center_pos, sorted_read_name_list, pileup_dict, truths_
                 matched_read_name_set.add(read_name)
     return matched_read_name_set, normal_read_name_set
 
-def generate_tensor(ctg_name,
+def generate_tensor(args,
+                    ctg_name,
                     center_pos,
                     sorted_read_name_list,
                     pileup_dict,
@@ -380,7 +366,7 @@ def generate_tensor(ctg_name,
 
     for p in range(start_pos, end_pos):
         if p in pileup_dict and not pileup_dict[p].update_info:
-            pileup_dict[p].update_infos(is_tumor=is_tumor, hap_dict=hap_dict, platform=platform)
+            pileup_dict[p].update_infos(is_tumor=is_tumor, hap_dict=hap_dict, mask_low_bq=args.mask_low_bq, platform=platform)
         for read_idx, read_name_info in enumerate(sorted_read_name_list):
             hap, read_order, read_name = read_name_info
             offset = p - start_pos
