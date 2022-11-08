@@ -449,8 +449,8 @@ def heapq_merge_generator_from(normal_bin_reader_generator, tumor_bin_reader_gen
     if len(X):
         yield X, batch_count
 
-def get_training_array(normal_tensor_fn, tumor_tensor_fn, var_fn, bed_fn, bin_fn, shuffle=True, is_allow_duplicate_chr_pos=True, chunk_id=None,
-                       chunk_num=None, platform='ont', pileup=False, maximum_non_variant_ratio=None, candidate_details_fn_prefix=None):
+def get_training_array(args, normal_tensor_fn, tumor_tensor_fn, var_fn, bed_fn, bin_fn, shuffle=True, is_allow_duplicate_chr_pos=True, chunk_id=None,
+                       chunk_num=None, platform='ont', pileup=False, maximum_non_variant_ratio=None, phase_tumor=False, candidate_details_fn_prefix=None, merge_bins=False):
 
     """
     Generate training array for training. here pytables with blosc:lz4hc are used for extreme fast compression and decompression,
@@ -535,81 +535,90 @@ def get_training_array(normal_tensor_fn, tumor_tensor_fn, var_fn, bed_fn, bin_fn
 
     tables.set_blosc_max_threads(64)
     int_atom = tables.Atom.from_dtype(np.dtype(float_type))
+    float_atom = tables.Atom.from_dtype(np.dtype('float32'))
     string_atom = tables.StringAtom(itemsize=param.no_of_positions + 50)
     long_string_atom = tables.StringAtom(itemsize=30000)  # max alt_info length
     table_file = tables.open_file(bin_fn, mode='w', filters=FILTERS)
-    table_file.create_earray(where='/', name='input_matrix', atom=int_atom, shape=[0] + tensor_shape,
+    table_file.create_earray(where='/', name='input_matrix', atom=float_atom, shape=[0] + tensor_shape,
                              filters=FILTERS)
     # table_file.create_earray(where='/', name='tumor_matrix', atom=int_atom, shape=[0] + tensor_shape,
     #                          filters=FILTERS)
     table_file.create_earray(where='/', name='position', atom=string_atom, shape=(0, 1), filters=FILTERS)
-    table_file.create_earray(where='/', name='label', atom=int_atom, shape=(0, param.label_size), filters=FILTERS)
+    table_file.create_earray(where='/', name='label', atom=float_atom, shape=(0, param.label_size), filters=FILTERS)
     table_file.create_earray(where='/', name='normal_alt_info', atom=long_string_atom, shape=(0, 1), filters=FILTERS)
     table_file.create_earray(where='/', name='tumor_alt_info', atom=long_string_atom, shape=(0, 1), filters=FILTERS)
+    table_file.create_earray(where='/', name='proportion', atom=float_atom, shape=(0, 1), filters=FILTERS)
 
     table_dict = update_table_dict()
-
-    normal_subprocess_process = subprocess_popen(shlex.split("{} -fdc {}".format(param.zstd, normal_tensor_fn)))
-    tumor_subprocess_process = subprocess_popen(shlex.split("{} -fdc {}".format(param.zstd, tumor_tensor_fn)))
-
-    normal_bin_reader_generator = bin_reader_generator_from(subprocess_process=normal_subprocess_process,
-                                                     Y=Y,
-                                                     is_tree_empty=is_tree_empty,
-                                                     tree=tree,
-                                                     miss_variant_set=miss_variant_set,
-                                                     is_allow_duplicate_chr_pos=is_allow_duplicate_chr_pos,
-                                                     non_variant_subsample_ratio=non_variant_subsample_ratio)
-
-    tumor_bin_reader_generator = bin_reader_generator_from(subprocess_process=tumor_subprocess_process,
-                                                     Y=Y,
-                                                     is_tree_empty=is_tree_empty,
-                                                     tree=tree,
-                                                     miss_variant_set=miss_variant_set,
-                                                     is_allow_duplicate_chr_pos=is_allow_duplicate_chr_pos,
-                                                     non_variant_subsample_ratio=non_variant_subsample_ratio)
-
     total_compressed = 0
     total = 0
-    for X, batch_total in heapq_merge_generator_from(normal_bin_reader_generator, tumor_bin_reader_generator):
-        total += batch_total
-        all_pos_list = get_key_list(X)
+    for normal_tensor_fn, tumor_tensor_fn in zip(normal_tensor_list, tumor_tensor_list):
 
-        for key, normal_index, tumor_index in all_pos_list:
-            infos = X[key]
-            normal_infos = infos['normal'][normal_index]
-            tumor_infos = infos['tumor'][tumor_index]
+        normal_subprocess_process = subprocess_popen(shlex.split("{} -fdc {}".format(param.zstd, normal_tensor_fn)))
+        tumor_subprocess_process = subprocess_popen(shlex.split("{} -fdc {}".format(param.zstd, tumor_tensor_fn)))
 
-            normal_tensor, nomral_alt_info, seq, variant_type = normal_infos
-            variant_type = variant_type.rstrip()
-            # use tumor alternative information instead of the normal one
-            tumor_tensor, tumor_alt_info = tumor_infos[0], tumor_infos[1]
-            pos_infos = key + ':' + seq + ':' + variant_type
-            if variant_type == 'homo_somatic' or variant_type == "hetero_somatic":
-                label = [0, 0, 1]
-            elif variant_type == 'homo_germline' or variant_type == 'hetero_germline':
-                label = [0, 1, 0]
-            else:
-                label = [1, 0, 0]
-            total_compressed = write_table_dict(table_dict=table_dict,
-                                                normal_matrix=normal_tensor,
-                                                tumor_matrix=tumor_tensor,
-                                                label=label,
-                                                pos=pos_infos,
-                                                total=total_compressed,
-                                                normal_alt_info=nomral_alt_info,
-                                                tumor_alt_info=tumor_alt_info,
-                                                tensor_shape=tensor_shape,
-                                                pileup=pileup
-                                                )
+        proportion = float(tumor_tensor_fn.split("_")[-1])
+        normal_bin_reader_generator = bin_reader_generator_from(subprocess_process=normal_subprocess_process,
+                                                         Y=Y,
+                                                         is_tree_empty=is_tree_empty,
+                                                         tree=tree,
+                                                         miss_variant_set=miss_variant_set,
+                                                         is_allow_duplicate_chr_pos=is_allow_duplicate_chr_pos,
+                                                         non_variant_subsample_ratio=non_variant_subsample_ratio)
 
-            if total_compressed % 500 == 0 and total_compressed > 0:
-                table_dict = write_table_file(table_file, table_dict, tensor_shape, param.label_size, float_type)
+        tumor_bin_reader_generator = bin_reader_generator_from(subprocess_process=tumor_subprocess_process,
+                                                         Y=Y,
+                                                         is_tree_empty=is_tree_empty,
+                                                         tree=tree,
+                                                         miss_variant_set=miss_variant_set,
+                                                         is_allow_duplicate_chr_pos=is_allow_duplicate_chr_pos,
+                                                         non_variant_subsample_ratio=non_variant_subsample_ratio,
+                                                         is_tumor=True)
 
-            # if total_compressed % 2000 == 0:
-            #     print("[INFO] Compressed %d tensor" % (total_compressed), file=sys.stderr)
+        total_compressed = 0
+        total = 0
+        for X, batch_total in heapq_merge_generator_from(normal_bin_reader_generator, tumor_bin_reader_generator):
+            total += batch_total
+            all_pos_list = get_key_list(X)
 
-    if total_compressed % 500 != 0 and total_compressed > 0:
-        table_dict = write_table_file(table_file, table_dict, tensor_shape, param.label_size, float_type)
+            for key, normal_index, tumor_index in all_pos_list:
+                infos = X[key]
+                normal_infos = infos['normal'][normal_index]
+                tumor_infos = infos['tumor'][tumor_index]
+
+                normal_tensor, nomral_alt_info, seq, variant_type = normal_infos
+                variant_type = variant_type.rstrip()
+                # use tumor alternative information instead of the normal one
+                tumor_tensor, tumor_alt_info = tumor_infos[0], tumor_infos[1]
+                pos_infos = key + ':' + seq + ':' + variant_type
+
+                if variant_type == 'homo_somatic' or variant_type == "hetero_somatic":
+                    label = [0, 0, 1]
+                elif variant_type == 'homo_germline' or variant_type == 'hetero_germline':
+                    label = [0, 1, 0]
+                else:
+                    label = [1, 0, 0]
+                total_compressed = write_table_dict(table_dict=table_dict,
+                                                    normal_matrix=normal_tensor,
+                                                    tumor_matrix=tumor_tensor,
+                                                    label=label,
+                                                    pos=pos_infos,
+                                                    total=total_compressed,
+                                                    normal_alt_info=nomral_alt_info,
+                                                    tumor_alt_info=tumor_alt_info,
+                                                    tensor_shape=tensor_shape,
+                                                    pileup=pileup,
+                                                    proportion=proportion
+                                                    )
+
+                if total_compressed % 500 == 0 and total_compressed > 0:
+                    table_dict = write_table_file(table_file, table_dict, tensor_shape, param.label_size, float_type)
+
+                # if total_compressed % 2000 == 0:
+                #     print("[INFO] Compressed %d tensor" % (total_compressed), file=sys.stderr)
+
+        if total_compressed % 500 != 0 and total_compressed > 0:
+            table_dict = write_table_file(table_file, table_dict, tensor_shape, param.label_size, float_type)
 
     table_file.close()
     print("[INFO] Compressed %d/%d tensor" % (total_compressed, total), file=sys.stderr)
