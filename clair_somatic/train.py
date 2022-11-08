@@ -463,11 +463,11 @@ def train_model(args):
         fp, tp, fn = 0,0,0
         t = tqdm(enumerate(train_dataset_loder), total=train_steps, position=0, leave=True)
         v = tqdm(enumerate(validate_dataset_loder), total=validate_steps, position=0, leave=True) if not debug_mode else enumerate(validate_dataset_loder)
+        model.train()
         for batch_idx, (data, label, af_list, _, _) in t:
             t.set_description('EPOCH {}'.format(epoch))
             data = data.to(device)
             label = label.to(device)
-
             output_logit = model(data).contiguous()
             y_truth = torch.argmax(label, axis=1)
             optimizer.zero_grad()
@@ -513,6 +513,7 @@ def train_model(args):
         # validation
         val_fp, val_tp, val_fn = 0, 0, 0
         val_epoch_loss = 0
+        model.eval()
         for batch_idx, (data, label, position_info, normal_info, tumor_info) in v:
             if not debug_mode:
                 v.set_description('VAL EPOCH {}'.format(epoch))
