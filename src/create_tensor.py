@@ -33,7 +33,7 @@ NORMAL_HAP_TYPE = dict(zip((1, 0, 2), (13, 25, 37)))  # set normal hap tag
 # TUMOR_HAP_TYPE = dict(zip((1, 0, 2), (75, 88, 100)))  # set tumor hap tag
 TUMOR_HAP_TYPE = dict(zip((1, 0, 2), (50, 75, 100)))  # set tumor hap tag
 
-
+NORMAL_TUMOR_TYPE = (-60, 60)
 NORMAL_HAP_TYPE = dict(zip((1, 0, 2), (-90, -60, -30)))  # set normal hap tag
 # TUMOR_HAP_TYPE = dict(zip((1, 0, 2), (75, 88, 100)))  # set tumor hap tag
 TUMOR_HAP_TYPE = dict(zip((1, 0, 2), (30, 60, 90)))  # set tumor hap tag
@@ -186,8 +186,12 @@ def get_tensor_info(base_info, bq, ref_base, mask_low_bq=False, read_mq=None, is
         if indel[0] == "+":
             ins_base = indel[1:].upper()
 
-
+    nt_type = NORMAL_TUMOR_TYPE[1] if is_tumor else NORMAL_TUMOR_TYPE[0]
     read_channel[:6] = REF_BASE, ALT_BASE, strand, bq, read_mq, hap_type
+    read_channel[7] = nt_type
+    # read_channel[:6] = REF_BASE, ALT_BASE, strand, bq, read_mq, hap_type
+
+
     query_base = "" if base_upper not in "ACGT" else base_upper
     return read_channel, ins_base, query_base
 
@@ -457,7 +461,7 @@ def generate_tensor(args,
         if param.use_beta_subsampling:
             beta_acc_per = param.beta_acc_per
             sampled_reads_num_list.append(len(tumor_read_name_list))
-            for s_idx in range(6):
+            for s_idx in range(4):
                 random.seed(center_pos + s_idx)
                 random_af = random.random()
                 af = None
@@ -554,7 +558,7 @@ def generate_tensor(args,
             tensor_string_list.append(" ".join(
                 (" ".join(" ".join(str(x) for x in innerlist) for innerlist in outerlist)) for outerlist in tmp_tensor))
 
-            if add_hetero_phasing and candidates_type_dict[center_pos] != 'homo_somatic':
+            if add_hetero_phasing and (candidates_type_dict[center_pos] != 'homo_somatic' or float(proportion) == 1.0):
                 HAP_TYPE = TUMOR_HAP_TYPE if is_tumor else NORMAL_HAP_TYPE
                 unphased_num = TUMOR_HAP_TYPE[0] if is_tumor else NORMAL_HAP_TYPE[0]
                 all_hap = [item[0] for item in sorted_read_name_list]
