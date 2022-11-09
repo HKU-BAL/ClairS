@@ -25,7 +25,7 @@ deep_learning_folder = [
 REPO_NAME = "clair-somatic"
 data_preprocess_folder = [
     "get_candidates",
-    "ExtractCandidates",
+    "extract_candidates_test",
     "create_tensor",
     "create_bin",
     "split_bam",
@@ -34,10 +34,11 @@ data_preprocess_folder = [
     "extract_candidates",
     "Vcf2Bed",
     "PlotAF",
-    "FilterRef",
-    "CreateTensorFullAdjacent",
+    "filter_reference_calls",
+    "create_tensor_adjacent",
+    "create_tensor_pileup",
     'find_tumor_truth_in_normal',
-    "UpdateVar",
+    "update_variant",
     "create_pair_tensor",
     "sort_vcf",
     "compare_vcf",
