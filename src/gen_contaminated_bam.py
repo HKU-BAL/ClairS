@@ -14,6 +14,7 @@ cov_suffix = ".cov.mosdepth.summary.txt"
 
 def get_coverage_from_bam(args, bam_fn, is_tumor=False):
     ctg_name = args.ctg_name
+    dry_run = args.dry_run
 
     mosdepth = args.mosdepth
     contig_option = "" if ctg_name is None else "-c {}".format(ctg_name)
@@ -30,7 +31,11 @@ def get_coverage_from_bam(args, bam_fn, is_tumor=False):
 
     print("[INFO] Calculating coverge for {} BAM using mosdepth...".format(prefix))
 
-    # subprocess_run(shlex.split(mos_depth_command))
+    if dry_run:
+        print('[INFO] Dry run. Will run the following commands:')
+        print(mos_depth_command)
+
+    subprocess.run(mos_depth_command, shell=True)
 
     coverage_log = os.path.join(args.output_dir, output_prefix + cov_suffix)
     if ctg_name is None:
@@ -109,146 +114,37 @@ def gen_contaminated_bam(args):
                                                       normal_bam_fn,
                                                       contig_option)
 
-    print(t_s_cmd)
-    print(n_s_cmd)
+    n_index_cmd = '{} index -@{} {}'.format(samtools_execute_command, samtools_threads, tumor_subsample_bam)
+    t_index_cmd = '{} index -@{} {}'.format(samtools_execute_command, samtools_threads, normal_subsample_bam)
+
+    if args.dry_run:
+        print('[INFO] Dry run. Will run the following commands:')
+        print(t_s_cmd)
+        print(n_s_cmd)
+        print(n_index_cmd)
+        print(t_index_cmd)
 
     subprocess.run(t_s_cmd, shell=True)
     subprocess.run(n_s_cmd, shell=True)
     subprocess.run(n_index_cmd, shell=True)
     subprocess.run(t_index_cmd, shell=True)
 
-    if synthetic_coverage is None:
-        print('[INFO] Synthetic coverage not set, use maximum synthetic coverage {}'.format(max_syn_coverage))
-        synthetic_coverage = max_syn_coverage
-    elif synthetic_coverage > max_syn_coverage:
-        print('[WARNING] Synthetic coverage is larger than maximum coverage {} > {}'.format(synthetic_coverage,
-                                                                                            max_syn_coverage))
-        synthetic_coverage = max_syn_coverage
+    normal_output_bam = os.path.join(output_dir, "normal_contaminated_{}.bam".format(contaminative_proportion))
 
-    tumor_coverage = int(synthetic_coverage * synthetic_proportion)
-    normal_coverage = int(synthetic_coverage - tumor_coverage)
-    sampled_normal_bin_num = int(normal_coverage / min_bin_coverage)
-    sampled_tumor_bin_num = int(tumor_coverage / min_bin_coverage)
-
-    sampled_normal_bam_list = [normal_bam_list[idx] for idx in
-                               random_sample(range(normal_bin_num), sampled_normal_bin_num,
-                                             seed=int(synthetic_proportion * 100))]
-    if tensor_sample_mode:
-        sampled_tumor_bam_list = tumor_bam_list
-    else:
-        sampled_tumor_bam_list = [tumor_bam_list[idx] for idx in
-                                  random_sample(range(tumor_bin_num), sampled_tumor_bin_num,
-                                                seed=int(synthetic_proportion * 100))]
-
-    # the rest sampled sample to generate normal bam
-    rest_normal_bam_list = [normal_bam_fn for normal_bam_fn in normal_bam_list if
-                            normal_bam_fn not in sampled_normal_bam_list]
-    tumor_all_bin_num = sampled_normal_bin_num + sampled_tumor_bin_num
-    normal_all_bin_num = int(tumor_all_bin_num * normal_coverage_proportion)
-    if normal_all_bin_num <= len(rest_normal_bam_list):
-        pair_normal_bam_list = [rest_normal_bam for rest_normal_bam in
-                                random_sample(rest_normal_bam_list, normal_all_bin_num,
-                                              seed=int(synthetic_proportion * 100))]
-    else:
-        # sample bin exhaust if pair normal coverage could not satisfy requirement
-        # avoid to resample bin for model robustness
-        print('[WARNING] Need to resample normal chunked BAMs!')
-        resampled_bin_count = normal_all_bin_num - len(rest_normal_bam_list)
-        resample_bin_list = [sampled_normal_bam_list[idx] for idx in
-                             random_sample(range(len(sampled_normal_bam_list)), resampled_bin_count,
-                                           seed=int(synthetic_proportion * 100))]
-        pair_normal_bam_list = resample_bin_list + rest_normal_bam_list
-
-    normal_coverage_in_normal = len(pair_normal_bam_list) * min_bin_coverage
-    normal_coverage_in_tumor = sampled_normal_bin_num * min_bin_coverage
-    tumor_coverage_in_tumor =  sampled_tumor_bin_num * min_bin_coverage
-    print(
-        "[INFO] Raw normal BAM coverage/Raw tumor BAM coverage: {}x/{}x, normal sampled bins/tumor sampled bins:{}/{}".format(
-            normal_bam_coverage, tumor_bam_coverage, sampled_normal_bin_num, sampled_tumor_bin_num))
-    print("[INFO] Tumor sampled normal chunked BAMs coverage/bins: {}x/{}:{}".format(
-        len(sampled_normal_bam_list) * min_bin_coverage, len(sampled_normal_bam_list), ' '.join(sampled_normal_bam_list)))
-    print("[INFO] Tumor sampled tumor chunked BAMs coverage/bins: {}x/{}:{}".format(
-        len(sampled_tumor_bam_list) * min_bin_coverage, len(sampled_tumor_bam_list), ' '.join(sampled_tumor_bam_list)))
-    print("[INFO] Normal sampled BAMs coverage/bins: {}x/{}:{}".format(len(pair_normal_bam_list) * min_bin_coverage,
-                                                                       len(pair_normal_bam_list),
-                                                                       ' '.join(pair_normal_bam_list)))
-    print("[INFO] NN/TN/TT synthetic coverage: {}/{}/{}".format(\
-        normal_coverage_in_normal, normal_coverage_in_tumor, tumor_coverage_in_tumor))
-    print("[INFO] Synthetic proportion: {}, normal coverage proportion: {}, normal sampled BAMs intersection: {}\n".format(\
-        synthetic_proportion, normal_coverage_proportion, set(
-        pair_normal_bam_list).intersection(set(sampled_normal_bam_list + sampled_tumor_bam_list))))
-
-    print(tumor_bam_fn is not None and synthetic_proportion == 1.0 and len(sampled_normal_bam_list + sampled_tumor_bam_list) == tumor_bin_num \
-            and len(sampled_normal_bam_list) == 0)
+    print("[INFO] Merging tumor BAM into normal BAM as contaminatation...")
+    merge_cmd = "{} merge -f -@{} {} {}".format(samtools_execute_command, samtools_threads, normal_output_bam,
+                                        tumor_subsample_bam, normal_subsample_bam)
+    index_cmd = '{} index -@{} {}'.format(samtools_execute_command, samtools_threads, normal_output_bam)
 
     if args.dry_run:
-        return
+        print('[INFO] Dry run. Will run the following commands:')
+        print(merge_cmd)
+        print(index_cmd)
 
-    tumor_sampled_bam_list = sampled_normal_bam_list + sampled_tumor_bam_list
-    tumor_sampled_bam_list = ' '.join([os.path.join(input_dir, bam) for bam in tumor_sampled_bam_list])
-    tumor_output_bam = output_fn
+    subprocess_run(merge_cmd, shell=True)
+    subprocess.run(index_cmd, shell=True)
 
-    normal_output_bam = output_fn.replace('tumor_', 'normal_')
-    normal_sampled_bam_list = ' '.join([os.path.join(input_dir, bam) for bam in pair_normal_bam_list])
-
-    # no need to merge bins if use all tumor bins
-    if tumor_bam_fn is not None and synthetic_proportion == 1.0 and len(tumor_sampled_bam_list) == tumor_bin_num \
-            and len(sampled_normal_bam_list) == 0:
-        subprocess_run(shlex.split("ln -sf {} {}".format(tumor_bam_fn, tumor_output_bam)))
-        subprocess_run(shlex.split("ln -sf {}.bai {}.bai".format(tumor_bam_fn, tumor_output_bam)))
-
-    else:
-        subprocess_run(shlex.split(
-            "{} merge -f -@{} {} {}".format(samtools_execute_command, samtools_threads, tumor_output_bam,
-                                            tumor_sampled_bam_list)))
-        subprocess_run(shlex.split("{} index -@{} {}".format(samtools_execute_command, samtools_threads, tumor_output_bam)))
-
-    subprocess_run(shlex.split(
-        "{} merge -f -@{} {} {}".format(samtools_execute_command, samtools_threads, normal_output_bam,
-                                        normal_sampled_bam_list)))
-    subprocess_run(
-        shlex.split("{} index -@{} {}".format(samtools_execute_command, samtools_threads, normal_output_bam)))
-
-    # if contaminative_proportions is not None:
-    #     # contam_tumor_num =
-    #     contaminative_proportion_list = contaminative_proportions.split(',')
-    #     normal_output_bam = output_fn.replace('tumor_', 'normal_')
-    #     normal_sampled_bam_list = ' '.join([os.path.join(input_dir, bam) for bam in pair_normal_bam_list])
-    #     subprocess_run(shlex.split(
-    #         "{} merge -f -@{} {} {}".format(samtools_execute_command, samtools_threads, normal_output_bam,
-    #                                         normal_sampled_bam_list)))
-    #     subprocess_run(
-    #         shlex.split("{} index -@{} {}".format(samtools_execute_command, samtools_threads, normal_output_bam)))
-
-    # subprocess_run(shlex.split("ln -sf {} {}".format(normal_bam_fn, normal_output_bam)))
-    # subprocess_run(shlex.split("ln -sf {}.bai {}.bai".format(normal_bam_fn, normal_output_bam)))
-    #
-    # for bam_fn, bin_num, prefix in zip((normal_bam_fn, tumor_bam_fn), (normal_bin_num, tumor_bin_num), ("normal", 'tumor')):
-    #     subprocess_list = []
-    #     for bin_idx in range(bin_num):
-    #         output_fn = os.path.join(output_dir, prefix + "_" + str(bin_idx))
-    #         save_file_fp = subprocess_popen(
-    #             shlex.split("{} view -bh - -o {}".format(samtools_execute_command, output_fn)), stdin=PIPE,
-    #             stdout=PIPE)
-    #         subprocess_list.append(save_file_fp)
-    #
-    #     samtools_view_command = "{} view -@ {} -h {} {}".format(samtools_execute_command, samtools_threads, bam_fn, ctg_name if ctg_name else "")
-    #
-    #     samtools_view_process = subprocess_popen(shlex.split(samtools_view_command))
-    #
-    #     for row_id, row in enumerate(samtools_view_process.stdout):
-    #         if row[0] == '@':
-    #             for subprocess in subprocess_list:
-    #                 subprocess.stdin.write(row)
-    #             continue
-    #         bin_id = int(random.random() * 100) % bin_num
-    #         subprocess_list[bin_id].stdin.write(row)
-    #
-    #     samtools_view_process.stdout.close()
-    #     samtools_view_process.wait()
-    #     for save_file_fp in subprocess_list:
-    #         save_file_fp.stdin.close()
-    #         save_file_fp.wait()
+    print("[INFO] Finishing merging, output file: {}".format(normal_output_bam))
 
 
 def main():
