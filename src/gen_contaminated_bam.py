@@ -64,74 +64,58 @@ def random_sample(population, k, seed=0):
 
 def gen_contaminated_bam(args):
     tumor_bam_fn = args.tumor_bam_fn
-    normal_bam_fn = args.tumor_bam_fn
+    normal_bam_fn = args.normal_bam_fn
     output_dir = args.output_dir
-    input_dir = args.input_dir
     ctg_name = args.ctg_name
     samtools_execute_command = args.samtools
     samtools_threads = args.samtools_threads
     contaminative_proportion = args.contaminative_proportion
 
-    # tensor_sample_mode = args.tensor_sample_mode
-    # min_bin_coverage = args.min_bin_coverage
-    # synthetic_proportion = args.synthetic_proportion
-    # synthetic_coverage = args.synthetic_coverage
-
-    # normal_coverage_proportion = args.normal_coverage_proportion
-
-    if not os.path.exists(args.output_dir):
-        rc = subprocess.run('mkdir -p {}'.format(args.output_dir), shell=True)
-    normal_bam_coverage = args.normal_bam_coverage if args.normal_bam_coverage else get_coverage_from_bam(args, normal_bam_fn, False)
+    if not os.path.exists(output_dir):
+        rc = subprocess.run('mkdir -p {}'.format(output_dir), shell=True)
+    normal_bam_coverage = args.normal_bam_coverage if args.normal_bam_coverage else get_coverage_from_bam(args,normal_bam_fn, False)
     tumor_bam_coverage = args.tumor_bam_coverage if args.tumor_bam_coverage else get_coverage_from_bam(args, tumor_bam_fn, True)
 
     contam_coverage = normal_bam_coverage * args.contaminative_proportion
     rest_normal_coverage = normal_bam_coverage - contam_coverage
 
-    tumor_subsample_pro = int(contam_coverage / float(tumor_bam_coverage) * 1000) / 1000
+    tumor_subsample_pro = round(contam_coverage / float(tumor_bam_coverage), 3)
+    normal_subsample_pro = round(rest_normal_coverage / float(normal_bam_coverage), 3)
 
-    normal_subsample_pro = int(rest_normal_coverage / float(normal_bam_coverage)* 1000) / 1000
+    print("[INFO] Normal/Tumor BAM coverage: {}/{}".format(normal_bam_coverage,
+                                                           tumor_bam_coverage))
+
+    print("[INFO] Normal/Tumor subsample proportion: {}/{}".format(normal_subsample_pro,
+                                                           tumor_subsample_pro))
+
 
     tumor_subsample_bam = os.path.join(args.output_dir, 'tumor_subsample.bam')
     normal_subsample_bam = os.path.join(args.output_dir, 'normal_rest.bam')
 
     contig_option = "" if ctg_name is None else ctg_name
 
-    t_s_cmd = "{} view -@{} -bh -s 0.{} -o {} {} {}".format(samtools_execute_command,
+    t_s_cmd = "{} view -@{} -bh -s {} -o {} {} {}".format(samtools_execute_command,
                                                       samtools_threads,
                                                       tumor_subsample_pro,
                                                       tumor_subsample_bam,
+                                                      tumor_bam_fn,
                                                       contig_option,
-                                                      tumor_bam_fn)
+                                                      )
 
-    n_s_cmd = "{} view -@{} -bh -s 0.{} -o {} {} {}".format(samtools_execute_command,
+    n_s_cmd = "{} view -@{} -bh -s {} -o {} {} {}".format(samtools_execute_command,
                                                       samtools_threads,
                                                       normal_subsample_pro,
                                                       normal_subsample_bam,
-                                                      contig_option,
-                                                      normal_bam_fn)
+                                                      normal_bam_fn,
+                                                      contig_option)
 
     print(t_s_cmd)
     print(n_s_cmd)
 
     subprocess.run(t_s_cmd, shell=True)
     subprocess.run(n_s_cmd, shell=True)
-    subprocess.run('{} index -@{} {}'.format(samtools_execute_command, samtools_threads, tumor_subsample_bam))
-    subprocess.run('{} index -@{} {}'.format(samtools_execute_command, samtools_threads, normal_subsample_bam))
-
-    normal_output_bam = os.path.join(args.output_dir, "normal_contaminated_{}.bam".format(contaminative_proportion))
-    #merge two bam
-    print("[INFO]")
-    subprocess_run(
-        "{} merge -f -@{} {} {}".format(samtools_execute_command, samtools_threads, normal_output_bam,
-                                        tumor_subsample_bam, normal_subsample_bam), shell=True)
-
-    subprocess.run('{} index -@{} {}'.format(samtools_execute_command, samtools_threads, normal_output_bam))
-
-    max_syn_coverage = check_max_sampled_coverage(nor_cov=normal_bam_coverage,
-                                                  tum_cov=tumor_bam_coverage,
-                                                  synthetic_proportion=synthetic_proportion,
-                                                  pair_gamma=normal_coverage_proportion,
-                                                  min_bin_coverage=min_bin_coverage)
+    subprocess.run(n_index_cmd, shell=True)
+    subprocess.run(t_index_cmd, shell=True)
 
     if synthetic_coverage is None:
         print('[INFO] Synthetic coverage not set, use maximum synthetic coverage {}'.format(max_syn_coverage))
@@ -282,7 +266,7 @@ def main():
     parser.add_argument('--tumor_bam_coverage', type=int, default=None,
                         help="Tumor BAM coverage calculated using mosdepth")
 
-    parser.add_argument('--output_fn', type=str, default=None,
+    parser.add_argument('--output_dir', type=str, default=None,
                         help="Sorted chunked BAM file output path")
 
     parser.add_argument('--input_dir', type=str, default=None,
@@ -294,31 +278,17 @@ def main():
     parser.add_argument('--samtools_threads', type=int, default=32,
                         help="Samtools threads to read input BAM")
 
-    parser.add_argument('--synthetic_proportion', type=float, default=0.25,
-                        help="Target tumor proportion for synthetic pair data")
-
-    parser.add_argument('--synthetic_coverage', type=int, default=None,
-                        help="Target coverage for synthetic pair data")
-
-    parser.add_argument('--contaminative_proportions', type=str, default=None,
-                        help="contaminative_proportions, split by ','. ")
+    parser.add_argument('--contaminative_proportion', type=float, default=None,
+                        help="contaminative_proportion, split by ','. ")
 
     parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of sequence to be processed, required if --bed_fn is not defined")
 
-    parser.add_argument('--cov_dir', type=str, default=None,
-                        help="Directory of mosdepth coverage summary")
-
     parser.add_argument('--mosdepth', type=str, default="mosdepth",
                         help="Path to the 'mosdepth'")
 
-
-    parser.add_argument('--normal_coverage_proportion', type=float, default=1,
-                        help="EXPERIMENTAL: Normal synthetic normal and tumor pair proportion")
-
     parser.add_argument('--dry_run', type=str2bool, default=0,
                         help="EXPERIMENTAL: Only print the synthetic log, debug only")
-
 
     args = parser.parse_args()
 
