@@ -1,6 +1,7 @@
 import os
 import random
 import shlex
+import subprocess
 
 from argparse import ArgumentParser, SUPPRESS
 from subprocess import run as subprocess_run
@@ -16,9 +17,10 @@ def get_coverage_from_bam(args, bam_fn, is_tumor=False):
 
     mosdepth = args.mosdepth
     contig_option = "" if ctg_name is None else "-c {}".format(ctg_name)
+
     prefix = 'tumor' if is_tumor else 'normal'
     output_prefix = os.path.join(args.output_dir, 'raw_{}'.format(prefix))
-    #${MOSDEPTH} -t ${THREADS} -c {1} -n -x --quantize 0:15:150: ${RAW_COV_PATH}/raw_{2}_{1}.cov {3}
+
 
     mos_depth_command = "{} -t {} {} -n -x --quantize 0:15:150: {}.cov {}".format(mosdepth,
                                                                  args.samtools_threads,
@@ -26,19 +28,20 @@ def get_coverage_from_bam(args, bam_fn, is_tumor=False):
                                                                  output_prefix,
                                                                  bam_fn)
 
-    print(mos_depth_command)
-    subprocess_run(shlex.split(mos_depth_command))
+    print("[INFO] Calculating coverge for {} BAM using mosdepth...".format(prefix))
 
-    coverage_log = os.path.join(args.output_dir, output_prefix)
+    # subprocess_run(shlex.split(mos_depth_command))
+
+    coverage_log = os.path.join(args.output_dir, output_prefix + cov_suffix)
     if ctg_name is None:
         last_row = open(coverage_log).readlines()[-1]
-        coverage = int(float(last_row.split()[3]))
+        coverage = float(float(last_row.split()[3]))
     else:
         all_rows = open(coverage_log).readlines()
         ctg_row = [row for row in all_rows if row.split()[0] == ctg_name]
         if len(ctg_row) == 0:
             print('[ERROR] no contig coverage found for contig {}'.format(ctg_name))
-        coverage = int(ctg_row[0].split()[3])
+        coverage = float(ctg_row[0].split()[3])
     return coverage
 
 
@@ -62,33 +65,67 @@ def random_sample(population, k, seed=0):
 def gen_contaminated_bam(args):
     tumor_bam_fn = args.tumor_bam_fn
     normal_bam_fn = args.tumor_bam_fn
-    output_fn = args.output_fn
+    output_dir = args.output_dir
     input_dir = args.input_dir
     ctg_name = args.ctg_name
     samtools_execute_command = args.samtools
     samtools_threads = args.samtools_threads
-    contaminative_proportions = args.contaminative_proportions
+    contaminative_proportion = args.contaminative_proportion
 
-    tensor_sample_mode = args.tensor_sample_mode
-    min_bin_coverage = args.min_bin_coverage
-    synthetic_proportion = args.synthetic_proportion
-    synthetic_coverage = args.synthetic_coverage
+    # tensor_sample_mode = args.tensor_sample_mode
+    # min_bin_coverage = args.min_bin_coverage
+    # synthetic_proportion = args.synthetic_proportion
+    # synthetic_coverage = args.synthetic_coverage
 
     # normal_coverage_proportion = args.normal_coverage_proportion
 
+    if not os.path.exists(args.output_dir):
+        rc = subprocess.run('mkdir -p {}'.format(args.output_dir), shell=True)
     normal_bam_coverage = args.normal_bam_coverage if args.normal_bam_coverage else get_coverage_from_bam(args, normal_bam_fn, False)
     tumor_bam_coverage = args.tumor_bam_coverage if args.tumor_bam_coverage else get_coverage_from_bam(args, tumor_bam_fn, True)
 
+    contam_coverage = normal_bam_coverage * args.contaminative_proportion
+    rest_normal_coverage = normal_bam_coverage - contam_coverage
 
-    bam_list = os.listdir(input_dir)
-    if args.dry_run:
-        normal_bam_list = ['normal_' + str(idx) for idx in range(normal_bin_num)]
-        tumor_bam_list = ['tumor_' + str(idx) for idx in range(tumor_bin_num)]
-    else:
-        normal_bam_list = [bam for bam in bam_list if bam.startswith('normal_' + ctg_name + '_')]
-        tumor_bam_list = [bam for bam in bam_list if bam.startswith('tumor_' + ctg_name + '_')]
-    assert len(normal_bam_list) == normal_bin_num
-    assert len(tumor_bam_list) == tumor_bin_num
+    tumor_subsample_pro = int(contam_coverage / float(tumor_bam_coverage) * 1000) / 1000
+
+    normal_subsample_pro = int(rest_normal_coverage / float(normal_bam_coverage)* 1000) / 1000
+
+    tumor_subsample_bam = os.path.join(args.output_dir, 'tumor_subsample.bam')
+    normal_subsample_bam = os.path.join(args.output_dir, 'normal_rest.bam')
+
+    contig_option = "" if ctg_name is None else ctg_name
+
+    t_s_cmd = "{} view -@{} -bh -s 0.{} -o {} {} {}".format(samtools_execute_command,
+                                                      samtools_threads,
+                                                      tumor_subsample_pro,
+                                                      tumor_subsample_bam,
+                                                      contig_option,
+                                                      tumor_bam_fn)
+
+    n_s_cmd = "{} view -@{} -bh -s 0.{} -o {} {} {}".format(samtools_execute_command,
+                                                      samtools_threads,
+                                                      normal_subsample_pro,
+                                                      normal_subsample_bam,
+                                                      contig_option,
+                                                      normal_bam_fn)
+
+    print(t_s_cmd)
+    print(n_s_cmd)
+
+    subprocess.run(t_s_cmd, shell=True)
+    subprocess.run(n_s_cmd, shell=True)
+    subprocess.run('{} index -@{} {}'.format(samtools_execute_command, samtools_threads, tumor_subsample_bam))
+    subprocess.run('{} index -@{} {}'.format(samtools_execute_command, samtools_threads, normal_subsample_bam))
+
+    normal_output_bam = os.path.join(args.output_dir, "normal_contaminated_{}.bam".format(contaminative_proportion))
+    #merge two bam
+    print("[INFO]")
+    subprocess_run(
+        "{} merge -f -@{} {} {}".format(samtools_execute_command, samtools_threads, normal_output_bam,
+                                        tumor_subsample_bam, normal_subsample_bam), shell=True)
+
+    subprocess.run('{} index -@{} {}'.format(samtools_execute_command, samtools_threads, normal_output_bam))
 
     max_syn_coverage = check_max_sampled_coverage(nor_cov=normal_bam_coverage,
                                                   tum_cov=tumor_bam_coverage,
