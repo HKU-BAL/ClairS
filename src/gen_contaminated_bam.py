@@ -50,18 +50,6 @@ def get_coverage_from_bam(args, bam_fn, is_tumor=False):
     return coverage
 
 
-def check_max_sampled_coverage(nor_cov, tum_cov, synthetic_proportion, pair_gamma=0.5, min_bin_coverage=4):
-    # nor_cov = int(nor_cov / min_bin_coverage * min_bin_coverage)
-    # tum_cov = int(tum_cov / min_bin_coverage * min_bin_coverage)
-    max_synthetic_coverage_for_tumor = int(tum_cov / synthetic_proportion)
-    max_synthetic_coverage_for_normal = int(nor_cov / (1 + pair_gamma - synthetic_proportion))
-
-    max_synthetic_coverage = min(max_synthetic_coverage_for_tumor, max_synthetic_coverage_for_normal)
-    max_synthetic_coverage = int(max_synthetic_coverage)
-
-    return max_synthetic_coverage
-
-
 def random_sample(population, k, seed=0):
     random.seed(seed)
     return random.sample(population, k)
@@ -84,8 +72,8 @@ def gen_contaminated_bam(args):
     contam_coverage = normal_bam_coverage * args.contaminative_proportion
     rest_normal_coverage = normal_bam_coverage - contam_coverage
 
-    tumor_subsample_pro = round(contam_coverage / float(tumor_bam_coverage), 3)
-    normal_subsample_pro = round(rest_normal_coverage / float(normal_bam_coverage), 3)
+    tumor_subsample_pro = "%.3f" % (contam_coverage / float(tumor_bam_coverage))
+    normal_subsample_pro = "%.3f" % (rest_normal_coverage / float(normal_bam_coverage))
 
     print("[INFO] Normal/Tumor BAM coverage: {}/{}".format(normal_bam_coverage,
                                                            tumor_bam_coverage))
@@ -117,29 +105,31 @@ def gen_contaminated_bam(args):
     n_index_cmd = '{} index -@{} {}'.format(samtools_execute_command, samtools_threads, tumor_subsample_bam)
     t_index_cmd = '{} index -@{} {}'.format(samtools_execute_command, samtools_threads, normal_subsample_bam)
 
+    print(t_s_cmd)
+    print(n_s_cmd)
+    print(n_index_cmd)
+    print(t_index_cmd)
     if args.dry_run:
-        print('[INFO] Dry run. Will run the following commands:')
-        print(t_s_cmd)
-        print(n_s_cmd)
-        print(n_index_cmd)
-        print(t_index_cmd)
+        print('[INFO] Dry run only. Will run the following commands:')
 
-    subprocess.run(t_s_cmd, shell=True)
-    subprocess.run(n_s_cmd, shell=True)
-    subprocess.run(n_index_cmd, shell=True)
-    subprocess.run(t_index_cmd, shell=True)
+    else:
+        subprocess.run(t_s_cmd, shell=True)
+        subprocess.run(n_s_cmd, shell=True)
+        subprocess.run(n_index_cmd, shell=True)
+        subprocess.run(t_index_cmd, shell=True)
 
     normal_output_bam = os.path.join(output_dir, "normal_contaminated_{}.bam".format(contaminative_proportion))
 
     print("[INFO] Merging tumor BAM into normal BAM as contaminatation...")
-    merge_cmd = "{} merge -f -@{} {} {}".format(samtools_execute_command, samtools_threads, normal_output_bam,
+    merge_cmd = "{} merge -f -@{} {} {} {}".format(samtools_execute_command, samtools_threads, normal_output_bam,
                                         tumor_subsample_bam, normal_subsample_bam)
     index_cmd = '{} index -@{} {}'.format(samtools_execute_command, samtools_threads, normal_output_bam)
 
+    print(merge_cmd)
+    print(index_cmd)
     if args.dry_run:
         print('[INFO] Dry run. Will run the following commands:')
-        print(merge_cmd)
-        print(index_cmd)
+        return
 
     subprocess_run(merge_cmd, shell=True)
     subprocess.run(index_cmd, shell=True)
