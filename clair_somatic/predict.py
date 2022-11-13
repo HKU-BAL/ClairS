@@ -553,6 +553,8 @@ def predict(args):
                         input_matrix = torch.from_numpy(input_tensor).to(device)
                     else:
                         input_matrix = torch.from_numpy(np.transpose(input_tensor, (0, 3, 1, 2)) / 100.0).float().to(device)
+                        if input_matrix.shape[1] != param.channel_size:
+                            input_matrix = input_matrix[:,:param.channel_size, :,:]
                         # print(np.unique(input_tensor[:,:,:,5]))
                     with torch.no_grad():
                         prediction = model(input_matrix)
@@ -719,6 +721,23 @@ def main():
     ## Output germline calls
     parser.add_argument('--show_germline', action='store_true',
                         help=SUPPRESS)
+
+    parser.add_argument('--flanking', type=int, default=None,
+                        help=SUPPRESS)
+
+    # parser.add_argument('--gvcf', type=str2bool, default=False,
+    #                     help="Enable GVCF output, default: disabled")
+    #
+    # parser.add_argument('--haploid_precise', action='store_true',
+    #                     help="EXPERIMENTAL: Enable haploid calling mode. Only 1/1 is considered as a variant")
+    #
+    # parser.add_argument('--haploid_sensitive', action='store_true',
+    #                     help="EXPERIMENTAL: Enable haploid calling mode. 0/1 and 1/1 are considered as a variant")
+    #
+    # ## Include indel length in training and calling, false for pileup and true for raw alignment
+    # parser.add_argument('--add_indel_length', type=str2bool, default=False,
+    #                     help=SUPPRESS)
+
     args = parser.parse_args()
 
     # if len(sys.argv[1:]) == 0:
