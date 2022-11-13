@@ -508,30 +508,42 @@ def get_training_array(args, normal_tensor_fn, tumor_tensor_fn, var_fn, bed_fn, 
     # select all match prefix if file path not exists
 
 
-    subprocess_list = []
-    # if os.path.exists(tumor_tensor_fn):
-    #     subprocess_list.append(subprocess_popen(shlex.split("{} -fdc {}".format(param.zstd, tumor_tensor_fn))))
-    # else:
-    #     tensor_fn = tumor_tensor_fn.split('/')
-    #     directry, file_prefix = '/'.join(tensor_fn[:-1]), tensor_fn[-1]
-    #     all_file_name = []
-    #     for file_name in os.listdir(directry):
-    #         if file_name.startswith(file_prefix + '_') or file_name.startswith(
-    #                 file_prefix + '.'):  # add '_.' to avoid add other prefix chr
-    #             all_file_name.append(file_name)
-    #     all_file_name = sorted(all_file_name)
-    #     if chunk_id is not None:
-    #         chunk_size = len(all_file_name) // chunk_num if len(all_file_name) % chunk_num == 0 else len(
-    #             all_file_name) // chunk_num + 1
-    #         chunk_start = chunk_size * chunk_id
-    #         chunk_end = chunk_start + chunk_size
-    #         all_file_name = all_file_name[chunk_start:chunk_end]
-    #     if not len(all_file_name):
-    #         print("[INFO] chunk_id exceed total file number, skip chunk", file=sys.stderr)
-    #         return 0
-    #     for file_name in all_file_name:
-    #         subprocess_list.append(
-    #             subprocess_popen(shlex.split("{} -fdc {}".format(param.zstd, os.path.join(directry, file_name)))))
+    normal_tensor_list = []
+    tumor_tensor_list = []
+    if os.path.exists(tumor_tensor_fn) or os.path.exists(normal_tensor_fn):
+        if not (os.path.exists(tumor_tensor_fn) and os.path.exists(normal_tensor_fn)):
+            return 0
+        normal_tensor_list.append(normal_tensor_fn)
+        tumor_tensor_list.append(tumor_tensor_fn)
+    else:
+        tumor_tensor_info = tumor_tensor_fn.split('/')
+        tumor_directry, file_prefix = '/'.join(tumor_tensor_info[:-1]), tumor_tensor_info[-1]
+
+        normal_tensor_info = normal_tensor_fn.split('/')
+        normal_directry, file_prefix = '/'.join(normal_tensor_info[:-1]), normal_tensor_info[-1]
+
+        all_file_name = []
+        for file_name in os.listdir(tumor_directry):
+            if file_name.startswith(file_prefix + '_') or file_name.startswith(
+                    file_prefix + '.'):  # add '_.' to avoid add other prefix chr
+                if os.path.exists(os.path.join(normal_directry, file_name)):
+                    normal_tensor_list.append(os.path.join(normal_directry, file_name))
+                    tumor_tensor_list.append(os.path.join(tumor_directry, file_name))
+        # all_file_name = sorted(all_file_name)
+        # if chunk_id is not None:
+        #     chunk_size = len(all_file_name) // chunk_num if len(all_file_name) % chunk_num == 0 else len(
+        #         all_file_name) // chunk_num + 1
+        #     chunk_start = chunk_size * chunk_id
+        #     chunk_end = chunk_start + chunk_size
+        #     normal_tensor_list = normal_tensor_list[chunk_start:chunk_end]
+        #     tumor_tensor_list = tumor_tensor_list[chunk_start:chunk_end]
+        # if not len(all_file_name):
+        #     print("[INFO] chunk_id exceed total file number, skip chunk", file=sys.stderr)
+        #     return 0
+        # for file_name in all_file_name:
+        #
+        #     subprocess_list.append(
+        #         subprocess_popen(shlex.split("{} -fdc {}".format(param.zstd, os.path.join(directry, file_name)))))
 
     tables.set_blosc_max_threads(64)
     int_atom = tables.Atom.from_dtype(np.dtype(float_type))
