@@ -1007,7 +1007,6 @@ def somatic_parser():
     optional_params.add_argument(
         "-g",
         "--use_gpu",
-        default=False,
         action='store_true',
         help="If set then will use GPUs for inference. CUDA required."
     )
@@ -1029,14 +1028,12 @@ def somatic_parser():
 
     optional_params.add_argument(
         "--remove_intermediate_dir",
-        default=False,
         action='store_true',
         help="Remove intermediate directory. Default: False"
     )
 
     optional_params.add_argument(
         "--include_all_ctgs",
-        default=False,
         action='store_true',
         help="Call variants on all contigs, otherwise call in chr{1..22,X,Y} and {1..22,X,Y}, default: disable."
     )
@@ -1050,14 +1047,12 @@ def somatic_parser():
 
     optional_params.add_argument(
         "--print_ref_calls",
-        default=False,
         action='store_true',
         help="Show reference calls (0/0) in VCF file, default: disable."
     )
 
     optional_params.add_argument(
         "--print_germline_calls",
-        default=False,
         action='store_true',
         help="Show germline calls (0/0) in VCF file, default: disable."
     )
@@ -1065,14 +1060,12 @@ def somatic_parser():
     optional_params.add_argument(
         '-d',
         "--dry_run",
-        default=False,
         action='store_true',
         help="If true then only the commands will be printed."
     )
 
     optional_params.add_argument(
         "--pileup",
-        default=False,
         action='store_true',
         help="If true then only run pileup output."
     )
@@ -1154,16 +1147,12 @@ def somatic_parser():
 
     ont_params.add_argument(
         "--phase_normal",
-        type=str,
-        default=False,
         action='store_true',
         help=SUPPRESS
     )
 
     ont_params.add_argument(
         "--phase_tumor",
-        type=str,
-        default=False,
         action='store_true',
         help=SUPPRESS
     )
@@ -1174,7 +1163,7 @@ def somatic_parser():
         "--clair3_path",
         type=str,
         default=None,
-        help='123'
+        help='Clair3 entry path'
     )
 
     clair3_params.add_argument(
