@@ -941,15 +941,15 @@ def somatic_parser():
         help="Full-alignment somatic model path."
     )
 
-    region_group = optional_params.add_mutually_exclusive_group(required=False)
-
-    region_group.add_argument(
+    optional_params.add_argument(
         "-c",
         "--ctg_name",
         type=str,
         default=None,
         help="The name of the contigs to be processed. Split by ',' for multiple contigs"
     )
+
+    region_group = optional_params.add_mutually_exclusive_group(required=False)
 
     region_group.add_argument(
         "-r",
