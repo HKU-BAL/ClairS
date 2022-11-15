@@ -16,12 +16,6 @@ from shared.utils import file_path_from, folder_path_from, subprocess_popen, str
 
 version = "0.1"
 
-major_contigs = {"chr" + str(a) for a in list(range(1, 23)) + ["X", "Y"]}.union(
-    {str(a) for a in list(range(1, 23)) + ["X", "Y"]})
-major_contigs_order = ["chr" + str(a) for a in list(range(1, 23)) + ["X", "Y"]] + [str(a) for a in
-                                                                                   list(range(1, 23)) + ["X", "Y"]]
-
-#exclude XY
 major_contigs = {"chr" + str(a) for a in list(range(1, 23))}.union(
     {str(a) for a in list(range(1, 23))})
 major_contigs_order = ["chr" + str(a) for a in list(range(1, 23))] + [str(a) for a in
