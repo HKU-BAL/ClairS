@@ -70,108 +70,143 @@ def check_header_in_gvcf(header, contigs_list):
                 continue
         update_header.append(row)
 
+    return update_header
 
-def MergeVcf(args):
-    """
-    Merge pileup and full alignment vcf output. We merge the low quality score pileup candidates
-    recalled by full-alignment model with high quality score pileup output.
-    """
+def merge_vcf(args):
 
-    output_fn = args.output_fn
-    full_alignment_vcf_fn = args.full_alignment_vcf_fn
-    pileup_vcf_fn = args.pileup_vcf_fn  # true vcf var
-    contig_name = args.ctgName
-    QUAL = args.qual
-    is_haploid_precise_mode_enabled = args.haploid_precise
-    is_haploid_sensitive_mode_enabled = args.haploid_sensitive
-    print_ref = args.print_ref_calls
-    full_alignment_vcf_unzip_process = subprocess_popen(shlex.split("gzip -fdc %s" % (full_alignment_vcf_fn)))
+    compress_vcf = args.compress_vcf
 
-    full_alignment_output = []
-    full_alignment_output_set = set()
+    input_vcf_reader = VcfReader(vcf_fn=args.full_alignment_vcf_fn, ctg_name=None, show_ref=False, keep_row_str=True,
+                                 skip_genotype=True,
+                                 filter_tag="PASS",
+                                 keep_af=True)  # , naf_filter=0.03, taf_filter=0.25)
+    input_vcf_reader.read_vcf()
+    fa_input_variant_dict = input_vcf_reader.variant_dict
+
+    # if args.pileup_vcf_fn is not None:
+    #     from shared.vcf import VcfReader
+    #     p_input_vcf_reader = VcfReader(vcf_fn=args.pileup_vcf_fn, ctg_name=None, show_ref=False, keep_row_str=True,
+    #                                  skip_genotype=True,
+    #                                  filter_tag="PASS",
+    #                                  keep_af=True)  # , naf_filter=0.03, taf_filter=0.25)
+    #     p_input_vcf_reader.read_vcf()
+    #     p_input_variant_dict = p_input_vcf_reader.variant_dict
+    #
+    # else:
+
+    row_count = 0
     header = []
+    contig_dict = defaultdict(defaultdict)
+    no_vcf_output = True
+    filter_count = 0
+    af_filter_count = 0
+    f = open(args.pileup_vcf_fn)
+    for row in f:
 
-    for row in full_alignment_vcf_unzip_process.stdout:
         if row[0] == '#':
-            header.append(row)
+            if row not in header:
+                header.append(row)
             continue
+        row_count += 1
+        # use the first vcf header
         columns = row.strip().split()
-        ctg_name = columns[0]
-        if contig_name != None and ctg_name != contig_name:
-            continue
-        pos = int(columns[1])
+        ctg_name, pos = columns[0], columns[1]
+        # print(columns)
         qual = float(columns[5])
-        ref_base, alt_base = columns[3], columns[4]
-        is_reference = (alt_base == "." or ref_base == alt_base)
-
-        full_alignment_output_set.add((ctg_name, pos))
-
-        if is_haploid_precise_mode_enabled:
-            row = update_haploid_precise_genotype(columns)
-        if is_haploid_sensitive_mode_enabled:
-            row = update_haploid_sensitive_genotype(columns)
-
-        if not is_reference:
-                row = MarkLowQual(row, QUAL, qual)
-                full_alignment_output.append((pos, row))
-
-        elif print_ref:
-            full_alignment_output.append((pos, row))
-
-    full_alignment_vcf_unzip_process.stdout.close()
-    full_alignment_vcf_unzip_process.wait()
-
-    pileup_vcf_unzip_process = subprocess_popen(shlex.split("gzip -fdc %s" % (pileup_vcf_fn)))
-
-    output_file = open(output_fn, 'w')
-    output_file.write(''.join(header))
-    
-    def pileup_vcf_generator_from(pileup_vcf_unzip_process):
-        pileup_row_count = 0
-        for row in pileup_vcf_unzip_process.stdout:
-            if row[0] == '#':
-                continue
-
-            columns = row.rstrip().split('\t')
-            ctg_name = columns[0]
-            if contig_name and contig_name != ctg_name:
-                continue
-            pos = int(columns[1])
-            qual = float(columns[5])
-            ref_base, alt_base = columns[3], columns[4]
-            is_reference = (alt_base == "." or ref_base == alt_base)
-
-            if (ctg_name, pos) in full_alignment_output_set:
-                continue
-
-            if is_haploid_precise_mode_enabled:
-                row = update_haploid_precise_genotype(columns)
-            if is_haploid_sensitive_mode_enabled:
-                row = update_haploid_sensitive_genotype(columns)
-
-            if not is_reference:
-                row = MarkLowQual(row, QUAL, qual)
-                pileup_row_count += 1
-                yield (pos, row)
-            elif print_ref:
-                pileup_row_count += 1
-                yield (pos, row)
-
-        logging.info('[INFO] Pileup variants processed in {}: {}'.format(contig_name, pileup_row_count))
-
-    pileup_vcf_generator = pileup_vcf_generator_from(pileup_vcf_unzip_process=pileup_vcf_unzip_process)
-    full_alignment_vcf_generator = iter(full_alignment_output)
-    for vcf_infos in heapq.merge(full_alignment_vcf_generator, pileup_vcf_generator):
-        if len(vcf_infos) != 2:
+        filter = columns[6]
+        if filter != 'PASS':
             continue
-        pos, row = vcf_infos
-        output_file.write(row)
-    
-    logging.info('[INFO] Full-alignment variants processed in {}: {}'.format(contig_name, len(full_alignment_output)))
+        if args.qual is not None and qual <= args.qual:
 
-    pileup_vcf_unzip_process.stdout.close()
-    pileup_vcf_unzip_process.wait()
-    output_file.close()
+            if (ctg_name, int(pos)) not in fa_input_variant_dict:
+                filter_count += 1
+                continue
+
+
+        if args.af is not None:
+            tag_list = columns[8].split(':')
+            taf_index = tag_list.index('AF') if 'AF' in tag_list else tag_list.index('VAF')
+            af = float(columns[9].split(':')[taf_index])
+            if af <= args.af and (ctg_name, int(pos)) not in fa_input_variant_dict:
+                af_filter_count += 1
+                continue
+
+        if args.qual is not None and (ctg_name, int(pos)) in fa_input_variant_dict:
+            columns[5] = str((qual + float(fa_input_variant_dict[(ctg_name, int(pos))].qual)) / 2)
+            # columns[5] = str(input_variant_dict[(ctg_name, int(pos))].qual)
+            row = '\t'.join(columns) + '\n'
+
+        contig_dict[ctg_name][int(pos)] = row
+        no_vcf_output = False
+
+    if row_count == 0:
+        print(log_warning("[WARNING] No vcf file found, please check the setting"))
+    if no_vcf_output:
+        print(log_warning("[WARNING] No variant found, please check the setting"))
+
+    print("Filter count", filter_count)
+    if args.af is not None:
+        print("AF filter count", af_filter_count)
+    contigs_order = major_contigs_order + list(contig_dict.keys())
+    contigs_order_list = sorted(contig_dict.keys(), key=lambda x: contigs_order.index(x))
+    with open(args.output_fn, 'w') as output:
+        output.write(''.join(header))
+        for contig in contigs_order_list:
+            all_pos = sorted(contig_dict[contig].keys())
+            for pos in all_pos:
+                output.write(contig_dict[contig][pos])
+    f.close()
+
+    if compress_vcf:
+        compress_index_vcf(args.output_fn)
+
+def sort_bed_from_stdin(args):
+    """
+    Sort vcf file according to variants start position and contig name.
+    """
+
+    row_count = 0
+    header = []
+    contig_dict = defaultdict(defaultdict)
+    no_vcf_output = True
+    for row in stdin:
+        row_count += 1
+        if row[0] == '#':
+            if row not in header:
+                header.append(row)
+            continue
+        # use the first vcf header
+        columns = row.strip().split()
+        ctg_name, bed_start, bed_end = columns[:3]
+        contig_dict[ctg_name][(int(bed_start), int(bed_end))] = row
+        no_bed_output = False
+    if row_count == 0:
+        print(log_warning("[WARNING] No BED file found, please check the setting"))
+    if no_bed_output:
+        print(log_warning("[WARNING] No BED found, please check the setting"))
+
+    contigs_order = major_contigs_order + list(contig_dict.keys())
+    contigs_order_list = sorted(contig_dict.keys(), key=lambda x: contigs_order.index(x))
+    with open(args.output_fn, 'w') as output:
+        output.write(''.join(header))
+        for contig in contigs_order_list:
+            all_pos = sorted(contig_dict[contig].keys())
+            for pos in all_pos:
+                output.write(contig_dict[contig][pos])
+
+
+def sort_vcf_from(args):
+    """
+    Sort vcf file from providing vcf filename prefix.
+    """
+    output_fn = args.output_fn
+    input_dir = args.input_dir
+    vcf_fn_prefix = args.vcf_fn_prefix
+    vcf_fn_suffix = args.vcf_fn_suffix
+    sample_name = args.sampleName
+    ref_fn = args.ref_fn
+    contigs_fn = args.contigs_fn
+    compress_vcf = args.compress_vcf
 
 def mergeNonVariant(args):
     '''
