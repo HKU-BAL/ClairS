@@ -99,20 +99,19 @@ def realign_variants(args):
     ctg_name = args.ctg_name
     threads = args.threads
 
-    p_reader = VcfReader(vcf_fn=args.pileup_input_vcf_fn, ctg_name=ctg_name, show_ref=False, keep_row_str=True,
-                                 filter_tag="PASS;HighConf,PASS;MedConf,PASS,RefCall", save_header=True) #PASS;HighConf PASS;MedConf
+    p_reader = VcfReader(vcf_fn=args.pileup_vcf_fn, ctg_name=ctg_name, show_ref=False, keep_row_str=True,
+                                 filter_tag="PASS;HighConf,PASS;MedConf,PASS,RefCall", save_header=True)
     p_reader.read_vcf()
     p_input_variant_dict = p_reader.variant_dict
 
-    fa_reader = VcfReader(vcf_fn=args.fa_input_vcf_fn, ctg_name=ctg_name, show_ref=False, keep_row_str=True,
-                                 filter_tag="PASS;HighConf,PASS;MedConf,PASS,RefCall", save_header=True) #PASS;HighConf PASS;MedConf
+    fa_reader = VcfReader(vcf_fn=args.full_alignment_vcf_fn, ctg_name=ctg_name, show_ref=False, keep_row_str=True,
+                                 filter_tag="PASS;HighConf,PASS;MedConf,PASS,RefCall", save_header=True)
     fa_reader.read_vcf()
     fa_input_variant_dict = fa_reader.variant_dict
 
-    for key, d in fa_input_variant_dict.items():
-        if key not in p_input_variant_dict:
-            d.extra_infos = False
-
+    for k, v in fa_input_variant_dict.items():
+        if k not in p_input_variant_dict:
+            v.extra_infos = False
 
     output_vcf_fn = args.output_vcf_fn
     vcf_writer = VcfWriter(vcf_fn=output_vcf_fn, ref_fn=args.ref_fn, ctg_name=ctg_name, show_ref_calls=True)
@@ -169,10 +168,10 @@ def main():
     parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of sequence to be processed")
 
-    parser.add_argument('--pileup_input_vcf_fn', type=str, default=None,
+    parser.add_argument('--pileup_vcf_fn', type=str, default=None,
                         help="Pileup VCF file input")
 
-    parser.add_argument('--fa_input_vcf_fn', type=str, default=None,
+    parser.add_argument('--full_alignment_vcf_fn', type=str, default=None,
                         help="Full-alignment VCF file input")
 
     parser.add_argument('--output_vcf_fn', type=str, default=None,
@@ -205,7 +204,10 @@ def main():
                         help='Output VCF filename, required')
 
     ## Test in specific candidate position. Only for testing
-    parser.add_argument('--output_realign_info', type=str2bool, default=0,
+    parser.add_argument('--output_realign_info', type=str2bool, default=False,
+                        help="")
+
+    parser.add_argument('--enable_realignment', type=str2bool, default=True,
                         help="")
 
     # if len(sys.argv[1:]) == 0:
