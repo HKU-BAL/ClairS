@@ -1,32 +1,53 @@
+import os
+import subprocess
+import shlex
+from sys import stdin, exit
+from argparse import ArgumentParser
+from collections import defaultdict
 import sys
 import os
 import shlex
-import logging
-import heapq
+from shared.vcf import VcfReader
 
-logging.basicConfig(format='%(message)s', level=logging.INFO)
-
-from argparse import ArgumentParser, SUPPRESS
-from shared.utils import subprocess_popen, str2bool, log_error, log_warning
-import shared.param_f as param
-from shared.interval_tree import bed_tree_from, is_region_in
-from preprocess.utils import gvcfGenerator
+from shared.utils import log_error, log_warning, file_path_from, str2bool
+major_contigs_order = ["chr" + str(a) for a in list(range(1, 23)) + ["X", "Y"]] + [str(a) for a in
+                                                                                   list(range(1, 23)) + ["X", "Y"]]
 
 
-def update_haploid_precise_genotype(columns):
-    INFO = columns[9].split(':')
-    genotype_string = INFO[0].replace('|', '/')
+def compress_index_vcf(input_vcf):
+    # use bgzip to compress vcf -> vcf.gz
+    # use tabix to index vcf.gz
+    proc = subprocess.run('bgzip -f {}'.format(input_vcf), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run('tabix -f -p vcf {}.gz'.format(input_vcf), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-    if genotype_string == '1/1':
-        genotype = ['1']
-    elif genotype_string == '0/0':
-        genotype = ['0']
-    else:
-        return ""
-    # update genotype
-    columns[9] = ':'.join(genotype + INFO[1:])
-    row = '\t'.join(columns) + '\n'
-    return row
+def output_header(output_fn, reference_file_path, sample_name='SAMPLE'):
+    output_file = open(output_fn, "w")
+    from textwrap import dedent
+    output_file.write(dedent("""\
+        ##fileformat=VCFv4.2
+        ##FILTER=<ID=PASS,Description="All filters passed">
+        ##FILTER=<ID=LowQual,Description="Low quality variant">
+        ##FILTER=<ID=RefCall,Description="Reference call">
+        ##INFO=<ID=P,Number=0,Type=Flag,Description="Result from pileup calling">
+        ##INFO=<ID=F,Number=0,Type=Flag,Description="Result from full-alignment calling">
+        ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+        ##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
+        ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
+        ##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Read depth for each allele">
+        ##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Phred-scaled genotype likelihoods rounded to the closest integer">
+        ##FORMAT=<ID=AF,Number=1,Type=Float,Description="Estimated allele frequency in the range of [0,1]">"""
+                  ) + '\n')
+
+    if reference_file_path is not None:
+        reference_index_file_path = file_path_from(reference_file_path, suffix=".fai", exit_on_not_found=True, sep='.')
+        with open(reference_index_file_path, "r") as fai_fp:
+            for row in fai_fp:
+                columns = row.strip().split("\t")
+                contig_name, contig_size = columns[0], columns[1]
+                output_file.write(("##contig=<ID=%s,length=%s>" % (contig_name, contig_size) + '\n'))
+
+    output_file.write('#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t%s' % (sample_name))
+    output_file.close()
 
 def update_haploid_sensitive_genotype(columns):
     INFO = columns[9].split(':')
