@@ -5,7 +5,7 @@ from sys import stdin, exit
 from argparse import ArgumentParser
 from collections import defaultdict
 import sys
-import os
+sys.path.insert(0, "/autofs/bal36/zxzheng/somatic/Clair-somatic")
 import shlex
 from shared.vcf import VcfReader
 
@@ -49,33 +49,26 @@ def output_header(output_fn, reference_file_path, sample_name='SAMPLE'):
     output_file.write('#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t%s' % (sample_name))
     output_file.close()
 
-def update_haploid_sensitive_genotype(columns):
-    INFO = columns[9].split(':')
-    genotype_string = INFO[0].replace('|', '/')
-    ref_base, alt_base = columns[3], columns[4]
-    is_multi = ',' in alt_base
+def print_calling_step(output_fn=""):
 
-    if is_multi:
-        return ""
+    merge_output = os.path.join(os.path.dirname(output_fn), 'merge_output.vcf.gz')
+    pileup_output = os.path.join(os.path.dirname(output_fn), 'pileup.vcf.gz')
 
-    if genotype_string in ('0/1','1/0','1/1'):
-        genotype = ['1']
-    else:
-        genotype = ['0']
-    # update genotype
-    columns[9] = ':'.join(genotype + INFO[1:])
-    row = '\t'.join(columns) + '\n'
-    return row
+    # print (log_warning("[WARNING] Copying pileup.vcf.gz to {}".format(merge_output)))
+    # subprocess.run('cp {} {}'.format(pileup_output, merge_output), shell=True, stdout=subprocess.PIPE,
+    #                stderr=subprocess.PIPE)
 
-def MarkLowQual(row, quality_score_for_pass, qual):
-    if row == '':
-        return row
+def check_header_in_gvcf(header, contigs_list):
+    # Only output the contigs processed to be consistent with GATK
+    # Contig format: ##contig=<ID=%s,length=%s>
 
-    if quality_score_for_pass and qual <= quality_score_for_pass:
-        row = row.split("\t")
-        row[6] = "LowQual"
-        return '\t'.join(row)
-    return row
+    update_header = []
+    for row_id, row in enumerate(header):
+        if row.startswith("##contig="):
+            contig = row.split(',')[0].split('=')[2]
+            if contig not in contigs_list:
+                continue
+        update_header.append(row)
 
 
 def MergeVcf(args):
