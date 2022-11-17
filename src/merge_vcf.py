@@ -208,72 +208,133 @@ def sort_vcf_from(args):
     contigs_fn = args.contigs_fn
     compress_vcf = args.compress_vcf
 
-def mergeNonVariant(args):
-    '''
-    merge the variant calls and non-variants
+    if not os.path.exists(input_dir):
+        exit(log_error("[ERROR] Input directory: {} not exists!").format(input_dir))
+    all_files = os.listdir(input_dir)
 
-    '''
-    gvcf_generator = gvcfGenerator(ref_path=args.ref_fn, samtools=args.samtools)
-    raw_gvcf_path = args.non_var_gvcf_fn
-    raw_vcf_path = args.output_fn
-    
-    if (args.gvcf_fn == None):
-        save_path = args.call_fn.split('.')[0] + '.g.vcf'
+    if vcf_fn_prefix is not None:
+        all_files = [item for item in all_files if item.startswith(vcf_fn_prefix)]
+        if len(all_files) == 0:
+            output_header(output_fn=output_fn, reference_file_path=ref_fn, sample_name=sample_name)
+            print (log_warning(
+                "[WARNING] No vcf file found with prefix:{}/{}, output empty vcf file".format(input_dir,vcf_fn_prefix)))
+            compress_index_vcf(output_fn)
+            print_calling_step(output_fn=output_fn)
+            return
+
+    if vcf_fn_suffix is not None:
+        all_files = [item for item in all_files if item.endswith(vcf_fn_suffix)]
+        if len(all_files) == 0:
+            output_header(output_fn=output_fn, reference_file_path=ref_fn, sample_name=sample_name)
+            print (log_warning(
+                "[WARNING] No vcf file found with suffix:{}/{}, output empty vcf file".format(input_dir,vcf_fn_prefix)))
+            compress_index_vcf(output_fn)
+            print_calling_step(output_fn=output_fn)
+            return
+
+    all_contigs_list = []
+    if contigs_fn and os.path.exists(contigs_fn):
+        with open(contigs_fn) as f:
+            all_contigs_list = [item.rstrip() for item in f.readlines()]
     else:
-        save_path = args.gvcf_fn
-        logging.info("[INFO] Merge variants and non-variants to GVCF")
-        gvcf_generator.mergeCalls(raw_vcf_path, raw_gvcf_path, save_path, args.sampleName, args.ctgName, args.ctgStart,
-                                  args.ctgEnd)
-    pass
+        exit(log_error("[ERROR] Cannot find contig file {}. Exit!").format(contigs_fn))
+
+    contigs_order = major_contigs_order + all_contigs_list
+    contigs_order_list = sorted(all_contigs_list, key=lambda x: contigs_order.index(x))
+
+    row_count = 0
+    header = []
+    no_vcf_output = True
+    need_write_header = True
+
+    output = open(output_fn, 'w')
+    for contig in contigs_order_list:
+        contig_dict = defaultdict(str)
+        contig_vcf_fns = [fn for fn in all_files if contig in fn]
+        for vcf_fn in contig_vcf_fns:
+            file = os.path.join(input_dir, vcf_fn)
+
+            fn = open(file, 'r')
+            for row in fn:
+                row_count += 1
+                if row[0] == '#':
+                    if row not in header:
+                        header.append(row)
+                    continue
+                # use the first vcf header
+                columns = row.strip().split(maxsplit=3)
+                ctg_name, pos = columns[0], columns[1]
+                # skip vcf file sharing same contig prefix, ie, chr1 and chr11
+                if ctg_name != contig:
+                    break
+                contig_dict[int(pos)] = row
+                no_vcf_output = False
+            fn.close()
+
+        if need_write_header and len(header):
+
+            output.write(''.join(header))
+            need_write_header = False
+        all_pos = sorted(contig_dict.keys())
+        for pos in all_pos:
+            output.write(contig_dict[pos])
+
+    output.close()
+
+    if row_count == 0:
+        print (log_warning("[WARNING] No vcf file found, output empty vcf file"))
+        output_header(output_fn=output_fn, reference_file_path=ref_fn, sample_name=sample_name)
+        if compress_vcf:
+            compress_index_vcf(output_fn)
+        print_calling_step(output_fn=output_fn)
+        return
+    if no_vcf_output:
+        output_header(output_fn=output_fn, reference_file_path=ref_fn, sample_name=sample_name)
+        print (log_warning("[WARNING] No variant found, output empty vcf file"))
+        if compress_vcf:
+            compress_index_vcf(output_fn)
+        # print_calling_step(output_fn=output_fn)
+        return
+
+    if compress_vcf:
+        compress_index_vcf(output_fn)
 
 
 def main():
-    parser = ArgumentParser(description="Generate 1-based variant candidates using alignments")
+    parser = ArgumentParser(description="Sort a VCF file according to contig name and starting position")
 
-    parser.add_argument('--platform', type=str, default="ont",
-                        help="Sequencing platform of the input. Options: 'ont,hifi,ilmn', default: %(default)s")
+    parser.add_argument('--platform', type=str, default='ont',
+                        help="Sequencing platform of the input, default: %(default)s")
+
+    parser.add_argument('--output_fn', type=str, default=None, required=True,
+                        help="Output VCF filename, required")
+
+    parser.add_argument('--input_dir', type=str, default=None,
+                        help="Input directory")
+
+    parser.add_argument('--pileup_vcf_fn', type=str, default=None,
+                        help="Pileup VCF input")
+
+    parser.add_argument('--full_alignment_vcf_fn', type=str, default=None,
+                        help="Full-alignment VCF input")
+
+    parser.add_argument('--vcf_fn_prefix', type=str, default=None,
+                        help="Input vcf filename prefix")
+
+    parser.add_argument('--vcf_fn_suffix', type=str, default='.vcf',
+                        help="Input vcf filename suffix")
 
     parser.add_argument('--ref_fn', type=str, default=None,
                         help="Reference fasta file input")
 
-    parser.add_argument('--pileup_vcf_fn', type=str, default=None,
-                        help="Path to the pileup vcf file")
-
-    parser.add_argument('--full_alignment_vcf_fn', type=str, default=None,
-                        help="Path to the full alignment vcf file")
-
-    parser.add_argument('--gvcf', type=str2bool, default=False,
-                        help="Enable GVCF output, default: disabled")
-
-    parser.add_argument('--non_var_gvcf_fn', type=str, default=None,
-                        help='Path to the non-variant GVCF')
-
-    parser.add_argument('--gvcf_fn', type=str, default=None,
-                        help='Filename of the GVCF output')
-
-    parser.add_argument('--output_fn', type=str, default=None,
-                        help="Filename of the merged output")
-
-    parser.add_argument('--ctgName', type=str, default=None,
-                        help="The name of sequence to be processed")
-
-    parser.add_argument('--ctgStart', type=int, default=None,
-                        help="The 1-based starting position of the sequence to be processed")
-
-    parser.add_argument('--ctgEnd', type=int, default=None,
-                        help="The 1-based inclusive ending position of the sequence to be processed")
-
-    parser.add_argument('--bed_fn_prefix', type=str, default=None,
-                        help="Process variant only in the provided regions prefix")
-
-    parser.add_argument('--qual', type=int, default=2,
-                        help="If set, variants with >$qual will be marked 'PASS', or 'LowQual' otherwise, optional")
-
     parser.add_argument('--sampleName', type=str, default="SAMPLE",
-                        help="Define the sample name to be shown in the VCF file")
+                        help="Define the sample name to be shown in the VCF file, optional")
 
-    parser.add_argument('--samtools', type=str, default='samtools',
-                        help="Path to the 'samtools', samtools version >= 1.10 is required, default: %(default)s")
+    parser.add_argument('--contigs_fn', type=str, default=None,
+                        help="Contigs file with all processing contigs")
+
+    parser.add_argument('--compress_vcf', type=str2bool, default=False,
+                        help="Only work for gvcf file, reduce hard disk space")
 
     parser.add_argument('--bed_format', action='store_true',
                         help="Only work for gvcf file, reduce hard disk space")
@@ -291,20 +352,13 @@ def main():
                         help="Compress and index output VCF")
 
     args = parser.parse_args()
-
-    if len(sys.argv[1:]) == 0:
-        parser.print_help()
-        sys.exit(1)
-    
-    # realignment region merge
-    if args.platform == 'ilmn':
-        MergeVcf_illumina(args=args)
-    else:
-        MergeVcf(args=args)
-    
-    if (args.gvcf):
-        mergeNonVariant(args)
-
+    # if args.input_dir is None:
+    #     if args.bed_format:
+    #         sort_bed_from_stdin(args)
+    #     else:
+    #         sort_vcf_from_stdin(args)
+    # else:
+    merge_vcf(args)
 
 if __name__ == "__main__":
     main()
