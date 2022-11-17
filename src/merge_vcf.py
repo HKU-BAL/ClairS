@@ -275,15 +275,20 @@ def main():
     parser.add_argument('--samtools', type=str, default='samtools',
                         help="Path to the 'samtools', samtools version >= 1.10 is required, default: %(default)s")
 
-    parser.add_argument('--print_ref_calls', type=str2bool, default=False,
-                        help="Show reference calls (0/0) in vcf file output")
+    parser.add_argument('--bed_format', action='store_true',
+                        help="Only work for gvcf file, reduce hard disk space")
 
-    # options for advanced users
-    parser.add_argument('--haploid_precise', type=str2bool, default=False,
-                        help="EXPERIMENTAL: Enable haploid calling mode. Only 1/1 is considered as a variant")
+    parser.add_argument('--filter_vcf_fn', type=str, default=None,
+                        help="Input vcf filename prefix")
 
-    parser.add_argument('--haploid_sensitive', type=str2bool, default=False,
-                        help="EXPERIMENTAL: Enable haploid calling mode. 0/1 and 1/1 are considered as a variant")
+    parser.add_argument('--qual', type=float, default=None,
+                        help="Contigs file with all processing contigs")
+
+    parser.add_argument('--af', type=float, default=None,
+                        help="Contigs file with all processing contigs")
+
+    parser.add_argument('--compress_vcf', type=str2bool, default=True,
+                        help="Compress and index output VCF")
 
     args = parser.parse_args()
 
