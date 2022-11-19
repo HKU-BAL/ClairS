@@ -25,13 +25,16 @@ major_contigs_order = ["chr" + str(a) for a in list(range(1, 23))] + [str(a) for
 file_directory = os.path.dirname(os.path.realpath(__file__))
 main_entry = os.path.join(file_directory, "clair-somatic.py")
 MAX_STEP = 20
+
 OutputPath = namedtuple('OutputPath', [
     'log_path',
     'tmp_file_path',
     'split_bed_path',
     'candidates_path',
-    'tensor_can_path',
+    'pileup_tensor_can_path',
+    'fa_tensor_can_path',
     'vcf_output_path',
+    'tmp_vcf_output_path',
 ])
 
 Clair3Option = namedtuple('Clair3Option', [
@@ -78,9 +81,10 @@ def create_output_folder(args):
     split_bed_path = folder_path_from(os.path.join(tmp_file_path, 'split_beds'),
                                       create_not_found=True) if args.bed_fn or args.vcf_fn else None
     candidates_path = folder_path_from(os.path.join(tmp_file_path, 'candidates'), create_not_found=True)
-    tensor_can_path = folder_path_from(os.path.join(tmp_file_path, 'tensor_can'), create_not_found=True)
+    pileup_tensor_can_path = folder_path_from(os.path.join(tmp_file_path, 'pileup_tensor_can'), create_not_found=True)
     fa_tensor_can_path = folder_path_from(os.path.join(tmp_file_path, 'fa_tensor_can'), create_not_found=True)
     vcf_output_path = folder_path_from(os.path.join(tmp_file_path, 'vcf_output'), create_not_found=True)
+    tmp_vcf_output_path = folder_path_from(os.path.join(tmp_file_path, 'tmp_vcf_output'), create_not_found=True)
 
     if args.clair3_path is not None and args.platform != 'ilmn':
         clair3_log_path = folder_path_from(os.path.join(args.output_dir, 'logs', 'clair3_log'), create_not_found=True)
@@ -89,7 +93,9 @@ def create_output_folder(args):
                              tmp_file_path=tmp_file_path,
                              split_bed_path=split_bed_path,
                              candidates_path=candidates_path,
-                             tensor_can_path=tensor_can_path,
+                             pileup_tensor_can_path=pileup_tensor_can_path,
+                             fa_tensor_can_path=fa_tensor_can_path,
+                             tmp_vcf_output_path=tmp_vcf_output_path,
                              vcf_output_path=vcf_output_path)
     return output_path
 
@@ -135,7 +141,7 @@ def check_tools_version(args):
     }
 
     tool_version = {
-        'python': LooseVersion(sys.version.split()[0]),
+        'python': LooseVersion(sys.version.split()[0]), #update
         'pypy': check_version(tool=args.pypy, pos=0, is_pypy=True),
         'samtools': check_version(tool=args.samtools, pos=1),
 
@@ -144,10 +150,10 @@ def check_tools_version(args):
     for tool, version in tool_version.items():
         required_version = required_tool_version[tool]
         if version is None:
-            logging(log_error("[ERROR] {} not found, please check you are in clair3 virtual environment".format(tool)))
+            logging(log_error("[ERROR] {} not found, please check you are in conda virtual environment".format(tool)))
             check_python_path()
         elif version < required_version:
-            logging(log_error("[ERROR] Tool version not match, please check you are in clair3 virtual environment"))
+            logging(log_error("[ERROR] Tool version not match, please check you are in conda virtual environment"))
             logging(' '.join([str(item).ljust(10) for item in ["Tool", "Version", "Required"]]))
             error_info = ' '.join([str(item).ljust(10) for item in [tool, version, '>=' + str(required_version)]])
             logging(error_info)
@@ -193,7 +199,6 @@ def check_threads(args):
     except:
         num_cpus = int(subprocess.run(args.python + " -c \"import os; print(len(os.sched_getaffinity(0)))\"", \
                                       stdout=subprocess.PIPE, shell=True).stdout.decode().rstrip())
-
 
     if threads > num_cpus:
         logging(log_warning(
