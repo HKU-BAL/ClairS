@@ -439,11 +439,11 @@ def check_clair3_options(args):
     args.clair3_option = Clair3Option(
         clair3_path=args.clair3_path,
         model_path=args.clair3_model_path,
-        longphase_for_phasing=True,
-        ctg_name_str=None,
-        min_coverage=str(8),
-        snp_min_af=str(0.2),
-        indel_min_af=str(0.2),
+        longphase_for_phasing=param.clair3_option['longphase_for_phasing'],
+        ctg_name_str=None, # update in check_contigs_intersection
+        min_coverage=str(param.clair3_option['min_coverage']),
+        snp_min_af=str(param.clair3_option['snp_min_af']),
+        indel_min_af=str(param.clair3_option['indel_min_af']),
         longphase=longphase)
 
     return args
@@ -453,11 +453,10 @@ def check_args(args):
     try:
         conda_prefix = os.environ['CONDA_PREFIX']
     except:
-        sys.exit(log_error("[ERROR] Conda prefix not found, please activate clair3 conda environment first"))
+        sys.exit(log_error("[ERROR] Conda prefix not found, please activate xx conda environment first"))
 
-
-    args.normal_bam_fn = file_path_from(file_name=args.normal_bam_fn, exit_on_not_found=True, allow_none=True)
-    normal_bai_fn = file_path_from(file_name=args.normal_bam_fn, suffix=".bai", exit_on_not_found=True, sep='.', allow_none=True)
+    args.normal_bam_fn = file_path_from(file_name=args.normal_bam_fn, exit_on_not_found=True, allow_none=False)
+    normal_bai_fn = file_path_from(file_name=args.normal_bam_fn, suffix=".bai", exit_on_not_found=True, sep='.', allow_none=False)
     args.tumor_bam_fn = file_path_from(file_name=args.tumor_bam_fn, exit_on_not_found=True)
     tumor_bai_fn = file_path_from(file_name=args.tumor_bam_fn, suffix=".bai", exit_on_not_found=True, sep='.')
     args.ref_fn = file_path_from(file_name=args.ref_fn, exit_on_not_found=True)
