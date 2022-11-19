@@ -475,25 +475,25 @@ def check_args(args):
 
     if args.snv_min_af is None:
         args.snv_min_af = param.snv_min_af
-    if args.indel_min_af is None:
+    if args.indel_min_af is None: #update
         args.indel_min_af = 1.0
     if args.qual is None:
-        args.qual = 2
+        args.qual = param.min_qual
     if args.chunk_size is None:
         args.chunk_size = 1000000
-    if args.platform != 'ont' and args.platform != 'hifi' and args.platform != 'ilmn':
-        logging(log_error('[ERROR] Invalid platform input, optional: {ont, hifi, ilmn}'))
+    if args.platform != 'ont' and args.platform != 'ilmn':
+        logging(log_error('[ERROR] Invalid platform input, optional: {ont, ilmn}'))
     if args.skip_steps is not None:
         check_skip_steps_legal(args)
     if args.enable_realignment and args.platform != 'ilmn':
         args.enable_realignment = False
-        # logging(log_error('[ERROR] Realignment only work for Illumina short read data. Exit!'))
+        # logging(log_warning('[WARNING] Realignment only work for Illumina short read data. Disable realignment'))
 
     legal_range_from(param_name="threads", x=args.threads, min_num=1, exit_out_of_range=True)
     legal_range_from(param_name="qual", x=args.qual, min_num=0, exit_out_of_range=True)
     legal_range_from(param_name="snv_min_af", x=args.snv_min_af, min_num=0, max_num=1, exit_out_of_range=True)
-    legal_range_from(param_name="indel_min_af", x=args.indel_min_af, min_num=0, max_num=1, exit_out_of_range=True)
-    # print (args)
+    legal_range_from(param_name="indel_min_af", x=args.indel_min_af, min_num=0, max_num=1, exit_out_of_range=True) #update
+
     args.output_path = create_output_folder(args)
     check_tools_version(args=args)
     args = check_threads(args=args)
@@ -511,7 +511,6 @@ def print_args(args):
     conda_prefix = os.environ['CONDA_PREFIX']
 
     logging("")
-    # logging("[INFO] CLAIR SOMATIC VERSION: {}".format(version))
     logging("[INFO] CLAIR SOMATIC VERSION: {}".format(version))
     logging("[INFO] NORMAL BAM FILE PATH: {}".format(args.normal_bam_fn))
     logging("[INFO] TUMOR BAM FILE PATH: {}".format(args.tumor_bam_fn))
@@ -530,9 +529,9 @@ def print_args(args):
     logging("[INFO] PYPY PATH: {}".format(args.pypy))
     logging("[INFO] CHUNK SIZE: {}".format(args.chunk_size))
     logging("[INFO] SNV THRESHOLD: {}".format(args.snv_min_af))
-    logging("[INFO] INDEL THRESHOLD: {}".format(args.indel_min_af))
+    # logging("[INFO] INDEL THRESHOLD: {}".format(args.indel_min_af))
     logging("[INFO] SKIP STEPS: {}".format(args.skip_steps))
-    logging("[INFO] ENABLE USE GPU: {}".format(args.use_gpu))
+    # logging("[INFO] ENABLE USE GPU: {}".format(args.use_gpu))
     logging("[INFO] ENABLE COMMAND DRY RUN: {}".format(args.dry_run))
     # logging("[INFO] ENABLE CALLING SNV CANDIDATES ONLY: {}".format(args.call_snp_only))
     logging("[INFO] ENABLE PRINTING REFERENCE CALLS: {}".format(args.print_ref_calls))
@@ -548,227 +547,116 @@ def somatic_calling(args):
     step = 1
     echo_list = []
     commands_list = []
-    #
-    # if args.clair3_path is not None and args.platform == 'ont' and args.phase_tumor:
-    #
-    #     echo_list.append("[INFO] STEP ?: Call Germline Variants in Normal BAM using Clair3")
-    #     clair3_normal_command = '( time ' + args.clair3_path + '/run_clair3.sh'
-    #     clair3_normal_command += ' --bam_fn ' + args.normal_bam_fn
-    #     clair3_normal_command += ' --ref_fn ' + args.ref_fn
-    #     clair3_normal_command += ' --model_path ' + args.clair3_model_path
-    #     clair3_normal_command += ' --platform ont'
-    #     clair3_normal_command += ' --threads ' + str(args.threads)
-    #     clair3_normal_command += ' --output ' + args.output_dir + '/clair3_output/clair3_normal_output'
-    #     clair3_normal_command += ' --ctg_name=' + args.clair3_option.ctg_name_str
-    #     clair3_normal_command += ' --samtools=' + args.samtools
-    #     clair3_normal_command += ' --pypy=' + args.pypy
-    #     clair3_normal_command += ' --python=' + args.python
-    #     clair3_normal_command += ' --min_coverage=' + args.clair3_option.min_coverage
-    #     clair3_normal_command += ' --snp_min_af=' + args.clair3_option.snp_min_af
-    #     clair3_normal_command += ' --indel_min_af=' + args.clair3_option.indel_min_af
-    #     if args.clair3_option.longphase_for_phasing is not None:
-    #         clair3_normal_command += ' --longphase_for_phasing '
-    #     clair3_normal_command += ') |& tee ' + args.output_dir + '/logs/clair3_log/1_CLAIR3_NORMAL.log'
-    #     commands_list.append(clair3_normal_command)
-    #
-    #     echo_list.append("[INFO] STEP ?: Call Germline Variant in Tumor BAM using Clair3")
-    #     clair3_tumor_command = '( time ' + args.clair3_path + '/run_clair3.sh'
-    #     clair3_tumor_command += ' --bam_fn ' + args.tumor_bam_fn
-    #     clair3_tumor_command += ' --ref_fn ' + args.ref_fn
-    #     clair3_tumor_command += ' --model_path ' + args.clair3_model_path
-    #     clair3_tumor_command += ' --platform ont'
-    #     clair3_tumor_command += ' --threads ' + str(args.threads)
-    #     clair3_tumor_command += ' --output ' + args.output_dir + '/clair3_output/clair3_tumor_output'
-    #     clair3_tumor_command += ' --ctg_name=' + args.clair3_option.ctg_name_str
-    #     clair3_tumor_command += ' --samtools=' + args.samtools
-    #     clair3_tumor_command += ' --pypy=' + args.pypy
-    #     clair3_tumor_command += ' --python=' + args.python
-    #     clair3_tumor_command += ' --min_coverage=' + args.clair3_option.min_coverage
-    #     clair3_tumor_command += ' --snp_min_af=' + args.clair3_option.snp_min_af
-    #     clair3_tumor_command += ' --indel_min_af=' + args.clair3_option.indel_min_af
-    #     if args.clair3_option.longphase_for_phasing is not None:
-    #         clair3_tumor_command += ' --longphase_for_phasing '
-    #     clair3_tumor_command += ') |& tee ' + args.output_dir + '/logs/clair3_log/2_CLAIR3_TUMOR.log'
-    #     commands_list.append(clair3_tumor_command)
-    #
-    #     echo_list.append("[INFO] STEP ?: Select_Hetero SNP_for_Phasing")
-    #     ssp_command = '(time ' + args.parallel
-    #     ssp_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_1_select_hetero_snp_for_phasing.log'
-    #     ssp_command += ' -j ' + str(args.threads)
-    #     ssp_command += ' ' + args.pypy + ' ' + main_entry + ' select_hetero_snp_for_phasing'
-    #     ssp_command += ' --tumor_vcf_fn ' + args.output_dir + '/clair3_output/clair3_tumor_output/merge_output.vcf.gz'
-    #     ssp_command += ' --normal_vcf_fn ' + args.output_dir + '/clair3_output/clair3_normal_output/merge_output.vcf.gz'
-    #     ssp_command += ' --output_folder ' + args.output_dir + '/clair3_output/vcf'
-    #     ssp_command += ' --ctg_name {1}'
-    #     ssp_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-    #     ssp_command += ') |& tee ' + args.output_dir + '/logs/clair3_log/3_select_hetero_snp_for_phasing.log'
-    #     commands_list.append(ssp_command)
-    #
-    #     if args.phase_normal:
-    #
-    #         echo_list.append("[INFO] STEP ?: Phase VCF using Normal BAM")
-    #         if args.clair3_option.longphase_for_phasing is not None:
-    #             pt_command = '(time ' + args.parallel
-    #             pt_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_3_phase_normal.log'
-    #             pt_command += ' -j ' + str(args.threads)
-    #             pt_command += ' ' + args.clair3_option.longphase + ' phase '
-    #             pt_command += ' -s ' + args.output_dir + '/clair3_output/vcf/{1}.vcf'
-    #             pt_command += ' -b ' + args.normal_bam_fn
-    #             pt_command += ' -r ' + args.ref_fn
-    #             pt_command += ' -t ' + str(args.threads)
-    #             pt_command += ' -o ' + args.output_dir + '/clair3_output/phased_output/normal_phased_{1}'
-    #             pt_command += ' --ont'
-    #             pt_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-    #             pt_command += ' && ' + args.parallel
-    #             pt_command += ' -j ' + str(args.threads)
-    #             pt_command += ' bgzip -f ' + args.output_dir + '/clair3_output/phased_output/normal_phased_{1}.vcf'
-    #             pt_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-    #             pt_command += ') |& tee ' + args.output_dir + '/logs/clair3_log/phase_normal.log'
-    #         else:
-    #             pt_command = '(time ' + args.parallel
-    #             pt_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_3_phase_normal.log'
-    #             pt_command += ' -j ' + str(args.threads)
-    #             pt_command += ' ' + args.whatshap + ' phase '
-    #             pt_command += ' --output ' + args.output_dir + '/clair3_output/phased_output/normal_phased_{1}.vcf.gz'
-    #             pt_command += ' --reference ' + args.ref_fn
-    #             pt_command += ' --chromosome {1}'
-    #             pt_command += ' --distrust-genotypes'
-    #             pt_command += ' --ignore-read-groups'
-    #             pt_command += ' ' + args.output_dir + '/clair3_output/vcf/{1}.vcf'
-    #             pt_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-    #             pt_command += ') |& tee ' + args.output_dir + '/logs/clair3_log/phase_normal.log'
-    #
-    #         tabix_command = args.parallel + ' -j ' + str(args.threads)
-    #         tabix_command += ' tabix' + ' -f -p vcf'
-    #         tabix_command += ' ' + args.output_dir + '/clair3_output/phased_output/normal_phased_{1}.vcf.gz'
-    #         tabix_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-    #         commands_list.append(pt_command + ' && ' + tabix_command)
-    #
-    #         echo_list.append("[INFO] STEP ?: Haplotag Normal BAM")
-    #         ht_command = '(time ' + args.parallel
-    #         ht_command += ' --joblog ' + args.output_dir + '/logs/parallel_4_haplotag_normal.log'
-    #         ht_command += ' -j ' + str(args.threads)
-    #         ht_command += ' ' + args.whatshap + ' haplotag'
-    #         ht_command += ' --output ' + args.output_dir + '/clair3_output/phased_output/normal_{1}.bam'
-    #         ht_command += ' --reference ' + args.ref_fn
-    #         ht_command += ' --regions {1} '
-    #         ht_command += ' --ignore-read-groups'
-    #         ht_command += ' ' + args.output_dir + '/clair3_output/phased_output/normal_phased_{1}.vcf.gz'
-    #         ht_command += ' ' + args.normal_bam_fn
-    #         ht_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-    #         ht_command += ') |& tee ' + args.output_dir + '/logs/4_normal_haplotag.log'
-    #
-    #         index_command = args.parallel + ' -j ' + str(args.threads)
-    #         index_command += ' ' + args.samtools + ' index '
-    #         index_command += ' -@' + str(args.threads)
-    #         index_command += ' ' + args.output_dir + '/clair3_output/phased_output/normal_{1}.bam'
-    #         index_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-    #         commands_list.append(ht_command + ' && ' + index_command)
-    #
-    #
-    #     echo_list.append("[INFO] STEP ?: Phase VCF using Tumor BAM")
-    #     if args.clair3_option.longphase_for_phasing is not None:
-    #         pt_command = '(time ' + args.parallel
-    #         pt_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_3_phase_tumor.log'
-    #         pt_command += ' -j ' + str(args.threads)
-    #         pt_command += ' ' + args.clair3_option.longphase + ' phase '
-    #         pt_command += ' -s ' + args.output_dir + '/clair3_output/vcf/{1}.vcf'
-    #         pt_command += ' -b ' + args.tumor_bam_fn
-    #         pt_command += ' -r ' + args.ref_fn
-    #         pt_command += ' -t ' + str(args.threads)
-    #         pt_command += ' -o ' + args.output_dir + '/clair3_output/phased_output/tumor_phased_{1}'
-    #         pt_command += ' --ont'
-    #         pt_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-    #         pt_command += ' && ' + args.parallel
-    #         pt_command += ' -j ' + str(args.threads)
-    #         pt_command += ' bgzip -f ' + args.output_dir + '/clair3_output/phased_output/tumor_phased_{1}.vcf'
-    #         pt_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-    #         pt_command += ') |& tee ' + args.output_dir + '/logs/clair3_log/phase_tumor.log'
-    #     else:
-    #         pt_command = '(time ' + args.parallel
-    #         pt_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_3_phase_tumor.log'
-    #         pt_command += ' -j ' + str(args.threads)
-    #         pt_command += ' ' + args.whatshap + ' phase '
-    #         pt_command += ' --output ' + args.output_dir + '/clair3_output/phased_output/tumor_phased_{1}.vcf.gz'
-    #         pt_command += ' --reference ' + args.ref_fn
-    #         pt_command += ' --chromosome {1}'
-    #         pt_command += ' --distrust-genotypes'
-    #         pt_command += ' --ignore-read-groups'
-    #         pt_command += ' ' + args.output_dir + '/clair3_output/vcf/{1}.vcf'
-    #         pt_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-    #         pt_command += ') |& tee ' + args.output_dir + '/logs/clair3_log/phase_tumor.log'
-    #
-    #     tabix_command = args.parallel + ' -j ' + str(args.threads)
-    #     tabix_command += ' tabix' + ' -f -p vcf'
-    #     tabix_command += ' ' + args.output_dir + '/clair3_output/phased_output/tumor_phased_{1}.vcf.gz'
-    #     tabix_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-    #     commands_list.append(pt_command + ' && ' + tabix_command)
-    #
-    #     echo_list.append("[INFO] STEP ?: haplotag Tumor BAM")
-    #     ht_command = '(time ' + args.parallel
-    #     ht_command += ' --joblog ' + args.output_dir + '/logs/parallel_4_haplotag_tumor.log'
-    #     ht_command += ' -j ' + str(args.threads)
-    #     ht_command += ' ' + args.whatshap + ' haplotag'
-    #     ht_command += ' --output ' + args.output_dir + '/clair3_output/phased_output/tumor_{1}.bam'
-    #     ht_command += ' --reference ' + args.ref_fn
-    #     ht_command += ' --regions {1} '
-    #     ht_command += ' --ignore-read-groups'
-    #     ht_command += ' ' + args.output_dir + '/clair3_output/phased_output/tumor_phased_{1}.vcf.gz'
-    #     ht_command += ' ' + args.tumor_bam_fn
-    #     ht_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-    #     ht_command += ') |& tee ' + args.output_dir + '/logs/4_tumor_haplotag.log'
-    #
-    #     index_command = args.parallel + ' -j ' + str(args.threads)
-    #     index_command += ' ' + args.samtools + ' index '
-    #     index_command += ' -@' + str(args.threads)
-    #     index_command += ' ' + args.output_dir + '/clair3_output/phased_output/tumor_{1}.bam'
-    #     index_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-    #     commands_list.append(ht_command + ' && ' + index_command)
-    #
-    # # STEP 1: EXTRACT CANDIDATES
-    # echo_list.append("[INFO] STEP 3: Pileup Model Calling\n")
-    # echo_list.append("[INFO] STEP {}: Extract Candidates".format(step))
-    # step += 1
-    # ec_command = '(time ' + args.parallel
-    # ec_command += ' --joblog ' + args.output_dir + '/logs/parallel_1_extract_tumor_candidates.log'
-    # ec_command += ' -C " " -j ' + str(args.threads)
-    # ec_command += ' ' + args.pypy + ' ' + main_entry + ' extract_pair_candidates'
-    # ec_command += ' --tumor_bam_fn ' + args.tumor_bam_fn
-    # ec_command += ' --normal_bam_fn ' + args.normal_bam_fn
-    # ec_command += ' --ref_fn ' + args.ref_fn
-    # ec_command += ' --samtools ' + args.samtools
-    # ec_command += ' --snv_min_af ' + str(args.snv_min_af)
-    # ec_command += ' --indel_min_af ' + str(args.indel_min_af)
-    # ec_command += ' --chunk_id {2} '
-    # ec_command += ' --chunk_num {3} '
-    # ec_command += ' --ctg_name {1} '
-    # ec_command += ' --bed_fn ' + str(args.bed_fn)
-    # ec_command += ' --extend_bed ' + str(args.bed_fn)
-    # ec_command += ' --candidates_folder ' + args.output_dir + '/tmp/candidates'
-    # ec_command += ' --output_depth True '
-    # ec_command += ' :::: ' + os.path.join(args.output_dir, 'tmp', 'CHUNK_LIST')
-    # ec_command += ') |& tee ' + args.output_dir + '/logs/1_EC.log'
-    # ec_command += ' && cat {}/tmp/candidates/CANDIDATES_FILE_* > {}/tmp/candidates/CANDIDATES_FILES '.format(args.output_dir, args.output_dir)
-    # commands_list.append(ec_command)
-    #
-    # # STEP 2: CREATE PAIR TENSOR
-    # echo_list.append("[INFO] STEP 2: Pileup Model Calling\n")
-    # echo_list[-1] += ("[INFO] Create Pair Tensor")
-    # cpt_command = '(time ' + args.parallel
-    # cpt_command += ' --joblog ' + args.output_dir + '/logs/parallel_2-1_create_pair_tensor.log'
-    # cpt_command += ' -j ' + str(args.threads)
-    # cpt_command += ' ' + args.pypy + ' ' + main_entry + ' create_pair_tensor_pileup'
-    # cpt_command += ' --normal_bam_fn ' + args.normal_bam_fn
-    # cpt_command += ' --tumor_bam_fn ' + args.tumor_bam_fn
-    # cpt_command += ' --ref_fn ' + args.ref_fn
-    # cpt_command += ' --ctg_name {1/.}'
-    # cpt_command += ' --samtools ' + args.samtools
-    # cpt_command += ' --candidates_bed_regions {1}'
-    # cpt_command += ' --tensor_can_fn ' + args.output_dir + '/tmp/tensor_can/{1/} '
-    # cpt_command += ' --platform ' + args.platform
-    # cpt_command += ' :::: ' + args.output_dir + '/tmp/candidates/CANDIDATES_FILES'
-    # cpt_command += ') |& tee ' + args.output_dir + '/logs/2-1_CPT.log'
-    # commands_list += [cpt_command]
+    # tmp_vcf_output_path = args.output_path.tmp_vcf_output_path
+    # vcf_output_path = args.output_path.vcf_output_path
+
+    if args.clair3_path is not None and args.platform == 'ont' and args.phase_tumor:
+
+        echo_list.append("[INFO] Call Germline Variants in Normal BAM using Clair3")
+        clair3_normal_command = '( time ' + args.clair3_path + '/run_clair3.sh'
+        clair3_normal_command += ' --bam_fn ' + args.normal_bam_fn
+        clair3_normal_command += ' --ref_fn ' + args.ref_fn
+        clair3_normal_command += ' --model_path ' + args.clair3_model_path
+        clair3_normal_command += ' --platform ont'
+        clair3_normal_command += ' --threads ' + str(args.threads)
+        clair3_normal_command += ' --output ' + args.output_dir + '/clair3_output/clair3_normal_output'
+        clair3_normal_command += ' --ctg_name=' + args.clair3_option.ctg_name_str
+        clair3_normal_command += ' --samtools=' + args.samtools
+        clair3_normal_command += ' --pypy=' + args.pypy
+        clair3_normal_command += ' --python=' + args.python
+        clair3_normal_command += ' --min_coverage=' + args.clair3_option.min_coverage
+        clair3_normal_command += ' --snp_min_af=' + args.clair3_option.snp_min_af
+        clair3_normal_command += ' --indel_min_af=' + args.clair3_option.indel_min_af
+        if args.clair3_option.longphase_for_phasing is not None:
+            clair3_normal_command += ' --longphase_for_phasing '
+        clair3_normal_command += ') |& tee ' + args.output_dir + '/logs/clair3_log/1_CLAIR3_NORMAL.log'
+        commands_list.append(clair3_normal_command)
+
+        echo_list.append("[INFO] Call Germline Variant in Tumor BAM using Clair3")
+        clair3_tumor_command = '( time ' + args.clair3_path + '/run_clair3.sh'
+        clair3_tumor_command += ' --bam_fn ' + args.tumor_bam_fn
+        clair3_tumor_command += ' --ref_fn ' + args.ref_fn
+        clair3_tumor_command += ' --model_path ' + args.clair3_model_path
+        clair3_tumor_command += ' --platform ont'
+        clair3_tumor_command += ' --threads ' + str(args.threads)
+        clair3_tumor_command += ' --output ' + args.output_dir + '/clair3_output/clair3_tumor_output'
+        clair3_tumor_command += ' --ctg_name=' + args.clair3_option.ctg_name_str
+        clair3_tumor_command += ' --samtools=' + args.samtools
+        clair3_tumor_command += ' --pypy=' + args.pypy
+        clair3_tumor_command += ' --python=' + args.python
+        clair3_tumor_command += ' --min_coverage=' + args.clair3_option.min_coverage
+        clair3_tumor_command += ' --snp_min_af=' + args.clair3_option.snp_min_af
+        clair3_tumor_command += ' --indel_min_af=' + args.clair3_option.indel_min_af
+        if args.clair3_option.longphase_for_phasing is not None:
+            clair3_tumor_command += ' --longphase_for_phasing '
+        clair3_tumor_command += ') |& tee ' + args.output_dir + '/logs/clair3_log/2_CLAIR3_TUMOR.log'
+        commands_list.append(clair3_tumor_command)
+
+        echo_list.append("[INFO] Select_Hetero SNP_for_Phasing")
+        ssp_command = '(time ' + args.parallel
+        ssp_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_1_select_hetero_snp_for_phasing.log'
+        ssp_command += ' -j ' + str(args.threads)
+        ssp_command += ' ' + args.pypy + ' ' + main_entry + ' select_hetero_snp_for_phasing'
+        ssp_command += ' --tumor_vcf_fn ' + args.output_dir + '/clair3_output/clair3_tumor_output/merge_output.vcf.gz'
+        ssp_command += ' --normal_vcf_fn ' + args.output_dir + '/clair3_output/clair3_normal_output/merge_output.vcf.gz'
+        ssp_command += ' --output_folder ' + args.output_dir + '/clair3_output/vcf'
+        ssp_command += ' --ctg_name {1}'
+        ssp_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
+        ssp_command += ') |& tee ' + args.output_dir + '/logs/clair3_log/3_select_hetero_snp_for_phasing.log'
+        commands_list.append(ssp_command)
+
+        if args.phase_normal:
+            echo_list.append("[INFO] Phase VCF using Normal BAM")
+            if args.clair3_option.longphase_for_phasing is not None:
+                pn_command = '(time ' + args.parallel
+                pn_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_3_phase_normal.log'
+                pn_command += ' -j ' + str(args.threads)
+                pn_command += ' ' + args.clair3_option.longphase + ' phase '
+                pn_command += ' -s ' + args.output_dir + '/clair3_output/vcf/{1}.vcf'
+                pn_command += ' -b ' + args.normal_bam_fn
+                pn_command += ' -r ' + args.ref_fn
+                pn_command += ' -t ' + str(args.threads)
+                pn_command += ' -o ' + args.output_dir + '/clair3_output/phased_output/normal_phased_{1}'
+                pn_command += ' --ont'
+                pn_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
+                pn_command += ' && ' + args.parallel
+                pn_command += ' -j ' + str(args.threads)
+                pn_command += ' bgzip -f ' + args.output_dir + '/clair3_output/phased_output/normal_phased_{1}.vcf'
+                pn_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
+                pn_command += ') |& tee ' + args.output_dir + '/logs/clair3_log/phase_normal.log'
+            else:
+                pn_command = '(time ' + args.parallel
+                pn_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_3_phase_normal.log'
+                pn_command += ' -j ' + str(args.threads)
+                pn_command += ' ' + args.whatshap + ' phase '
+                pn_command += ' --output ' + args.output_dir + '/clair3_output/phased_output/normal_phased_{1}.vcf.gz'
+                pn_command += ' --reference ' + args.ref_fn
+                pn_command += ' --chromosome {1}'
+                pn_command += ' --distrust-genotypes'
+                pn_command += ' --ignore-read-groups'
+                pn_command += ' ' + args.output_dir + '/clair3_output/vcf/{1}.vcf'
+                pn_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
+                pn_command += ') |& tee ' + args.output_dir + '/logs/clair3_log/phase_normal.log'
+
+            tabix_command = args.parallel + ' -j ' + str(args.threads)
+            tabix_command += ' tabix' + ' -f -p vcf'
+            tabix_command += ' ' + args.output_dir + '/clair3_output/phased_output/normal_phased_{1}.vcf.gz'
+            tabix_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
+            commands_list.append(pn_command + ' && ' + tabix_command)
+
+            echo_list.append("[INFO] Haplotag Normal BAM")
+            ht_command = '(time ' + args.parallel
+            ht_command += ' --joblog ' + args.output_dir + '/logs/parallel_4_haplotag_normal.log'
+            ht_command += ' -j ' + str(args.threads)
+            ht_command += ' ' + args.whatshap + ' haplotag'
+            ht_command += ' --output ' + args.output_dir + '/clair3_output/phased_output/normal_{1}.bam'
+            ht_command += ' --reference ' + args.ref_fn
+            ht_command += ' --regions {1} '
+            ht_command += ' --ignore-read-groups'
+            ht_command += ' ' + args.output_dir + '/clair3_output/phased_output/normal_phased_{1}.vcf.gz'
+            ht_command += ' ' + args.normal_bam_fn
+            ht_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
+            ht_command += ') |& tee ' + args.output_dir + '/logs/4_normal_haplotag.log'
 
     # STEP 3: PREDICT
     echo_list.append("[INFO] Pileup Model Prediction")
@@ -886,49 +774,15 @@ def somatic_calling(args):
 
         commands_list += [realign_command]
 
-    # # FA
-    # echo_list.append("[INFO] STEP 3: Full-alignment Model Calling\n")
-    # echo_list[-1] += "[INFO] Create FA Pair Tensor"
-    # cpt_fa_command = '(time ' + args.parallel
-    # cpt_fa_command += ' --joblog ' + args.output_dir + '/logs/parallel_3-1_create_pair_tensor_fa.log'
-    # cpt_fa_command += ' -j ' + str(args.threads)
-    # cpt_fa_command += ' ' + args.pypy + ' ' + main_entry + ' create_pair_tensor'
-    # cpt_fa_command += ' --normal_bam_fn ' + args.normal_bam_fn
-    # cpt_fa_command += ' --tumor_bam_fn ' + args.output_dir + '/clair3_output/phased_output/tumor_{1}.bam'
-    # cpt_fa_command += ' --ref_fn ' + args.ref_fn
-    # cpt_fa_command += ' --ctg_name {1/.}'
-    # cpt_fa_command += ' --samtools ' + args.samtools
-    # cpt_fa_command += ' --candidates_bed_regions {1}'
-    # cpt_fa_command += ' --tensor_can_fn ' + args.output_dir + '/tmp/fa_tensor_can/{1/} '
-    # cpt_fa_command += ' --platform ' + args.platform
-    # cpt_fa_command += ' :::: ' + args.output_dir + '/tmp/candidates/CANDIDATES_FILES'
-    # cpt_fa_command += ') |& tee ' + args.output_dir + '/logs/3-1_CPT.log'
-    #
-    # # STEP 3: PREDICT
-    # echo_list.append("[INFO] STEP 3: FA Model Prediction")
-    # fa_predict_command = '(time ' + args.parallel
-    # fa_predict_command += ' --joblog ' + args.output_dir + '/logs/parallel_3-2_predict.log'
-    # fa_predict_command += ' -j ' + str(args.threads)
-    # fa_predict_command += ' ' + args.python + ' ' + main_entry + ' predict'
-    # fa_predict_command += ' --tensor_fn ' + args.output_dir + '/tmp/fa_tensor_can/{1/} '
-    # fa_predict_command += ' --call_fn ' + args.output_dir + '/tmp/vcf_output/fa_{1/}.vcf'
-    # fa_predict_command += ' --chkpnt_fn ' + args.full_alignment_model_path
-    # fa_predict_command += ' --use_gpu ' + str(args.use_gpu)
-    # fa_predict_command += ' --platform ' + args.platform
-    # fa_predict_command += ' :::: ' + args.output_dir + '/tmp/candidates/CANDIDATES_FILES'
-    # fa_predict_command += ') |& tee ' + args.output_dir + '/logs/3-2_PREDICT.log'
-    #
-    # # STEP 4: MERGE VCF
-    # echo_list.append("[INFO] STEP 4: Merge FA VCF")
-    # fa_mv_command = 'time ' + args.pypy + ' ' + main_entry + ' sort_vcf'
-    # fa_mv_command += ' --ref_fn ' + args.ref_fn
-    # fa_mv_command += ' --contigs_fn ' + os.path.join(args.output_dir, 'tmp', 'CONTIGS')
-    # fa_mv_command += ' --input_dir ' + args.output_dir + '/tmp/vcf_output'
-    # fa_mv_command += ' --vcf_fn_prefix ' + 'fa'
-    # fa_mv_command += ' --output_fn ' + args.output_dir + '/full_alignment.vcf'
-    #
-    # commands_list += [cpt_fa_command, fa_predict_command,
-    #                  fa_mv_command]
+        echo_list.append("[INFO] STEP ?: Merge and sort VCF")
+        sort_vcf_command = args.pypy + ' ' + main_entry + ' merge_vcf'
+        sort_vcf_command += ' --ref_fn ' + args.ref_fn
+        sort_vcf_command += ' --pileup_vcf_fn ' + args.output_dir + '/tmp/vcf_output/pileup_filter.vcf'
+        sort_vcf_command += ' --full_alignment_vcf_fn ' + args.output_dir + '/tmp/vcf_output/full_alignment_filter.vcf'
+        sort_vcf_command += ' --output_fn ' + args.output_dir + '/{}.vcf'.format(args.sample_name)
+        sort_vcf_command += ' --platform ' + args.platform
+
+        commands_list += [sort_vcf_command]
 
     # EXECUTE COMMAND
     skip_steps = args.skip_steps.rstrip().split(',') if args.skip_steps else None
@@ -950,7 +804,7 @@ def somatic_calling(args):
                 exit(1)
         logging("")
 
-    logging("[INFO] Finish calling, output file: {}/output.vcf.gz\n".format(args.output_dir))
+    logging("[INFO] Finish calling, output file: {}/{}.vcf.gz\n".format(args.output_dir, args.sample_name))
 
 
 def somatic_parser():
@@ -967,6 +821,7 @@ def somatic_parser():
         "-N",
         "--normal_bam_fn",
         type=str,
+        required=True,
         default=None,
         help="Normal BAM file input. The input file must be samtools indexed."
     )
@@ -1107,7 +962,7 @@ def somatic_parser():
         "-s",
         "--sample_name",
         type=str,
-        default="Sample",
+        default="output",
         help="Define the sample name to be shown in the VCF file."
     )
 
@@ -1239,13 +1094,15 @@ def somatic_parser():
 
     ont_params.add_argument(
         "--phase_normal",
-        action='store_true',
+        type=str2bool,
+        default=False,
         help=SUPPRESS
     )
 
     ont_params.add_argument(
         "--phase_tumor",
-        action='store_true',
+        type=str2bool,
+        default=True,
         help=SUPPRESS
     )
 
