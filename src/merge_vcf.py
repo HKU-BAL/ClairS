@@ -333,9 +333,6 @@ def main():
     parser.add_argument('--contigs_fn', type=str, default=None,
                         help="Contigs file with all processing contigs")
 
-    parser.add_argument('--compress_vcf', type=str2bool, default=False,
-                        help="Only work for gvcf file, reduce hard disk space")
-
     parser.add_argument('--bed_format', action='store_true',
                         help="Only work for gvcf file, reduce hard disk space")
 

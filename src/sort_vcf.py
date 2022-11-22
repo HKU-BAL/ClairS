@@ -6,7 +6,7 @@ from argparse import ArgumentParser
 from collections import defaultdict
 
 
-from shared.utils import log_error, log_warning, file_path_from, subprocess_popen
+from shared.utils import log_error, log_warning, file_path_from, subprocess_popen, str2bool
 major_contigs_order = ["chr" + str(a) for a in list(range(1, 23)) + ["X", "Y"]] + [str(a) for a in
                                                                                    list(range(1, 23)) + ["X", "Y"]]
 
@@ -150,7 +150,7 @@ def sort_vcf_from(args):
     sample_name = args.sampleName
     ref_fn = args.ref_fn
     contigs_fn = args.contigs_fn
-    compress_gvcf = args.compress_gvcf
+    compress_vcf = args.compress_vcf
 
     if not os.path.exists(input_dir):
         exit(log_error("[ERROR] Input directory: {} not exists!").format(input_dir))
@@ -191,29 +191,14 @@ def sort_vcf_from(args):
     no_vcf_output = True
     need_write_header = True
 
-    output_bgzip_gvcf = vcf_fn_suffix == '.gvcf'
-    if compress_gvcf:
-        lz4_path = subprocess.run("which lz4", stdout=subprocess.PIPE, shell=True).stdout.decode().rstrip()
-        compress_gvcf = compress_gvcf if lz4_path != "" else False
-    if compress_gvcf:
-        write_fpo = open(output_fn, 'w')
-        write_proc = subprocess_popen(shlex.split("lz4 -c"), stdin=subprocess.PIPE, stdout=write_fpo, stderr=subprocess.DEVNULL)
-        output = write_proc.stdin
-    else:
-        output = open(output_fn, 'w')
-
+    output = open(output_fn, 'w')
     for contig in contigs_order_list:
         contig_dict = defaultdict(str)
         contig_vcf_fns = [fn for fn in all_files if contig in fn]
         for vcf_fn in contig_vcf_fns:
             file = os.path.join(input_dir, vcf_fn)
-            is_lz4_format = 'LZ4' in subprocess.run("file {}".format(file), stdout=subprocess.PIPE,
-                                                                     shell=True).stdout.decode().rstrip()
-            if is_lz4_format:
-                read_proc = subprocess_popen(shlex.split("{} {}".format("lz4 -fdc", file)), stderr=subprocess.DEVNULL)
-                fn = read_proc.stdout
-            else:
-                fn = open(file, 'r')
+
+            fn = open(file, 'r')
             for row in fn:
                 row_count += 1
                 if row[0] == '#':
@@ -229,24 +214,16 @@ def sort_vcf_from(args):
                 contig_dict[int(pos)] = row
                 no_vcf_output = False
             fn.close()
-            if is_lz4_format:
-                read_proc.wait()
+
         if need_write_header and len(header):
-            if output_bgzip_gvcf:
-                header = check_header_in_gvcf(header=header, contigs_list=all_contigs_list)
+
             output.write(''.join(header))
             need_write_header = False
         all_pos = sorted(contig_dict.keys())
         for pos in all_pos:
             output.write(contig_dict[pos])
 
-    if compress_gvcf:
-        write_proc.stdin.close()
-        write_proc.wait()
-        write_fpo.close()
-        return
-    else:
-        output.close()
+    output.close()
 
     if row_count == 0:
         print (log_warning("[WARNING] No vcf file found, output empty vcf file"))
