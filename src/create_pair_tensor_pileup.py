@@ -219,7 +219,7 @@ def decode_pileup_bases(pos, pileup_bases, reference_base,  minimum_snp_af_for_c
     pileup_dict = defaultdict(int)
     base_counter = Counter([''.join(item) for item, mq in zip(base_list, mapping_quality) if mq >= 20])
     low_mq_base_counter = Counter([''.join(item) for item, mq in zip(base_list, mapping_quality) if mq < 20])
-    low_bq_base_counter = Counter([''.join(item) for item, bq in zip(base_list, base_quality) if bq < 10])
+    low_bq_base_counter = Counter([''.join(item) for item, bq in zip(base_list, base_quality) if bq < (30 if platform == 'ont' else 10)])
     if phasing_info is not None:
         for b, hap in zip(base_list, phasing_info):
             base = ''.join(b)
@@ -741,7 +741,7 @@ def create_tensor(args):
     extend_bed = file_path_from(args.extend_bed, allow_none=True, exit_on_not_found=False)
     is_extend_bed_file_given = extend_bed is not None
     min_mapping_quality = args.min_mq
-    min_base_quality = args.min_bq
+    min_base_quality = args.min_bq if args.min_bq is not None else param.min_bq_dict[platform]
     vcf_fn = args.vcf_fn
     is_known_vcf_file_provided = vcf_fn is not None
     tensor_sample_mode = args.tensor_sample_mode
@@ -1146,7 +1146,7 @@ def main():
     parser.add_argument('--min_mq', type=int, default=param.min_mq,
                         help="EXPERIMENTAL: If set, reads with mapping quality with <$min_mq are filtered, default: %(default)d")
 
-    parser.add_argument('--min_bq', type=int, default=param.min_bq,
+    parser.add_argument('--min_bq', type=int, default=None,
                         help="EXPERIMENTAL: If set, bases with base quality with <$min_bq are filtered, default: %(default)d")
 
     parser.add_argument('--max_depth', type=int, default=None,

@@ -625,24 +625,25 @@ def extract_candidates(args):
         if reference_base.upper() not in "ACGT":
             continue
         is_truth_candidate = pos in truths_variant_dict
-        minimum_snp_af_for_candidate = minimum_snp_af_for_truth if is_truth_candidate and minimum_snp_af_for_truth else minimum_snp_af_for_candidate
+        minimum_snv_af_for_candidate = minimum_snv_af_for_truth if is_truth_candidate and minimum_snv_af_for_truth else minimum_snv_af_for_candidate
         minimum_indel_af_for_candidate = minimum_indel_af_for_truth if is_truth_candidate and minimum_indel_af_for_truth else minimum_indel_af_for_candidate
         base_list, depth, pass_af, af, af_infos, pileup_infos, normal_pileup_infos, normal_alt_list = decode_pileup_bases(
-                                                            pileup_bases=pileup_bases,
-                                                            reference_base=reference_base,
-                                                            minimum_snp_af_for_candidate=minimum_snp_af_for_candidate,
-                                                            minimum_indel_af_for_candidate=minimum_indel_af_for_candidate,
-                                                            alternative_base_num=alternative_base_num,
-                                                            has_pileup_candidates=has_pileup_candidates,
-                                                            read_name_list=read_name_list,
-                                                            is_tumor=is_tumor
-                                                            )
+            pileup_bases=pileup_bases,
+            reference_base=reference_base,
+            min_coverage=min_coverage,
+            minimum_snv_af_for_candidate=minimum_snv_af_for_candidate,
+            minimum_indel_af_for_candidate=minimum_indel_af_for_candidate,
+            alternative_base_num=alternative_base_num,
+            has_pileup_candidates=has_pileup_candidates,
+            read_name_list=read_name_list,
+            is_tumor=is_tumor
+        )
 
         tumor_alt_list, tumor_depth = candidates_dict[pos]
         tumor_info = [item for item in tumor_alt_list if item[0] in "ACGT"]
         if len(tumor_info) == 0:
             candidates_set.remove(pos)
-            print(pos, "not found tumor")
+            # print(pos, "not found tumor")
             continue
         alt_base, tumor_af = tumor_info[0]
         normal_info = [item for item in normal_alt_list if item[0] == alt_base]
@@ -699,9 +700,8 @@ def extract_candidates(args):
                                  DP=10,
                                  AF=float(tumor_af))
         vcf_writer.close()
-    print("[INFO] {} high_normal_af_count/high_af_gap_set: {}/{}".format(ctg_name, len(high_normal_af_set), len(high_af_gap_set)))
-
-
+    print("[INFO] {} high_normal_af_count/high_af_gap_set: {}/{}".format(ctg_name, len(high_normal_af_set),
+                                                                         len(high_af_gap_set)))
 
     if candidates_folder is not None and len(candidates_list):
         all_candidates_regions = []
