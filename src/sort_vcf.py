@@ -228,21 +228,19 @@ def sort_vcf_from(args):
     if row_count == 0:
         print (log_warning("[WARNING] No vcf file found, output empty vcf file"))
         output_header(output_fn=output_fn, reference_file_path=ref_fn, sample_name=sample_name)
-        compress_index_vcf(output_fn)
+        if compress_vcf:
+            compress_index_vcf(output_fn)
         print_calling_step(output_fn=output_fn)
         return
     if no_vcf_output:
         output_header(output_fn=output_fn, reference_file_path=ref_fn, sample_name=sample_name)
         print (log_warning("[WARNING] No variant found, output empty vcf file"))
-        compress_index_vcf(output_fn)
-        print_calling_step(output_fn=output_fn)
+        if compress_vcf:
+            compress_index_vcf(output_fn)
         return
 
-    if vcf_fn_suffix == ".tmp.gvcf":
-        return
-    if vcf_fn_suffix == ".gvcf":
-        print("[INFO] Need some time to compress and index GVCF file...")
-    compress_index_vcf(output_fn)
+    if compress_vcf:
+        compress_index_vcf(output_fn)
 
 
 def main():
@@ -269,7 +267,7 @@ def main():
     parser.add_argument('--contigs_fn', type=str, default=None,
                         help="Contigs file with all processing contigs")
 
-    parser.add_argument('--compress_gvcf', action='store_true',
+    parser.add_argument('--compress_vcf', type=str2bool, default=False,
                         help="Only work for gvcf file, reduce hard disk space")
 
     parser.add_argument('--bed_format', action='store_true',
