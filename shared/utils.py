@@ -58,9 +58,9 @@ def is_folder_exists(folder_name, suffix=""):
 def legal_range_from(param_name, x, min_num=None, max_num=None, exit_out_of_range=False):
 
     if min_num is not None and x < min_num and exit_out_of_range:
-        exit(log_error("[ERROR] parameter --{}={} (minimum {}) out of range".format(param_name, x, min_num)))
+        exit(log_error("[ERROR] parameter --{} {} (minimum {}) out of range".format(param_name, x, min_num)))
     if max_num is not None and x > max_num and exit_out_of_range:
-        exit(log_error("[ERROR] parameter --{}={} (maximum:{}) out of range".format(param_name, x, max_num)))
+        exit(log_error("[ERROR] parameter --{} {} (maximum:{}) out of range".format(param_name, x, max_num)))
     return
 
 def file_path_from(file_name, suffix="", exit_on_not_found=False, sep="", allow_none=False, is_directory=False):
@@ -118,6 +118,8 @@ def subprocess_popen(args, stdin=None, stdout=PIPE, stderr=stderr, bufsize=83886
 
 
 def str2bool(v):
+    if v is None:
+        return v
     if isinstance(v, bool):
        return v
     if v.lower() in ('yes', 'ture', 'true', 't', 'y', '1'):
@@ -234,8 +236,24 @@ def samtools_view_process_from(
     )
 
 class Position(object):
-    def __init__(self, ctg_name=None, genotype1=None, genotype2=None, pos=None,ref_base=None, alt_base=None, candidate=False, cigar_count=None,
-                 confident_variant=False, depth=None, alt_list=None, af=None, af_list=None, alt_type_mapping_dict=None, extra_infos="", qual=None,row_str=None):
+    def __init__(self, ctg_name=None,
+                 genotype1=None,
+                 genotype2=None,
+                 pos=None,
+                 ref_base=None,
+                 alt_base=None,
+                 candidate=False,
+                 cigar_count=None,
+                 confident_variant=False,
+                 depth=None,
+                 alt_list=None,
+                 af=None,
+                 filter=None,
+                 af_list=None,
+                 alt_type_mapping_dict=None,
+                 extra_infos="",
+                 qual=None,
+                 row_str=None):
         self.ctg_name = ctg_name
         self.pos = pos
         self.reference_bases = ref_base
@@ -261,6 +279,7 @@ class Position(object):
         self.hap_count_dict = defaultdict(int)
         self.alt_list = alt_list
         self.extra_infos = extra_infos
+        self.filter = filter
         self.af = af
         self.qual = qual
         self.row_str = row_str
