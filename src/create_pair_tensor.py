@@ -647,8 +647,6 @@ def create_pair_tensor(args):
     tensor_can_output_path = args.tensor_can_fn
     is_candidates_bed_regions_given = candidates_bed_regions is not None
     # phasing_info_in_bam = args.phasing_info_in_bam
-    phase_normal = args.phase_normal
-    phase_tumor = args.phase_tumor
     phasing_window_size = args.phasing_window_size
     minimum_snv_af_for_candidate = args.snv_min_af
     minimum_indel_af_for_candidate = args.indel_min_af
@@ -660,6 +658,8 @@ def create_pair_tensor(args):
     min_mapping_quality = args.min_mq
     min_base_quality = args.min_bq
     vcf_fn = args.vcf_fn
+    phase_normal = args.phase_normal if args.phase_tumor is not None else param.phase_tumor[platform]
+    phase_tumor = args.phase_tumor if args.phase_tumor is not None else param.phase_tumor[platform]
     is_known_vcf_file_provided = vcf_fn is not None
     tensor_sample_mode = args.tensor_sample_mode
     hetero_snv_pos_dict = defaultdict()
@@ -856,15 +856,12 @@ def create_pair_tensor(args):
 
             if phasing_info_in_bam:
                 phasing_info = columns[8].split(',')
-                # https://github.com/HKU-BAL/Clair3/issues/32, skip adding phase info when BAM phase info lacks
-                # add read name list size check in following steps
                 if len(read_name_list) != len(phasing_info):
                     continue
                 else:
                     for hap_idx, hap in enumerate(phasing_info):
                         if hap in '12' and read_name_list[hap_idx] not in hap_dict:
                             hap_dict[read_name_list[hap_idx]] = int(hap)
-
 
             if len(read_name_list) != len(base_list):
                 continue
@@ -921,7 +918,8 @@ def create_pair_tensor(args):
             hap_dict = tumor_hap_dict if is_tumor else normal_hap_dict
             sorted_read_name_list = sorted_by_hap_read_name(pos, haplotag_dict, pileup_dict, hap_dict, max_depth, use_tensor_sample_mode)
 
-            tensor_string_list, alt_info_list = generate_tensor(ctg_name=ctg_name,
+            tensor_string_list, alt_info_list = generate_tensor(args=args,
+                                                   ctg_name=ctg_name,
                                                    center_pos=pos,
                                                    sorted_read_name_list=sorted_read_name_list,
                                                    pileup_dict=pileup_dict,
@@ -1080,7 +1078,7 @@ def main():
     parser.add_argument('--phase_normal', type=str2bool, default=0,
                         help="Phase normal tensor in calling")
 
-    parser.add_argument('--phase_tumor', type=str2bool, default=0,
+    parser.add_argument('--phase_tumor', type=str2bool, default=None,
                         help="Phase tumor tensor in calling")
 
     ## Apply read realignment for illumina platform. Greatly boost indel performance in trade of running time
@@ -1091,6 +1089,8 @@ def main():
     parser.add_argument('--tensor_sample_mode', type=str2bool, default=0,
                         help=SUPPRESS)
 
+    parser.add_argument('--mask_low_bq', type=str2bool, default=0,
+                        help=SUPPRESS)
 
     args = parser.parse_args()
 
