@@ -268,6 +268,7 @@ class VcfReader(object):
                                                    qual=qual,
                                                    row_str=row_str,
                                                    af=taf,
+                                                   filter=FILTER,
                                                    extra_infos=extra_infos)
     def get_alt_info(self, pos, extra_info=""):
         pos = int(pos)
