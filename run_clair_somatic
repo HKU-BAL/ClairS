@@ -798,28 +798,18 @@ def somatic_calling(args):
     p_mv_command += ' --output_fn ' + args.output_dir + '/tmp/vcf_output/pileup.vcf'
     commands_list += [p_mv_command]
 
+    # ## Full-alignment calling
+    normal_bam_fn = clair3_output_path + '/phased_output/normal_{1/.}.bam' if args.phase_normal else args.normal_bam_fn
+    tumor_bam_fn = clair3_output_path + '/phased_output/tumor_{1/.}.bam' if args.phase_tumor else args.tumor_bam_fn
+    tumor_bam_prefix = clair3_output_path + '/phased_output/tumor_' if args.phase_tumor else args.tumor_bam_fn
 
-
-    # STEP 5: CREATE PAIR TENSOR
-    # --normal_bam_fn ${NORMAL_BAM_FILE_PATH} \
-    # --tumor_bam_fn ${TUMOR_BAM_FILE_PATH} \
-    # --ref_fn ${REF} \
-    # --ctg_name {1/.} \
-    # --samtools ${SAMTOOLS} \
-    # --candidates_bed_regions {1} \
-    # --tensor_can_fn ${TEST_FOLDER}/tensor_can/{1/} \
-    # --alt_fn ${NORMAL_ALT_PATH}/{1/} \
-    # --platform ${platform} \
-    # FA
-    normal_bam_fn = args.output_dir + '/clair3_output/phased_output/normal_phased_{1/.}.vcf.gz' if args.phase_normal else args.normal_bam_fn
-    tumor_bam_fn = args.output_dir + '/clair3_output/phased_output/tumor_phased_{1/.}.vcf.gz' if args.phase_tumor else args.tumor_bam_fn
     echo_list.append("[INFO] STEP 3: Full-alignment Model Calling\n")
     echo_list[-1] += "[INFO] Create FA Pair Tensor"
     cpt_fa_command = '(time ' + args.parallel
     cpt_fa_command += ' --joblog ' + args.output_dir + '/logs/parallel_3-1_create_pair_tensor_fa.log'
     cpt_fa_command += ' -j ' + str(args.threads)
     cpt_fa_command += ' ' + args.pypy + ' ' + main_entry + ' create_pair_tensor'
-    cpt_fa_command += ' --normal_bam_fn ' + args.normal_bam_fn
+    cpt_fa_command += ' --normal_bam_fn ' + normal_bam_fn
     cpt_fa_command += ' --tumor_bam_fn ' + tumor_bam_fn
     cpt_fa_command += ' --ref_fn ' + args.ref_fn
     cpt_fa_command += ' --ctg_name {1/.}'
@@ -829,8 +819,9 @@ def somatic_calling(args):
     cpt_fa_command += ' --platform ' + args.platform
     cpt_fa_command += ' :::: ' + args.output_dir + '/tmp/candidates/CANDIDATES_FILES'
     cpt_fa_command += ') |& tee ' + args.output_dir + '/logs/3-1_CPT.log'
+    commands_list += [cpt_fa_command]
 
-    # STEP 3: PREDICT
+    ## STEP 3: PREDICT
     echo_list.append("[INFO] STEP 3: FA Model Prediction")
     fa_predict_command = '(time ' + args.parallel
     fa_predict_command += ' --joblog ' + args.output_dir + '/logs/parallel_3-2_predict.log'
@@ -851,24 +842,23 @@ def somatic_calling(args):
     fa_mv_command += ' --ref_fn ' + args.ref_fn
     fa_mv_command += ' --contigs_fn ' + os.path.join(args.output_dir, 'tmp', 'CONTIGS')
     fa_mv_command += ' --input_dir ' + args.output_dir + '/tmp/vcf_output'
-    fa_mv_command += ' --vcf_fn_prefix ' + 'fa'
-    fa_mv_command += ' --output_fn ' + args.output_dir + '/full_alignment.vcf'
-
-    commands_list += [cpt_fa_command, fa_predict_command, fa_mv_command]
+    fa_mv_command += ' --vcf_fn_prefix ' + 'fa_'
+    fa_mv_command += ' --output_fn ' + args.output_dir + '/tmp/vcf_output/full_alignment.vcf'
+    commands_list += [fa_mv_command]
 
 
     if args.enable_realignment and args.platform == 'ilmn':
         echo_list.append("[INFO] STEP 5: Short-read realignment")
-        realign_command = '( time ' + args.python + ' ' + main_entry + ' realign_variants'
+        realign_command = '(time ' + args.python + ' ' + main_entry + ' realign_variants'
         realign_command += ' --bam_fn ' + args.tumor_bam_fn
         realign_command += ' --ref_fn ' + args.ref_fn
-        realign_command += ' --pileup_input_vcf_fn ' + args.output_dir + '/pileup.vcf.gz'
-        realign_command += ' --fa_input_vcf_fn ' + args.output_dir + '/full_alignment.vcf.gz'
+        realign_command += ' --pileup_vcf_fn ' + args.output_dir + '/tmp/vcf_output/pileup.vcf'
+        realign_command += ' --full_alignment_vcf_fn ' + args.output_dir + '/tmp/vcf_output/full_alignment.vcf'
         realign_command += ' --output_vcf_fn ' + args.output_dir + '/output.vcf.gz'
         realign_command += ' --samtools ' + args.samtools
         realign_command += ' --threads ' + str(args.threads)
+        realign_command += ' --enable_realignment ' + str(args.enable_realignment)
         realign_command += ') |& tee ' + args.output_dir + '/logs/3_REALIGN.log'
-
         commands_list += [realign_command]
 
     #graph postprocessing
