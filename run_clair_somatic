@@ -863,18 +863,20 @@ def somatic_calling(args):
 
     #graph postprocessing
     if args.platform == 'ont':
-        echo_list.append("[INFO] STEP 5: Graph postprocessing")
-        realign_command = '( time ' + args.pypy + ' ' + main_entry + ' filter_co_exist_with_normal'
-        realign_command += ' --bam_fn ' + args.tumor_bam_fn
-        realign_command += ' --ref_fn ' + args.ref_fn
-        realign_command += ' --pileup_input_vcf_fn ' + args.output_dir + '/pileup.vcf.gz'
-        realign_command += ' --fa_input_vcf_fn ' + args.output_dir + '/full_alignment.vcf.gz'
-        realign_command += ' --output_vcf_fn ' + args.output_dir + '/output.vcf.gz'
-        realign_command += ' --samtools ' + args.samtools
-        realign_command += ' --threads ' + str(args.threads)
-        realign_command += ') |& tee ' + args.output_dir + '/logs/3_REALIGN.log'
+        echo_list.append("[INFO] STEP ?: Haplotype graph postprocessing")
+        hap_g_command = '(time ' + args.pypy + ' ' + main_entry + ' haplotype_filtering'
+        hap_g_command += ' --tumor_bam_fn ' + tumor_bam_prefix
+        hap_g_command += ' --ref_fn ' + args.ref_fn
+        hap_g_command += ' --germline_vcf_fn ' + clair3_output_path + '/clair3_tumor_output/merge_output.vcf.gz'
+        hap_g_command += ' --pileup_vcf_fn ' + args.output_dir + '/tmp/vcf_output/pileup.vcf'
+        hap_g_command += ' --full_alignment_vcf_fn ' + args.output_dir + '/tmp/vcf_output/full_alignment.vcf'
+        hap_g_command += ' --output_dir ' + args.output_dir + '/tmp/vcf_output'
+        hap_g_command += ' --samtools ' + args.samtools
+        hap_g_command += ' --threads ' + str(args.threads)
+        hap_g_command += ' --apply_post_processing ' + str(args.apply_post_processing)
+        hap_g_command += ') |& tee ' + args.output_dir + '/logs/HAP_FILTER.log'
 
-        commands_list += [realign_command]
+        commands_list += [hap_g_command]
 
         echo_list.append("[INFO] STEP ?: Merge and sort VCF")
         sort_vcf_command = args.pypy + ' ' + main_entry + ' merge_vcf'
