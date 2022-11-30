@@ -14,7 +14,6 @@ def select_hetero_snp_for_phasing(args):
     Filter heterozygous snp variant for phasing, currently, we only filter snp variant with low quality socore as low
     quality variant contains more false positive variant that would lead to a larger minimum error correction loss.
     """
-    qual_fn = args.qual_fn if args.qual_fn is not None else 'phase_qual'
     tumor_vcf_fn = args.tumor_vcf_fn
     normal_vcf_fn = args.normal_vcf_fn
     var_pct_full = args.var_pct_full
@@ -23,14 +22,7 @@ def select_hetero_snp_for_phasing(args):
     variant_dict = defaultdict(str)
     normal_qual_dict = defaultdict(int)
     tumor_qual_dict = defaultdict(int)
-    found_qual_cut_off = False
     header = []
-
-    #try to find the global quality cut off:
-    f_qual = os.path.join(output_folder, qual_fn)
-    if os.path.exists(f_qual):
-        phase_qual_cut_off = float(open(f_qual, 'r').read().rstrip())
-        found_qual_cut_off = True
 
     tumor_unzip_process = subprocess_popen(shlex.split("gzip -fdc %s" % (tumor_vcf_fn)))
     for row in tumor_unzip_process.stdout:
@@ -53,7 +45,6 @@ def select_hetero_snp_for_phasing(args):
                 tumor_qual_dict[pos] = qual
                 variant_dict[pos] = [ref_base, alt_base, qual, row]
 
-    intersect_pos_set = defaultdict(int)
     intersect_pos_set = set()
     hetero_snp_not_found_in_tumor = 0
     hetero_snp_not_match_in_tumor = 0
@@ -72,16 +63,17 @@ def select_hetero_snp_for_phasing(args):
         genotype = columns[9].split(':')[0].replace('|', '/')
 
         if len(ref_base) == 1 and len(alt_base) == 1:
-            if genotype == '0/1' or genotype=='1/0':
+            if genotype == '0/1' or genotype == '1/0':
                 qual = float(columns[5])
                 normal_qual_dict[pos] = qual
-                if pos not in variant_dict:
+                if pos not in variant_dict and qual < args.min_qual:
                     hetero_snp_not_found_in_tumor += 1
                     continue
-                tumor_ref_base , tumor_alt_base = variant_dict[pos][:2]
-                if tumor_ref_base != ref_base or tumor_alt_base != alt_base:
-                    hetero_snp_not_match_in_tumor += 1
-                    continue
+                if pos in variant_dict:
+                    tumor_ref_base, tumor_alt_base = variant_dict[pos][:2]
+                    if tumor_ref_base != ref_base or tumor_alt_base != alt_base:
+                        hetero_snp_not_match_in_tumor += 1
+                        continue
                 intersect_pos_set.add(pos)
                 # variant_dict[pos][-1] += ':' + ':'.join(row.split(':')[-2:])
 
@@ -95,14 +87,17 @@ def select_hetero_snp_for_phasing(args):
 
     pass_variant_dict = defaultdict()
     low_qual_count = 0
-    for pos in intersect_pos_set:
+    # for pos in intersect_pos_set:
+    for pos in variant_dict:
         if pos in normal_low_qual_set or pos in tumor_low_qual_set:
             low_qual_count += 1
             continue
         if pos in variant_dict:
             pass_variant_dict[pos] = variant_dict[pos][-1]
 
-    print ('[INFO] Total heterozygous SNP positions selected: {}: {} not found:{} not match:{}, low_qual_count:{} normal:{} tumor:{}'.format(contig_name, len(pass_variant_dict), hetero_snp_not_found_in_tumor, hetero_snp_not_match_in_tumor, low_qual_count, len(normal_qual_dict), len(tumor_qual_dict)))
+    pro = len(pass_variant_dict) / len(tumor_qual_dict)
+    # print ('[INFO] Total heterozygous SNP positions selected: {}: {} not found:{} not match:{}, low_qual_count:{} normal:{} tumor:{}'.format(contig_name, len(pass_variant_dict), hetero_snp_not_found_in_tumor, hetero_snp_not_match_in_tumor, low_qual_count, len(normal_qual_dict), len(tumor_qual_dict)))
+    print ('[INFO] Total HET SNP calls selected: {}: {}, not found:{}, not match:{}, low_qual_count:{}. Total normal:{} Total tumor:{}, pro: {}'.format(contig_name, len(pass_variant_dict), hetero_snp_not_found_in_tumor, hetero_snp_not_match_in_tumor, low_qual_count, len(normal_qual_dict), len(tumor_qual_dict), pro))
 
     if not os.path.exists(output_folder):
         return_code = run("mkdir -p {}".format(output_folder), shell=True)
@@ -182,7 +177,7 @@ def main():
                         help=SUPPRESS)
 
     ## Input the file that contains the quality cut-off for selecting low-quality pileup calls for phasing and full-alignment calling
-    parser.add_argument('--qual_fn', type=str, default=None,
+    parser.add_argument('--min_qual', type=float, default=0,
                         help=SUPPRESS)
 
     args = parser.parse_args()
@@ -196,3 +191,52 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# /autofs/bal36/zxzheng/env/miniconda3/envs/clair3/bin/pypy3 /autofs/bal36/zxzheng/somatic/Clair-somatic/clair-somatic.py select_hetero_snp_for_phasing \
+#     --tumor_vcf_fn /autofs/bal36/zxzheng/somatic/ont/clair3/hcc1395_chr20/merge_output.vcf.gz \
+#     --normal_vcf_fn /autofs/bal36/zxzheng/somatic/ont/clair3/hcc1395bl_chr20/merge_output.vcf.gz \
+#     --output_folder /autofs/bal36/zxzheng/somatic/ont/test/hcc1395_phasing \
+#     --ctg_name chr20
+
+#phase tumor
+# time ${PARALLEL} --joblog parallel_3_phase.log -j${THREADS} \
+"${WHATSHAP} phase \
+    --output phased_chr20.vcf.gz \
+    --reference ${HG38_NO_ALT_RERFERNCE} \
+    --chromosome chr20 \
+    --distrust-genotypes \
+    --ignore-read-groups \
+    /autofs/bal36/zxzheng/somatic/ont/test/hcc1395_phasing/chr20.vcf \
+    /autofs/bal36/zxzheng/somatic/data/novogene/HCC1395_SUP/bam/HCC1395_SUP_ONT.bam" #::: ${CHR[@]} |& tee 3_phase.log
+# tabix phased_chr20.vcf.gz
+
+#normal
+"${WHATSHAP} phase \
+    --output phased_normal_chr20.vcf.gz \
+    --reference ${HG38_NO_ALT_RERFERNCE} \
+    --chromosome chr20 \
+    --distrust-genotypes \
+    --ignore-read-groups \
+    /autofs/bal36/zxzheng/somatic/ont/test/hcc1395_phasing/chr20.vcf \
+    /autofs/bal36/zxzheng/somatic/data/novogene/HCC1395BL_SUP/bam/HCC1395BL_SUP_ONT.bam" #::: ${CHR[@]} |& tee 3_phase.log
+# tabix phased_normal_chr20.vcf.gz
+
+#haplotagging tumor
+"${WHATSHAP} haplotag \
+        --output tumor_chr20.bam \
+        --reference ${HG38_NO_ALT_RERFERNCE} \
+        --ignore-read-groups \
+        --regions chr20 \
+        phased_chr20.vcf.gz \
+        /autofs/bal36/zxzheng/somatic/data/novogene/HCC1395_SUP/bam/HCC1395_SUP_ONT.bam" # ::: ${CHR[@]} |& tee ${LOG_PATH}/4_haplotag.log
+# samtools index -@40 tumor_chr20.bam
+
+#haplotagging normal
+"${WHATSHAP} haplotag \
+        --output normal_chr20.bam \
+        --reference ${HG38_NO_ALT_RERFERNCE} \
+        --ignore-read-groups \
+        --regions chr20 \
+        phased_normal_chr20.vcf.gz \
+        /autofs/bal36/zxzheng/somatic/data/novogene/HCC1395BL_SUP/bam/HCC1395BL_SUP_ONT.bam" # ::: ${CHR[@]} |& tee ${LOG_PATH}/4_haplotag.log
+# samtools index -@40 normal_chr20.bam
