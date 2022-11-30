@@ -88,7 +88,9 @@ def create_output_folder(args):
 
     if args.clair3_path is not None and args.platform != 'ilmn':
         clair3_log_path = folder_path_from(os.path.join(args.output_dir, 'logs', 'clair3_log'), create_not_found=True)
-        clair3_phased_output_path = folder_path_from(os.path.join(tmp_vcf_output_path, 'clair3_output/phased_output'), create_not_found=True)
+        clair3_phased_output_path = folder_path_from(os.path.join(tmp_file_path, 'clair3_output/phased_output'), create_not_found=True)
+        clair3_vcf_output_path = folder_path_from(os.path.join(tmp_file_path, 'clair3_output/vcf'), create_not_found=True)
+
     output_path = OutputPath(log_path=log_path,
                              tmp_file_path=tmp_file_path,
                              split_bed_path=split_bed_path,
@@ -453,7 +455,7 @@ def check_args(args):
     try:
         conda_prefix = os.environ['CONDA_PREFIX']
     except:
-        sys.exit(log_error("[ERROR] Conda prefix not found, please activate xx conda environment first"))
+        sys.exit(log_error("[ERROR] Conda prefix not found, please activate conda environment first!"))
 
     args.normal_bam_fn = file_path_from(file_name=args.normal_bam_fn, exit_on_not_found=True, allow_none=False)
     normal_bai_fn = file_path_from(file_name=args.normal_bam_fn, suffix=".bai", exit_on_not_found=True, sep='.', allow_none=False)
@@ -550,6 +552,10 @@ def somatic_calling(args):
     tmp_vcf_output_path = args.output_path.tmp_vcf_output_path
     vcf_output_path = args.output_path.vcf_output_path
     clair3_output_path = args.output_dir + '/tmp/clair3_output'
+    normal_bam_fn = clair3_output_path + '/phased_output/normal_{1/.}.bam' if args.phase_normal else args.normal_bam_fn
+    tumor_bam_fn = clair3_output_path + '/phased_output/tumor_{1/.}.bam' if args.phase_tumor else args.tumor_bam_fn
+    tumor_bam_prefix = clair3_output_path + '/phased_output/tumor_' if args.phase_tumor else args.tumor_bam_fn
+
     if args.clair3_path is not None and args.platform == 'ont' and args.phase_tumor:
 
         echo_list.append("[INFO] Call Germline Variants in Normal BAM using Clair3")
@@ -559,7 +565,7 @@ def somatic_calling(args):
         clair3_normal_command += ' --model_path ' + args.clair3_model_path
         clair3_normal_command += ' --platform ont'
         clair3_normal_command += ' --threads ' + str(args.threads)
-        clair3_normal_command += ' --output ' + clair3_output_path + 'clair3_normal_output'
+        clair3_normal_command += ' --output ' + clair3_output_path + '/clair3_normal_output'
         clair3_normal_command += ' --ctg_name=' + args.clair3_option.ctg_name_str
         clair3_normal_command += ' --samtools=' + args.samtools
         clair3_normal_command += ' --pypy=' + args.pypy
@@ -782,8 +788,7 @@ def somatic_calling(args):
     p_predict_command += ' --chkpnt_fn ' + args.pileup_model_path
     p_predict_command += ' --use_gpu ' + str(args.use_gpu)
     p_predict_command += ' --platform ' + args.platform
-    if args.pileup:
-        p_predict_command += ' --pileup '
+    p_predict_command += ' --pileup '
     p_predict_command += ' :::: ' + args.output_dir + '/tmp/candidates/CANDIDATES_FILES'
     p_predict_command += ') |& tee ' + args.output_dir + '/logs/2-2_PREDICT.log'
     commands_list += [p_predict_command]
@@ -845,7 +850,6 @@ def somatic_calling(args):
     fa_mv_command += ' --vcf_fn_prefix ' + 'fa_'
     fa_mv_command += ' --output_fn ' + args.output_dir + '/tmp/vcf_output/full_alignment.vcf'
     commands_list += [fa_mv_command]
-
 
     if args.enable_realignment and args.platform == 'ilmn':
         echo_list.append("[INFO] STEP 5: Short-read realignment")
