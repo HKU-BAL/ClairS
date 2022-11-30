@@ -6,13 +6,12 @@ import subprocess
 from argparse import ArgumentParser, SUPPRESS
 from subprocess import run as subprocess_run
 
-from src.utils import str2bool
+from src.utils import str2bool, str_none
 
 random.seed(0)
 cov_suffix = ".cov.mosdepth.summary.txt"
 
-
-def get_coverage_from_bam(args, bam_fn, is_tumor=False):
+def get_coverage_from_bam(args, bam_fn, is_tumor=False, output_prefix=None):
     ctg_name = args.ctg_name
     dry_run = args.dry_run
 
@@ -20,7 +19,8 @@ def get_coverage_from_bam(args, bam_fn, is_tumor=False):
     contig_option = "" if ctg_name is None else "-c {}".format(ctg_name)
 
     prefix = 'tumor' if is_tumor else 'normal'
-    output_prefix = os.path.join(args.output_dir, 'raw_{}'.format(prefix))
+    if output_prefix is None:
+        output_prefix = os.path.join(args.output_dir, 'tmp', 'raw_{}'.format(prefix))
 
 
     mos_depth_command = "{} -t {} {} -n -x --quantize 0:15:150: {}.cov {}".format(mosdepth,
@@ -31,13 +31,13 @@ def get_coverage_from_bam(args, bam_fn, is_tumor=False):
 
     print("[INFO] Calculating coverge for {} BAM using mosdepth...".format(prefix))
 
-    if dry_run:
-        print('[INFO] Dry run. Will run the following commands:')
-        print(mos_depth_command)
 
-    subprocess.run(mos_depth_command, shell=True)
+    print('[INFO] Will run the following commands:')
+    print(mos_depth_command)
+    if not dry_run:
+        subprocess.run(mos_depth_command, shell=True)
 
-    coverage_log = os.path.join(args.output_dir, output_prefix + cov_suffix)
+    coverage_log = os.path.join(output_prefix + cov_suffix)
     if ctg_name is None:
         last_row = open(coverage_log).readlines()[-1]
         coverage = float(float(last_row.split()[3]))
@@ -62,7 +62,8 @@ def gen_contaminated_bam(args):
     ctg_name = args.ctg_name
     samtools_execute_command = args.samtools
     samtools_threads = args.samtools_threads
-    contaminative_proportion = args.contaminative_proportion
+    normal_purity = args.normal_purity
+    tumor_purity = args.tumor_purity
 
     if not os.path.exists(output_dir):
         rc = subprocess.run('mkdir -p {}'.format(output_dir), shell=True)
@@ -155,19 +156,19 @@ def main():
     parser.add_argument('--output_dir', type=str, default=None,
                         help="Sorted chunked BAM file output path")
 
-    parser.add_argument('--input_dir', type=str, default=None,
-                        help="Input directory, required")
-
     parser.add_argument('--samtools', type=str, default="samtools",
                         help="Path to the 'samtools', samtools version >= 1.10 is required")
 
     parser.add_argument('--samtools_threads', type=int, default=32,
                         help="Samtools threads to read input BAM")
 
-    parser.add_argument('--contaminative_proportion', type=float, default=None,
-                        help="contaminative_proportion, split by ','. ")
+    parser.add_argument('--normal_purity', type=float, default=None,
+                        help="Normal purity")
 
-    parser.add_argument('--ctg_name', type=str, default=None,
+    parser.add_argument('--tumor_purity', type=float, default=None,
+                        help="Tumor purity")
+
+    parser.add_argument('--ctg_name', type=str_none, default=None,
                         help="The name of sequence to be processed, required if --bed_fn is not defined")
 
     parser.add_argument('--mosdepth', type=str, default="mosdepth",
