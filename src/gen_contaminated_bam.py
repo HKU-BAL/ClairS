@@ -66,25 +66,26 @@ def gen_contaminated_bam(args):
     tumor_purity = args.tumor_purity
 
     if not os.path.exists(output_dir):
-        rc = subprocess.run('mkdir -p {}'.format(output_dir), shell=True)
+        rc = subprocess.run('mkdir -p {}/tmp'.format(output_dir), shell=True)
     normal_bam_coverage = args.normal_bam_coverage if args.normal_bam_coverage else get_coverage_from_bam(args,normal_bam_fn, False)
     tumor_bam_coverage = args.tumor_bam_coverage if args.tumor_bam_coverage else get_coverage_from_bam(args, tumor_bam_fn, True)
-
-    contam_coverage = normal_bam_coverage * args.contaminative_proportion
-    rest_normal_coverage = normal_bam_coverage - contam_coverage
-
-    tumor_subsample_pro = "%.3f" % (contam_coverage / float(tumor_bam_coverage))
-    normal_subsample_pro = "%.3f" % (rest_normal_coverage / float(normal_bam_coverage))
 
     print("[INFO] Normal/Tumor BAM coverage: {}/{}".format(normal_bam_coverage,
                                                            tumor_bam_coverage))
 
-    print("[INFO] Normal/Tumor subsample proportion: {}/{}".format(normal_subsample_pro,
-                                                           tumor_subsample_pro))
+    # add normal to normal
+    if normal_purity is not None:
+        contam_coverage = normal_bam_coverage * (1 - normal_purity)
+        rest_normal_coverage = normal_bam_coverage - contam_coverage
 
+        tumor_subsample_pro = "%.3f" % (contam_coverage / float(tumor_bam_coverage))
+        normal_subsample_pro = "%.3f" % (rest_normal_coverage / float(normal_bam_coverage))
 
-    tumor_subsample_bam = os.path.join(args.output_dir, 'tumor_subsample.bam')
-    normal_subsample_bam = os.path.join(args.output_dir, 'normal_rest.bam')
+        print("[INFO] Normal/Tumor subsample proportion: {}/{}".format(normal_subsample_pro,
+                                                               tumor_subsample_pro))
+
+        tumor_subsample_bam = os.path.join(args.output_dir, 'tmp', 'tumor_subsample.bam')
+        normal_subsample_bam = os.path.join(args.output_dir, 'tmp', 'normal_rest.bam')
 
     contig_option = "" if ctg_name is None else ctg_name
 
