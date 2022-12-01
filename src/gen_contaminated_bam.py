@@ -139,6 +139,11 @@ def gen_contaminated_bam(args):
         if args.cal_output_bam_coverage:
             get_coverage_from_bam(args, normal_output_bam, False, os.path.join(args.output_dir, 'cov'))
 
+        if args.remove_intermediate_dir:
+            tmp_file_path = os.path.join(args.output_dir, 'tmp')
+            if os.path.exist(tmp_file_path):
+                rc = subprocess.run("rm -rf {}".format(tmp_file_path), shell=True)
+
         print("[INFO] Finishing merging, output file: {}".format(normal_output_bam))
 
     #add normal to tumor
@@ -252,6 +257,12 @@ def main():
 
     parser.add_argument('--dry_run', type=str2bool, default=0,
                         help="EXPERIMENTAL: Only print the synthetic log, debug only")
+
+    parser.add_argument('--cal_output_bam_coverage', type=str2bool, default=0,
+                        help="EXPERIMENTAL: Only print the synthetic log, debug only")
+
+    parser.add_argument('--remove_intermediate_dir', action='store_true',
+                        help="Remove intermediate directory. Default: False")
 
     args = parser.parse_args()
 
