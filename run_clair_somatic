@@ -163,7 +163,8 @@ def check_tools_version(args):
     return
 
 
-def check_contig_in_bam(bam_fn, sorted_contig_list, samtools, allow_none=False):
+def check_contig_in_bam(bam_fn, sorted_contig_list, samtools, allow_none=False, is_tumor=False):
+    flag = 'tumor' if is_tumor else 'normal'
     if allow_none and bam_fn is None:
         return sorted_contig_list, True
     bai_process = subprocess_popen(shlex.split("{} idxstats {}".format(samtools, bam_fn)))
@@ -180,15 +181,16 @@ def check_contig_in_bam(bam_fn, sorted_contig_list, samtools, allow_none=False):
     for contig_name in sorted_contig_list:
         if contig_name not in contig_with_read_support_set:
             logging(log_warning(
-                "[WARNING] Contig name {} provided but no mapped reads in BAM, skip!".format(contig_name)))
+                "[WARNING] Contig name {} provided but no mapped reads in {} BAM, skip!".format(flag, contig_name)))
     filtered_sorted_contig_list = [item for item in sorted_contig_list if item in contig_with_read_support_set]
 
     found_contig = True
     if len(filtered_sorted_contig_list) == 0:
         found_contig = False
         logging(log_warning(
-            "[WARNING] No mapped reads support in BAM for provided contigs set {}".format(
-                ' '.join(sorted_contig_list))))
+            "[WARNING] No mapped reads support in {} BAM for provided contigs set {}".format(
+                ' '.join(flag, sorted_contig_list))))
+
     return filtered_sorted_contig_list, found_contig
 
 
@@ -374,15 +376,15 @@ def check_contigs_intersection(args, fai_fn):
 
         # check contig in bam have support reads
         sorted_contig_list, tumor_found_contig = check_contig_in_bam(bam_fn=args.tumor_bam_fn, sorted_contig_list=sorted_contig_list,
-                                                               samtools=args.samtools)
+                                                               samtools=args.samtools, is_tumor=True)
 
         sorted_contig_list, normal_found_contig = check_contig_in_bam(bam_fn=args.normal_bam_fn, sorted_contig_list=sorted_contig_list,
-                                                               samtools=args.samtools, allow_none=True)
+                                                               samtools=args.samtools, allow_none=False, is_tumor=False)
         found_contig = tumor_found_contig and normal_found_contig
 
     if not found_contig:
-        return
-
+        log_warning("[WARNING] Exit calling as no contig found in BAM!")
+        sys.exit(0)
     logging('[INFO] Call variant in contigs: {}'.format(' '.join(sorted_contig_list)))
     logging('[INFO] Chunk number for each contig: {}'.format(
         ' '.join([str(contig_chunk_num[c]) for c in sorted_contig_list])))
@@ -732,7 +734,7 @@ def somatic_calling(args):
         commands_list.append(ht_command + ' && ' + index_command)
 
     ## Pileup calling
-    # STEP 1: EXTRACT CANDIDATES
+    ##STEP 1: EXTRACT CANDIDATES
     echo_list.append("[INFO] STEP 3: Pileup Model Calling\n")
     echo_list[-1] += ("[INFO] STEP {}: Extract Candidates".format(step))
     step += 1
@@ -784,7 +786,7 @@ def somatic_calling(args):
     p_predict_command += ' -j ' + str(args.threads)
     p_predict_command += ' ' + args.python + ' ' + main_entry + ' predict'
     p_predict_command += ' --tensor_fn ' + args.output_dir + '/tmp/pileup_tensor_can/{1/} '
-    p_predict_command += ' --call_fn ' + args.output_dir + '/tmp/vcf_output/pileup_{1/}.vcf'
+    p_predict_command += ' --call_fn ' + args.output_dir + '/tmp/vcf_output/p_{1/}.vcf'
     p_predict_command += ' --chkpnt_fn ' + args.pileup_model_path
     p_predict_command += ' --use_gpu ' + str(args.use_gpu)
     p_predict_command += ' --platform ' + args.platform
@@ -799,7 +801,7 @@ def somatic_calling(args):
     p_mv_command += ' --ref_fn ' + args.ref_fn
     p_mv_command += ' --contigs_fn ' + os.path.join(args.output_dir, 'tmp', 'CONTIGS')
     p_mv_command += ' --input_dir ' + args.output_dir + '/tmp/vcf_output'
-    p_mv_command += ' --vcf_fn_prefix ' + 'pileup_'
+    p_mv_command += ' --vcf_fn_prefix ' + 'p_'
     p_mv_command += ' --output_fn ' + args.output_dir + '/tmp/vcf_output/pileup.vcf'
     commands_list += [p_mv_command]
 
@@ -1265,6 +1267,8 @@ def main():
 
     args.output_dir = folder_path_from(args.output_dir, create_not_found=True)
     tee_logger = os.path.join(args.output_dir, 'run_somatic.log' if not args.dry_run else "run_somatic_dry_run.log")
+    if os.path.exists(tee_logger):
+        subprocess.run("mv {} {}".format(tee_logger, tee_logger + '.bak'), shell=True)
     try:
         args.tee = subprocess.Popen(['tee', tee_logger], stdin=subprocess.PIPE, bufsize=0)
     except:
