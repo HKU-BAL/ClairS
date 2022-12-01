@@ -87,56 +87,64 @@ def gen_contaminated_bam(args):
         tumor_subsample_bam = os.path.join(args.output_dir, 'tmp', 'tumor_subsample.bam')
         normal_subsample_bam = os.path.join(args.output_dir, 'tmp', 'normal_rest.bam')
 
-    contig_option = "" if ctg_name is None else ctg_name
+        contig_option = "" if ctg_name is None else ctg_name
 
-    t_s_cmd = "{} view -@{} -bh -s {} -o {} {} {}".format(samtools_execute_command,
-                                                      samtools_threads,
-                                                      tumor_subsample_pro,
-                                                      tumor_subsample_bam,
-                                                      tumor_bam_fn,
-                                                      contig_option,
-                                                      )
+        #tumor subsample cmd
+        t_s_cmd = "{} view -@{} -bh -s {} -o {} {} {}".format(samtools_execute_command,
+                                                          samtools_threads,
+                                                          tumor_subsample_pro,
+                                                          tumor_subsample_bam,
+                                                          tumor_bam_fn,
+                                                          contig_option,
+                                                          )
+        #normal subsample cmd
+        n_s_cmd = "{} view -@{} -bh -s {} -o {} {} {}".format(samtools_execute_command,
+                                                          samtools_threads,
+                                                          normal_subsample_pro,
+                                                          normal_subsample_bam,
+                                                          normal_bam_fn,
+                                                          contig_option)
 
-    n_s_cmd = "{} view -@{} -bh -s {} -o {} {} {}".format(samtools_execute_command,
-                                                      samtools_threads,
-                                                      normal_subsample_pro,
-                                                      normal_subsample_bam,
-                                                      normal_bam_fn,
-                                                      contig_option)
+        n_index_cmd = '{} index -@{} {}'.format(samtools_execute_command, samtools_threads, tumor_subsample_bam)
+        t_index_cmd = '{} index -@{} {}'.format(samtools_execute_command, samtools_threads, normal_subsample_bam)
 
-    n_index_cmd = '{} index -@{} {}'.format(samtools_execute_command, samtools_threads, tumor_subsample_bam)
-    t_index_cmd = '{} index -@{} {}'.format(samtools_execute_command, samtools_threads, normal_subsample_bam)
 
-    print(t_s_cmd)
-    print(n_s_cmd)
-    print(n_index_cmd)
-    print(t_index_cmd)
-    if args.dry_run:
-        print('[INFO] Dry run only. Will run the following commands:')
+        print('[INFO] Will run the following commands:')
+        print(t_s_cmd)
+        print(n_s_cmd)
+        print(n_index_cmd)
+        print(t_index_cmd)
 
-    else:
-        subprocess.run(t_s_cmd, shell=True)
-        subprocess.run(n_s_cmd, shell=True)
-        subprocess.run(n_index_cmd, shell=True)
-        subprocess.run(t_index_cmd, shell=True)
+        if not args.dry_run:
+            subprocess.run(t_s_cmd, shell=True)
+            subprocess.run(n_s_cmd, shell=True)
+            subprocess.run(n_index_cmd, shell=True)
+            subprocess.run(t_index_cmd, shell=True)
 
-    normal_output_bam = os.path.join(output_dir, "normal_contaminated_{}.bam".format(contaminative_proportion))
+        normal_output_bam = os.path.join(output_dir, "normal_purity_{}.bam".format(normal_purity))
 
-    print("[INFO] Merging tumor BAM into normal BAM as contaminatation...")
-    merge_cmd = "{} merge -f -@{} {} {} {}".format(samtools_execute_command, samtools_threads, normal_output_bam,
-                                        tumor_subsample_bam, normal_subsample_bam)
-    index_cmd = '{} index -@{} {}'.format(samtools_execute_command, samtools_threads, normal_output_bam)
+        print("[INFO] Merging tumor BAM into normal BAM as contamination...")
+        merge_cmd = "{} merge -f -@{} {} {} {}".format(samtools_execute_command, samtools_threads, normal_output_bam,
+                                            tumor_subsample_bam, normal_subsample_bam)
+        index_cmd = '{} index -@{} {}'.format(samtools_execute_command, samtools_threads, normal_output_bam)
 
-    print(merge_cmd)
-    print(index_cmd)
-    if args.dry_run:
-        print('[INFO] Dry run. Will run the following commands:')
-        return
 
-    subprocess_run(merge_cmd, shell=True)
-    subprocess.run(index_cmd, shell=True)
+        print('[INFO] Will run the following commands:')
+        print(merge_cmd)
+        print(index_cmd)
+        if not args.dry_run:
+            subprocess_run(merge_cmd, shell=True)
+            subprocess.run(index_cmd, shell=True)
 
-    print("[INFO] Finishing merging, output file: {}".format(normal_output_bam))
+        if args.cal_output_bam_coverage:
+            get_coverage_from_bam(args, normal_output_bam, False, os.path.join(args.output_dir, 'cov'))
+
+        if args.remove_intermediate_dir:
+            tmp_file_path = os.path.join(args.output_dir, 'tmp')
+            if os.path.exist(tmp_file_path):
+                rc = subprocess.run("rm -rf {}".format(tmp_file_path), shell=True)
+
+        print("[INFO] Finishing merging, output file: {}".format(normal_output_bam))
 
 
 def main():
