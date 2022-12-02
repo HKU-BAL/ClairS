@@ -162,7 +162,8 @@ def sort_vcf_from(args):
             output_header(output_fn=output_fn, reference_file_path=ref_fn, sample_name=sample_name)
             print (log_warning(
                 "[WARNING] No vcf file found with prefix:{}/{}, output empty vcf file".format(input_dir,vcf_fn_prefix)))
-            compress_index_vcf(output_fn)
+            if compress_vcf:
+                compress_index_vcf(output_fn)
             print_calling_step(output_fn=output_fn)
             return
 

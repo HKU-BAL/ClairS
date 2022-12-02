@@ -109,6 +109,12 @@ def subprocess_popen(args, stdin=None, stdout=PIPE, stderr=stderr, bufsize=83886
     return Popen(args, stdin=stdin, stdout=stdout, stderr=stderr, bufsize=bufsize, universal_newlines=True)
 
 
+def str_none(v):
+    if v.upper() == "NONE":
+        return None
+    if isinstance(v, str):
+        return v
+
 def str2bool(v):
     if isinstance(v, bool):
        return v
