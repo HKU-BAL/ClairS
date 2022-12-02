@@ -5,10 +5,10 @@ from sys import stdin, exit
 from argparse import ArgumentParser
 from collections import defaultdict
 import sys
-sys.path.insert(0, "/autofs/bal36/zxzheng/somatic/Clair-somatic")
 import shlex
 from shared.vcf import VcfReader
 
+import shared.param as param
 from shared.utils import log_error, log_warning, file_path_from, str2bool
 major_contigs_order = ["chr" + str(a) for a in list(range(1, 23)) + ["X", "Y"]] + [str(a) for a in
                                                                                    list(range(1, 23)) + ["X", "Y"]]
@@ -75,24 +75,16 @@ def check_header_in_gvcf(header, contigs_list):
 def merge_vcf(args):
 
     compress_vcf = args.compress_vcf
+    platform = args.platform
+    qual_cut_off = args.qual if args.qual is not None else param.qual_dict[platform]
+    af_cut_off = args.af if args.af is not None else param.af_dict[platform]
 
     input_vcf_reader = VcfReader(vcf_fn=args.full_alignment_vcf_fn, ctg_name=None, show_ref=False, keep_row_str=True,
                                  skip_genotype=True,
                                  filter_tag="PASS",
-                                 keep_af=True)  # , naf_filter=0.03, taf_filter=0.25)
+                                 keep_af=True)
     input_vcf_reader.read_vcf()
     fa_input_variant_dict = input_vcf_reader.variant_dict
-
-    # if args.pileup_vcf_fn is not None:
-    #     from shared.vcf import VcfReader
-    #     p_input_vcf_reader = VcfReader(vcf_fn=args.pileup_vcf_fn, ctg_name=None, show_ref=False, keep_row_str=True,
-    #                                  skip_genotype=True,
-    #                                  filter_tag="PASS",
-    #                                  keep_af=True)  # , naf_filter=0.03, taf_filter=0.25)
-    #     p_input_vcf_reader.read_vcf()
-    #     p_input_variant_dict = p_input_vcf_reader.variant_dict
-    #
-    # else:
 
     row_count = 0
     header = []
@@ -111,12 +103,10 @@ def merge_vcf(args):
         # use the first vcf header
         columns = row.strip().split()
         ctg_name, pos = columns[0], columns[1]
-        # print(columns)
         qual = float(columns[5])
         filter = columns[6]
-        if filter != 'PASS':
-            continue
-        if args.qual is not None and qual <= args.qual:
+        # if filter != 'PASS':
+        #     continue
 
             if (ctg_name, int(pos)) not in fa_input_variant_dict:
                 filter_count += 1
