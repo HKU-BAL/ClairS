@@ -8,6 +8,7 @@ import subprocess
 from collections import defaultdict, namedtuple
 from argparse import SUPPRESS
 from distutils.version import LooseVersion
+from time import time
 
 import shared.param as param
 from shared.interval_tree import bed_tree_from
@@ -189,7 +190,7 @@ def check_contig_in_bam(bam_fn, sorted_contig_list, samtools, allow_none=False, 
         found_contig = False
         logging(log_warning(
             "[WARNING] No mapped reads support in {} BAM for provided contigs set {}".format(
-                ' '.join(flag, sorted_contig_list))))
+                flag, ' '.join(sorted_contig_list))))
 
     return filtered_sorted_contig_list, found_contig
 
@@ -361,10 +362,10 @@ def check_contigs_intersection(args, fai_fn):
     if not len(contig_set):
         if is_bed_file_provided:
             all_contig_in_bed = ' '.join(list(tree.keys()))
-            logging(log_warning("[WARNING] No contig intersection found by --bed_fn, contigs in BED {}: {}".format(bed_fn, all_contig_in_bed)))
+            logging(log_warning("[WARNING] No contig intersection found by --bed_fn, contigs in BED {}: {}".format(args.bed_fn, all_contig_in_bed)))
         if is_known_vcf_file_provided:
             all_contig_in_vcf = ' '.join(list(know_vcf_contig_set))
-            logging(log_warning("[WARNING] No contig intersection found by --vcf_fn, contigs in VCF {}: {}".format(vcf_fn, all_contig_in_vcf)))
+            logging(log_warning("[WARNING] No contig intersection found by --vcf_fn, contigs in VCF {}: {}".format(args.vcf_fn, all_contig_in_vcf)))
         if is_ctg_name_list_provided:
             all_contig_in_ctg_name = ' '.join(args.ctg_name.split(','))
             logging(log_warning("[WARNING] No contig intersection found by --ctg_name, contigs in contigs list: {}".format(all_contig_in_ctg_name)))
@@ -491,7 +492,8 @@ def check_args(args):
         check_skip_steps_legal(args)
     if args.enable_realignment and args.platform != 'ilmn':
         args.enable_realignment = False
-        # logging(log_warning('[WARNING] Realignment only work for Illumina short read data. Disable realignment'))
+    if args.phase_tumor is None:
+        args.phase_tumor = True if args.platform == 'ont' else False
 
     legal_range_from(param_name="threads", x=args.threads, min_num=1, exit_out_of_range=True)
     legal_range_from(param_name="qual", x=args.qual, min_num=0, exit_out_of_range=True)
@@ -751,6 +753,7 @@ def somatic_calling(args):
     ec_command += ' --chunk_id {2} '
     ec_command += ' --chunk_num {3} '
     ec_command += ' --ctg_name {1} '
+    ec_command += ' --platform ' + args.platform
     ec_command += ' --bed_fn ' + str(args.bed_fn)
     ec_command += ' --extend_bed ' + str(args.bed_fn)
     ec_command += ' --candidates_folder ' + args.output_dir + '/tmp/candidates'
