@@ -36,7 +36,8 @@ def get_coverage_from_bam(args, bam_fn, is_tumor=False, output_prefix=None):
     print(mos_depth_command)
     if not dry_run:
         subprocess.run(mos_depth_command, shell=True)
-
+    else:
+        return 1
     coverage_log = os.path.join(output_prefix + cov_suffix)
     if ctg_name is None:
         last_row = open(coverage_log).readlines()[-1]
@@ -65,7 +66,7 @@ def gen_contaminated_bam(args):
     normal_purity = args.normal_purity
     tumor_purity = args.tumor_purity
 
-    if not os.path.exists(output_dir):
+    if not os.path.exists(os.path.join(output_dir, "tmp")):
         rc = subprocess.run('mkdir -p {}/tmp'.format(output_dir), shell=True)
     normal_bam_coverage = args.normal_bam_coverage if args.normal_bam_coverage else get_coverage_from_bam(args,normal_bam_fn, False)
     tumor_bam_coverage = args.tumor_bam_coverage if args.tumor_bam_coverage else get_coverage_from_bam(args, tumor_bam_fn, True)
@@ -78,13 +79,23 @@ def gen_contaminated_bam(args):
         contam_coverage = normal_bam_coverage * (1 - normal_purity)
         rest_normal_coverage = normal_bam_coverage - contam_coverage
 
+        need_downsample = True
+        if contam_coverage >= float(tumor_bam_coverage):
+            print("[WARNING] Contam BAM coverage is higher than tumor BAM, use all tumor BAM!")
+            normal_subsample_pro = "1.00"
+            need_downsample = False
+            tumor_subsample_bam = tumor_bam_fn
+        else:
+            normal_subsample_pro = "%.3f" % (rest_normal_coverage / float(normal_bam_coverage))
+            tumor_subsample_bam = os.path.join(args.output_dir, 'tmp', 'tumor_subsample.bam')
+
         tumor_subsample_pro = "%.3f" % (contam_coverage / float(tumor_bam_coverage))
-        normal_subsample_pro = "%.3f" % (rest_normal_coverage / float(normal_bam_coverage))
+
 
         print("[INFO] Normal/Tumor subsample proportion: {}/{}".format(normal_subsample_pro,
                                                                tumor_subsample_pro))
 
-        tumor_subsample_bam = os.path.join(args.output_dir, 'tmp', 'tumor_subsample.bam')
+
         normal_subsample_bam = os.path.join(args.output_dir, 'tmp', 'normal_rest.bam')
 
         contig_option = "" if ctg_name is None else ctg_name
@@ -116,10 +127,11 @@ def gen_contaminated_bam(args):
         print(t_index_cmd)
 
         if not args.dry_run:
-            subprocess.run(t_s_cmd, shell=True)
             subprocess.run(n_s_cmd, shell=True)
             subprocess.run(n_index_cmd, shell=True)
-            subprocess.run(t_index_cmd, shell=True)
+            if need_downsample:
+                subprocess.run(t_s_cmd, shell=True)
+                subprocess.run(t_index_cmd, shell=True)
 
         normal_output_bam = os.path.join(output_dir, "normal_purity_{}.bam".format(normal_purity))
 
