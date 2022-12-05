@@ -470,10 +470,10 @@ def check_args(args):
     args.vcf_fn = file_path_from(file_name=args.vcf_fn, exit_on_not_found=True, allow_none=True)
 
     if args.pileup_model_path is None:
-        args.pileup_model_path = os.path.join(conda_prefix, 'bin', 'pileup.pkl')
+        args.pileup_model_path = os.path.join(conda_prefix, 'bin', 'models', args.platform, 'pileup.pkl')
 
     if args.full_alignment_model_path is None:
-        args.full_alignment_model_path = os.path.join(conda_prefix, 'bin', 'full_alignment.pkl')
+        args.full_alignment_model_path = os.path.join(conda_prefix, 'bin', 'models', args.platform, 'full_alignment.pkl')
 
     args.pileup_model_path = file_path_from(file_name=args.pileup_model_path, exit_on_not_found=True, is_directory=False, allow_none=False)
     args.full_alignment_model_path = file_path_from(file_name=args.full_alignment_model_path, exit_on_not_found=True, is_directory=False, allow_none=False)
@@ -917,8 +917,6 @@ def somatic_calling(args):
                 exit(1)
         logging("")
 
-    logging("[INFO] Finish calling, output file: {}/{}.vcf.gz\n".format(args.output_dir, args.sample_name))
-
 
 def somatic_parser():
 
@@ -1222,7 +1220,7 @@ def somatic_parser():
     ont_params.add_argument(
         "--phase_tumor",
         type=str2bool,
-        default=True,
+        default=None,
         help=SUPPRESS
     )
 
@@ -1265,6 +1263,8 @@ def main():
 
     global args
 
+    call_start_time = time()
+
     parser = somatic_parser()
     args = parser.parse_args()
 
@@ -1280,6 +1280,10 @@ def main():
     args = check_args(args)
     args = print_args(args)
     somatic_calling(args)
+
+    runtime = time() - call_start_time
+    logging("[INFO] Total time elapsed: %im%.2fs\n" % (int(runtime/60), int(runtime % 60)))
+    logging("[INFO] Finish calling, output file: {}/{}.vcf.gz\n".format(args.output_dir, args.sample_name))
 
     if args.tee is not None:
         args.tee.stdin.close()
