@@ -163,14 +163,23 @@ def gen_contaminated_bam(args):
         contam_coverage = tumor_bam_coverage * (1 - tumor_purity)
         rest_tumor_coverage = tumor_bam_coverage - contam_coverage
 
+        need_downsample = True
+        if contam_coverage > float(normal_bam_coverage):
+            print("[WARNING] Contaim coverage is higher than normal, use all normal BAM!")
+            normal_subsample_pro = "1.00"
+            need_downsample = False
+            normal_subsample_bam = normal_bam_fn
+        else:
+            normal_subsample_pro = "%.3f" % (contam_coverage / float(normal_bam_coverage))
+            normal_subsample_bam = os.path.join(args.output_dir, 'tmp', 'normal_subsample.bam')
         tumor_subsample_pro = "%.3f" % (rest_tumor_coverage / float(tumor_bam_coverage))
-        normal_subsample_pro = "%.3f" % (contam_coverage / float(normal_bam_coverage))
+
 
         print("[INFO] Normal/Tumor subsample proportion: {}/{}".format(normal_subsample_pro,
                                                                tumor_subsample_pro))
 
         tumor_subsample_bam = os.path.join(args.output_dir, 'tmp', 'tumor_rest.bam')
-        normal_subsample_bam = os.path.join(args.output_dir, 'tmp', 'normal_subsample.bam')
+
 
         contig_option = "" if ctg_name is None else ctg_name
 
@@ -202,9 +211,10 @@ def gen_contaminated_bam(args):
 
         if not args.dry_run:
             subprocess.run(t_s_cmd, shell=True)
-            subprocess.run(n_s_cmd, shell=True)
-            subprocess.run(n_index_cmd, shell=True)
             subprocess.run(t_index_cmd, shell=True)
+            if need_downsample:
+                subprocess.run(n_s_cmd, shell=True)
+                subprocess.run(n_index_cmd, shell=True)
 
         tumor_output_bam = os.path.join(output_dir, "tumor_contaminated_{}.bam".format(tumor_purity))
 
@@ -221,7 +231,7 @@ def gen_contaminated_bam(args):
             subprocess.run(index_cmd, shell=True)
 
         if args.cal_output_bam_coverage:
-            get_coverage_from_bam(args, tumor_output_bam, True, os.path.join(args.output_path, 'cov'))
+            get_coverage_from_bam(args, tumor_output_bam, True, os.path.join(args.output_dir, 'cov'))
 
         if args.remove_intermediate_dir:
             tmp_file_path = os.path.join(args.output_dir, 'tmp')
