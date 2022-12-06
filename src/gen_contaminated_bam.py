@@ -216,7 +216,7 @@ def gen_contaminated_bam(args):
                 subprocess.run(n_s_cmd, shell=True)
                 subprocess.run(n_index_cmd, shell=True)
 
-        tumor_output_bam = os.path.join(output_dir, "tumor_contaminated_{}.bam".format(tumor_purity))
+        tumor_output_bam = os.path.join(output_dir, "tumor_purity_{}.bam".format(tumor_purity))
 
         print("[INFO] Merging normal BAM into tumor BAM as contamination...")
         merge_cmd = "{} merge -f -@{} {} {} {}".format(samtools_execute_command, samtools_threads, tumor_output_bam,
@@ -250,10 +250,10 @@ def main():
     parser.add_argument('--tumor_bam_fn', type=str, default=None,
                         help="Sorted tumor BAM file input")
 
-    parser.add_argument('--normal_bam_coverage', type=int, default=None,
+    parser.add_argument('--normal_bam_coverage', type=float, default=None,
                         help="Normal BAM coverage calculated using mosdepth")
 
-    parser.add_argument('--tumor_bam_coverage', type=int, default=None,
+    parser.add_argument('--tumor_bam_coverage', type=float, default=None,
                         help="Tumor BAM coverage calculated using mosdepth")
 
     parser.add_argument('--output_dir', type=str, default=None,

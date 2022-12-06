@@ -108,22 +108,21 @@ def merge_vcf(args):
         # if filter != 'PASS':
         #     continue
 
+        if qual_cut_off is not None and qual <= qual_cut_off:
             if (ctg_name, int(pos)) not in fa_input_variant_dict:
                 filter_count += 1
                 continue
 
-
-        if args.af is not None:
+        if af_cut_off is not None:
             tag_list = columns[8].split(':')
             taf_index = tag_list.index('AF') if 'AF' in tag_list else tag_list.index('VAF')
             af = float(columns[9].split(':')[taf_index])
-            if af <= args.af and (ctg_name, int(pos)) not in fa_input_variant_dict:
+            if af <= af_cut_off and (ctg_name, int(pos)) not in fa_input_variant_dict:
                 af_filter_count += 1
                 continue
 
-        if args.qual is not None and (ctg_name, int(pos)) in fa_input_variant_dict:
+        if (ctg_name, int(pos)) in fa_input_variant_dict:
             columns[5] = str((qual + float(fa_input_variant_dict[(ctg_name, int(pos))].qual)) / 2)
-            # columns[5] = str(input_variant_dict[(ctg_name, int(pos))].qual)
             row = '\t'.join(columns) + '\n'
 
         contig_dict[ctg_name][int(pos)] = row
