@@ -12,7 +12,7 @@ from time import time
 
 import shared.param as param
 from shared.interval_tree import bed_tree_from
-from shared.utils import file_path_from, folder_path_from, subprocess_popen, str2bool, \
+from shared.utils import file_path_from, folder_path_from, subprocess_popen, str2bool, str_none, \
     legal_range_from, log_error, log_warning
 
 version = "0.1"
@@ -461,13 +461,27 @@ def check_args(args):
         sys.exit(log_error("[ERROR] Conda prefix not found, please activate conda environment first!"))
 
     args.normal_bam_fn = file_path_from(file_name=args.normal_bam_fn, exit_on_not_found=True, allow_none=False)
-    normal_bai_fn = file_path_from(file_name=args.normal_bam_fn, suffix=".bai", exit_on_not_found=True, sep='.', allow_none=False)
+    normal_bai_fn = file_path_from(file_name=args.normal_bam_fn, suffix=".bai", exit_on_not_found=False, sep='.')
+    normal_crai_fn = file_path_from(file_name=args.normal_bam_fn, suffix=".crai", exit_on_not_found=False, sep='.')
+    normal_csi_fn = file_path_from(file_name=args.normal_bam_fn, suffix=".csi", exit_on_not_found=False, sep='.')
+
     args.tumor_bam_fn = file_path_from(file_name=args.tumor_bam_fn, exit_on_not_found=True)
-    tumor_bai_fn = file_path_from(file_name=args.tumor_bam_fn, suffix=".bai", exit_on_not_found=True, sep='.')
+    tumor_bai_fn = file_path_from(file_name=args.tumor_bam_fn, suffix=".bai", exit_on_not_found=False, sep='.')
+    tumor_crai_fn = file_path_from(file_name=args.tumor_bam_fn, suffix=".crai", exit_on_not_found=False, sep='.')
+    tumor_csi_fn = file_path_from(file_name=args.tumor_bam_fn, suffix=".csi", exit_on_not_found=False, sep='.')
+
     args.ref_fn = file_path_from(file_name=args.ref_fn, exit_on_not_found=True)
     fai_fn = file_path_from(file_name=args.ref_fn, suffix=".fai", exit_on_not_found=True, sep='.')
     args.bed_fn = file_path_from(file_name=args.bed_fn, exit_on_not_found=True, allow_none=True)
     args.vcf_fn = file_path_from(file_name=args.vcf_fn, exit_on_not_found=True, allow_none=True)
+
+    if normal_bai_fn is None and normal_crai_fn is None and normal_csi_fn is None:
+        sys.exit(log_error("[ERROR] No normal BAM index file {} or {} or found. Please run `samtools index $BAM` first!".format(args.normal_bam_fn + '.bai',
+                                                                                      args.normal_bam_fn + '.crai')))
+
+    if tumor_bai_fn is None and tumor_crai_fn is None and tumor_csi_fn is None:
+        sys.exit(log_error("[ERROR] No tumor BAM index file {} or {} or found. Please run `samtools index $BAM` first!".format(args.tumor_bam_fn + '.bai',
+                                                                                      args.tumor_bam_fn + '.crai')))
 
     if args.pileup_model_path is None:
         args.pileup_model_path = os.path.join(conda_prefix, 'bin', 'models', args.platform, 'pileup.pkl')
