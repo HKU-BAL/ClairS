@@ -859,6 +859,8 @@ def somatic_calling(args):
     fa_predict_command += ' --chkpnt_fn ' + args.full_alignment_model_path
     fa_predict_command += ' --use_gpu ' + str(args.use_gpu)
     fa_predict_command += ' --platform ' + args.platform
+    fa_predict_command += ' --show_ref ' if args.print_ref_calls else ""
+    fa_predict_command += ' --show_germline ' if args.print_germline_calls else ""
     fa_predict_command += ' :::: ' + args.output_dir + '/tmp/candidates/CANDIDATES_FILES'
     fa_predict_command += ') |& tee ' + args.output_dir + '/logs/3-2_PREDICT.log'
     commands_list += [fa_predict_command]
@@ -1105,13 +1107,6 @@ def somatic_parser():
         help="Call variants on all contigs, otherwise call in chr{1..22,X,Y} and {1..22,X,Y}, default: disable."
     )
 
-    # optional_params.add_argument(
-    #     "--call_snp_only",
-    #     default=False,
-    #     action='store_true',
-    #     help="Call candidates pass SNP minimum AF only, ignore Indel candidates, default: disable."
-    # )
-
     optional_params.add_argument(
         "--print_ref_calls",
         action='store_true',
@@ -1129,12 +1124,6 @@ def somatic_parser():
         "--dry_run",
         action='store_true',
         help="If true then only the commands will be printed."
-    )
-
-    optional_params.add_argument(
-        "--pileup",
-        action='store_true',
-        help="If true then only run pileup output."
     )
 
     optional_params.add_argument(
@@ -1166,6 +1155,22 @@ def somatic_parser():
     )
 
     # options for internal process control
+    ##If set then will use GPUs for inference. CUDA required
+    optional_params.add_argument(
+        "-g",
+        "--use_gpu",
+        action='store_true',
+        help=SUPPRESS
+    )
+
+    ## Minimum Indel AF required for a candidate variant
+    optional_params.add_argument(
+        "--indel_min_af",
+        type=float,
+        default=None,
+        help=SUPPRESS
+    )
+
     ##List of (ctg_name, chunk_id, chunk_num)
     optional_params.add_argument(
         "--chunk_list",
@@ -1237,7 +1242,7 @@ def somatic_parser():
 
     clair3_params.add_argument(
         "--clair3_path",
-        type=str,
+        type=str_none,
         default=None,
         help='Clair3 entry path'
     )
