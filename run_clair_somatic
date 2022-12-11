@@ -441,10 +441,13 @@ def check_clair3_options(args):
     if args.whatshap is None:
         args.whatshap = os.path.join(conda_prefix, 'bin', 'whatshap')
     longphase = os.path.join(args.clair3_path, 'longphase')
+    longphase_for_phasing = False if args.whatshap_for_phasing is True else param.clair3_option['longphase_for_phasing']
+    if longphase_for_phasing and not os.path.exists(longphase):
+        sys.exit(log_error("[ERROR] Cannot find longphase path in {}".format(longphase)))
     args.clair3_option = Clair3Option(
         clair3_path=args.clair3_path,
         model_path=args.clair3_model_path,
-        longphase_for_phasing=param.clair3_option['longphase_for_phasing'],
+        longphase_for_phasing=longphase_for_phasing,
         ctg_name_str=None, # update in check_contigs_intersection
         min_coverage=str(param.clair3_option['min_coverage']),
         snp_min_af=str(param.clair3_option['snp_min_af']),
@@ -1253,6 +1256,12 @@ def somatic_parser():
         help=SUPPRESS
     )
 
+    clair3_params.add_argument(
+        "--whatshap_for_phasing",
+        type=str2bool,
+        default=None,
+        help=SUPPRESS
+    )
     clair3_params.add_argument(
         "--clair3_option",
         type=namedtuple,
