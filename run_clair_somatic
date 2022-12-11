@@ -430,12 +430,12 @@ def check_clair3_options(args):
     conda_prefix = os.environ['CONDA_PREFIX']
     if args.clair3_path is None:
         args.clair3_path = os.path.join(conda_prefix, 'bin')
-        if os.path.exists(args.clair3_path + 'run_clair3.sh'):
-            sys.exit(log_error("[ERROR] Cannot find clair3 main entry"))
+        if not os.path.exists(args.clair3_path + 'run_clair3.sh'):
+            sys.exit(log_error("[ERROR] Cannot find clair3 main entry in {}".format(args.clair3_path)))
 
     if args.clair3_model_path is None:
         # TODO update to q20
-        args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', "ont_guppy5")
+        args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'clair3_models', 'ont_r104_e81_sup_g5015')
         if os.path.exists(args.clair3_model_path):
             sys.exit(log_error("[ERROR] Cannot find clair3 model path"))
     if args.whatshap is None:
@@ -1063,24 +1063,16 @@ def somatic_parser():
     )
 
     optional_params.add_argument(
-        "--indel_min_af",
+        "--min_coverage",
         type=float,
         default=None,
-        help="Minimum Indel AF required for a candidate variant. Lowering the value might increase a bit of sensitivity in trade of speed and accuracy, default: ont:0.08"
+        help="Minimum coverage required to call a variant, default: 4"
     )
-
     optional_params.add_argument(
         "--chunk_size",
         type=int,
         default=None,
         help="The size of each chuck for parallel processing, default: 5000000."
-    )
-
-    optional_params.add_argument(
-        "-g",
-        "--use_gpu",
-        action='store_true',
-        help="If set then will use GPUs for inference. CUDA required."
     )
 
     optional_params.add_argument(
