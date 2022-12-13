@@ -81,10 +81,12 @@ def merge_vcf(args):
 
     input_vcf_reader = VcfReader(vcf_fn=args.full_alignment_vcf_fn, ctg_name=None, show_ref=False, keep_row_str=True,
                                  skip_genotype=True,
-                                 filter_tag="PASS",
+                                 filter_tag=None,
                                  keep_af=True)
     input_vcf_reader.read_vcf()
     fa_input_variant_dict = input_vcf_reader.variant_dict
+
+    pass_fa_set = set([k for k, v in fa_input_variant_dict.items() if v.filter == "PASS"])
 
     row_count = 0
     header = []
@@ -105,11 +107,11 @@ def merge_vcf(args):
         ctg_name, pos = columns[0], columns[1]
         qual = float(columns[5])
         filter = columns[6]
-        # if filter != 'PASS':
-        #     continue
+        if filter != 'PASS':
+            continue
 
         if qual_cut_off is not None and qual <= qual_cut_off:
-            if (ctg_name, int(pos)) not in fa_input_variant_dict:
+            if (ctg_name, int(pos)) not in pass_fa_set:
                 filter_count += 1
                 continue
 
@@ -117,16 +119,21 @@ def merge_vcf(args):
             tag_list = columns[8].split(':')
             taf_index = tag_list.index('AF') if 'AF' in tag_list else tag_list.index('VAF')
             af = float(columns[9].split(':')[taf_index])
-            if af <= af_cut_off and (ctg_name, int(pos)) not in fa_input_variant_dict:
+            if af <= af_cut_off and (ctg_name, int(pos)) not in pass_fa_set:
                 af_filter_count += 1
                 continue
 
-        if (ctg_name, int(pos)) in fa_input_variant_dict:
+        if (ctg_name, int(pos)) in pass_fa_set:
             columns[5] = str((qual + float(fa_input_variant_dict[(ctg_name, int(pos))].qual)) / 2)
             row = '\t'.join(columns) + '\n'
 
         contig_dict[ctg_name][int(pos)] = row
         no_vcf_output = False
+
+    # append all non_pass variant if need to print ref calls
+    for k, v in fa_input_variant_dict.items():
+        if k[0] not in contig_dict or k[1] not in contig_dict[k[0]]:
+            contig_dict[k[0]][k[1]] = v.row_str
 
     if row_count == 0:
         print(log_warning("[WARNING] No vcf file found, please check the setting"))
