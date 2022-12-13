@@ -75,12 +75,8 @@ def select_hetero_snp_for_phasing(args):
                         hetero_snp_not_match_in_tumor += 1
                         continue
                 intersect_pos_set.add(pos)
-                # variant_dict[pos][-1] += ':' + ':'.join(row.split(':')[-2:])
 
-    var_pct_full = 0.1
-    # if found_qual_cut_off:
-    #     remove_low_qual_list = [[k,v] for k,v in normal_qual_dict.items() if v < phase_qual_cut_off ]
-    # else:
+
     normal_low_qual_set = set([item[0] for item in sorted(normal_qual_dict.items(), key=lambda x: x[1])[:int(var_pct_full * len(normal_qual_dict))]])
     tumor_low_qual_set = set([item[0] for item in sorted(tumor_qual_dict.items(), key=lambda x: x[1])[:int(var_pct_full * len(tumor_qual_dict))]])
 
@@ -120,7 +116,7 @@ def main():
     parser.add_argument('--normal_vcf_fn', type=str, default=None,
                         help="Path of the input vcf file. (default: %(default)s)")
 
-    parser.add_argument('--var_pct_full', type=float, default=0.3,
+    parser.add_argument('--var_pct_full', type=float, default=0.00,
                         help="Default variant call proportion for raw alignment or remove low quality proportion for whatshap phasing. (default: %(default)f)")
 
     parser.add_argument('--ref_pct_full', type=float, default=None,
