@@ -317,6 +317,7 @@ def extract_candidates(args):
     phasing_window_size = args.phasing_window_size
     # extend_bp = param.extend_bp
     minimum_snv_af_for_candidate = args.snv_min_af
+    normal_snv_max_af = args.normal_snv_max_af
     minimum_indel_af_for_candidate = args.indel_min_af
     minimum_snv_af_for_truth = args.min_truth_snv_af
     minimum_indel_af_for_truth = args.min_truth_snv_af
@@ -332,7 +333,7 @@ def extract_candidates(args):
     extend_bed = file_path_from(args.extend_bed, allow_none=True, exit_on_not_found=False)
     is_extend_bed_file_given = extend_bed is not None
     min_mapping_quality = args.min_mq
-    min_base_quality = args.min_bq
+    min_base_quality = args.min_bq if args.min_bq is not None else param.min_bq_dict[platform]
     flankingBaseNum = param.flankingBaseNum if args.flanking is None else args.flanking
     no_of_positions = 2 * flankingBaseNum + 1
     vcf_fn = args.vcf_fn
@@ -345,49 +346,6 @@ def extract_candidates(args):
         unified_vcf_reader = VcfReader(vcf_fn=truth_vcf_fn, ctg_name=ctg_name, is_var_format=False)
         unified_vcf_reader.read_vcf()
         truths_variant_dict = unified_vcf_reader.variant_dict
-
-    global test_pos
-    test_pos = None
-    # test_pos = 6180744
-    if args.test_pos and test_pos:
-        platform = "ont"
-        sample_name = 'hg002'
-        subsample_ratio = 1000
-        ctg_name = "chr1"
-        ctg = ctg_name[3:]
-        minimum_af_for_candidate = 0.7
-        # minimum_af_for_truth = 0.05
-        samtools_execute_command = "/autofs/bal33/zxzheng/env/conda/envs/samtools/bin/samtools"
-        args.normal_bam_fn = "/autofs/bal36/zxzheng/somatic/data/ilmn_seqc/all/downsample/WGS_NV_N_1.bwa.dedup.50x.bam"
-        tumor_bam_file_path = "/autofs/bal36/zxzheng/somatic/data/ilmn_seqc/all/downsample/WGS_NV_T_1.bwa.dedup.50x.bam"
-        NORMAL_BAM_FILE_PATH = "/autofs/bal36/zxzheng/somatic/data/ilmn_seqc/all/WGS_NS_N_1.bwa.dedup.bam"  # novaseq
-        TUMOR_BAM_FILE_PATH = "/autofs/bal36/zxzheng/somatic/data/ilmn_seqc/all/WGS_NS_T_1.bwa.dedup.bam"
-        fasta_file_path = "/autofs/bal36/zxzheng/somatic/data/reference/GRCh38.d1.vd1.fa"
-
-
-        NORMAL_BAM_FILE_PATH = "/autofs/bal36/zxzheng/somatic/data/novogene/HCC1395BL_SUP/bam/HCC1395BL_SUP_ONT.bam"
-        NORMAL_BAM_FILE_PATH = "/autofs/bal36/zxzheng/somatic/data/hcc1395_data/hcc1395_normal.bam"
-        TUMOR_BAM_FILE_PATH = "/autofs/bal36/zxzheng/somatic/data/hcc1395_data/hcc1395_tumor.bam"
-        fasta_file_path = "/autofs/bal36/zxzheng/testData/ont/data/GRCh38_no_alt_analysis_set.fasta"
-
-        args.normal_bam_fn = NORMAL_BAM_FILE_PATH
-        tumor_bam_file_path = TUMOR_BAM_FILE_PATH
-
-        candidates_folder = "/autofs/bal33/zxzheng/use_test/candidate_folder"
-        extend_bed = "/autofs/bal36/zxzheng/somatic/callers_other/seqc2/High-Confidence_Regions_v1.2.bed"
-
-        chunk_num = 100
-        chunk_id = None
-        extend_bed = None
-        phasing_info_in_bam = True
-        output_alt_info = True
-        output_depth = True
-        alt_fn = None
-        # unify_repre_fn = "/autofs/bal33/zxzheng/TMP/tmp1"
-        ctg_start = test_pos - 100
-        ctg_end = test_pos + 100
-    else:
-        test_pos = None
 
     hetero_snv_pos_dict = defaultdict()
     hetero_snv_tree = IntervalTree()
@@ -751,7 +709,10 @@ def main():
                         help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file, default: %(default)s")
 
     parser.add_argument('--snv_min_af', type=float, default=param.snv_min_af,
-                        help="Minimum SNV allele frequency for a site to be considered as a candidate site, default: %(default)f")
+                        help="Minimum SNV allele frequency for a site to be considered as a candidate site in tumor sample, default: %(default)f")
+
+    parser.add_argument('--normal_snv_max_af', type=float, default=param.normal_snv_max_af,
+                        help="Maximum SNV allele frequency for a site to be considered as a somatic candidate site in normal sample, default: %(default)f")
 
     parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of sequence to be processed, required if --bed_fn is not defined")
@@ -775,7 +736,7 @@ def main():
     parser.add_argument('--min_mq', type=int, default=param.min_mq,
                         help="EXPERIMENTAL: If set, reads with mapping quality with <$min_mq are filtered, default: %(default)d")
 
-    parser.add_argument('--min_bq', type=int, default=param.min_bq,
+    parser.add_argument('--min_bq', type=int, default=None,
                         help="EXPERIMENTAL: If set, bases with base quality with <$min_bq are filtered, default: %(default)d")
 
     parser.add_argument('--max_depth', type=int, default=None,
@@ -832,10 +793,29 @@ def main():
     parser.add_argument('--full_aln_regions', type=str, default=None,
                         help=SUPPRESS)
 
+    parser.add_argument('--flanking', type=int, default=None,
+                        help=SUPPRESS)
+
     ## Use Clair3's own phasing module for read level phasing when creating tensor, compared to using Whatshap, speed is faster but has higher memory footprint, default: False
     parser.add_argument('--need_phasing', action='store_true',
                         help=SUPPRESS)
 
+    parser.add_argument('--max_pro', type=int, default=None,
+                        help="DEBUG: The window size for read phasing")
+
+    parser.add_argument('--phasing_window_size', type=int, default=param.phasing_window_size,
+                        help="DEBUG: The window size for read phasing")
+    ## Apply no phased data in training. Only works in data training, default: False
+    # parser.add_argument('--add_no_phasing_data_training', action='store_true',
+    #                     help=SUPPRESS)
+    #
+    # ## Output representation unification infos, which refines training labels
+    # parser.add_argument('--unify_repre', action='store_true',
+    #                     help=SUPPRESS)
+    #
+    # ## Path of representation unification output
+    # parser.add_argument('--unify_repre_fn', type=str, default=None,
+    #                     help=SUPPRESS)
     ## Apply read realignment for illumina platform. Greatly boost indel performance in trade of running time
     parser.add_argument('--training_mode', action='store_true',
                         help=SUPPRESS)
