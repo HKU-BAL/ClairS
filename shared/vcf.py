@@ -50,11 +50,9 @@ class VcfWriter(object):
                     ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
                     ##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
                     ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Overall Read Depth(Normal+Tumor)">
+                    ##FORMAT=<ID=AF,Number=1,Type=Float,Description="Estimated allele frequency in tumor sample in the range of [0,1]">
+                    ##FORMAT=<ID=NAF,Number=1,Type=Float,Description="Estimated allele frequency in normal sample in the range of [0,1]">
                     ##FORMAT=<ID=NDP,Number=1,Type=Integer,Description="Normal Read Depth">
-                    ##FORMAT=<ID=TDP,Number=1,Type=Integer,Description="Tumor Read Depth">
-                    ##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Read depth for each allele">
-                    ##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Phred-scaled genotype likelihoods rounded to the closest integer">
-                    ##FORMAT=<ID=AF,Number=1,Type=Float,Description="Estimated allele frequency in the range of [0,1]">
                     ##FORMAT=<ID=AU,Number=1,Type=Integer,Description="Number of 'A' alleles in Tumor BAM">
                     ##FORMAT=<ID=CU,Number=1,Type=Integer,Description="Number of 'C' alleles in Tumor BAM">
                     ##FORMAT=<ID=GU,Number=1,Type=Integer,Description="Number of 'G' alleles in Tumor BAM">
@@ -190,7 +188,6 @@ class VcfReader(object):
                 continue
 
             if self.filter_tag is not None:
-                FILTER = columns[6]
                 filter_list = self.filter_tag.split(',')
                 if sum([1 if filter == FILTER else 0 for filter in filter_list]) == 0:
                     continue
@@ -246,8 +243,11 @@ class VcfReader(object):
                     genotype_2 = -1
             if self.keep_af:
                 tag_list = columns[8].split(':')
-                taf_index = tag_list.index('AF') if 'AF' in tag_list else tag_list.index('VAF')
-                taf = float(columns[9].split(':')[taf_index])
+                if 'AF' in tag_list or 'VAF' in tag_list:
+                    taf_index = tag_list.index('AF') if 'AF' in tag_list else tag_list.index('VAF')
+                    taf = float(columns[9].split(':')[taf_index])
+                else:
+                    taf = None
             else:
                 taf = None
             position = int(position)
