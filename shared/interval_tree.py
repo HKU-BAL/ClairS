@@ -5,13 +5,33 @@ from shared.intervaltree.intervaltree import IntervalTree
 from shared.utils import subprocess_popen
 
 
-def bed_tree_from(bed_file_path, expand_region=None, contig_name=None, bed_ctg_start=None, bed_ctg_end=None,
-                  return_bed_region=False, padding=None):
+def bed_tree_from(bed_file_path,
+                  expand_region=None,
+                  contig_name=None,
+                  bed_ctg_start=None,
+                  bed_ctg_end=None,
+                  return_bed_region=False,
+                  padding=None,
+                  region=None):
     """
     0-based interval tree [start, end)
     """
 
     tree = {}
+    if region is not None:
+        try:
+            ctg_name, start_end = region.split(':')
+            ctg_start, ctg_end = int(start_end.split('-')[0]), int(start_end.split('-')[1])
+        except:
+            sys.exit("[ERROR] Please input the correct format for --region ctg_name:start-end, your input is {}".format(region))
+        if ctg_end < ctg_start or ctg_start < 0 or ctg_end < 0:
+            sys.exit("[ERROR] Invalid region input: {}".format(region))
+
+        tree[ctg_name].addi(ctg_start, ctg_end)
+        if return_bed_region:
+            return tree, None, None
+        return tree
+
     if bed_file_path is None or bed_file_path == "":
         if return_bed_region:
             return tree, None, None
