@@ -280,7 +280,21 @@ def split_extend_bed(bed_fn, output_fn, contig_set=None):
     unzip_process.stdout.close()
     unzip_process.wait()
 
+def write_region_bed(args):
+    region = args.region
+    try:
+        ctg_name, start_end = region.split(':')
+        ctg_start, ctg_end = int(start_end.split('-')[0]) - 1, int(start_end.split('-')[1]) - 1  # bed format
+    except:
+        sys.exit("[ERROR] Please input the correct format for --region ctg_name:start-end, your input is {}".format(
+            region))
+    if ctg_end < ctg_start or ctg_start < 0 or ctg_end < 0:
+        sys.exit("[ERROR] Invalid region input: {}".format(region))
 
+    output_bed_path = os.path.join(args.output_dir, 'tmp', 'region.bed')
+    with open(output_bed_path) as f:
+        f.write('\t'.join(ctg_name, str(ctg_start), str(ctg_end)) + '\n')
+    return output_bed_path
 
 def check_contigs_intersection(args, fai_fn):
 
@@ -289,12 +303,15 @@ def check_contigs_intersection(args, fai_fn):
     # contig_name_list = os.path.join(args.output_dir, 'tmp','CONTIGS')
     # chunk_list = os.path.join(args.output_dir, 'tmp', 'CHUNK_LIST')
     is_include_all_contigs = args.include_all_ctgs
-    is_bed_file_provided = args.bed_fn is not None
+    is_bed_file_provided = args.bed_fn is not None or args.region is not None
     is_known_vcf_file_provided = args.vcf_fn is not None
     is_ctg_name_list_provided = args.ctg_name is not None
 
+    if args.region is not None:
+        args.bed_fn = write_region_bed(args.region)
+
     split_bed_path = os.path.join(args.output_dir, 'tmp', 'split_beds')
-    tree = bed_tree_from(bed_file_path=args.bed_fn)
+    tree = bed_tree_from(bed_file_path=args.bed_fn, region=args.region)
     know_vcf_contig_set = split_extend_vcf(vcf_fn=args.vcf_fn, output_fn=split_bed_path) if is_known_vcf_file_provided else set()
     contig_set = set(args.ctg_name.split(',')) if is_ctg_name_list_provided else set()
 
