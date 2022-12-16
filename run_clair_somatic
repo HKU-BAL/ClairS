@@ -1171,6 +1171,72 @@ def somatic_parser():
         help="Path of samtools, samtools version >= 1.10 is required."
     )
 
+    ont_params = parser.add_argument_group('ONT parameters')
+
+    ont_params.add_argument(
+        "--disable_phasing",
+        action='store_true',
+        help="If true then call variants without longphase or whatshap phasing."
+    )
+
+    ont_params.add_argument(
+        "--phase_normal",
+        type=str2bool,
+        default=False,
+        help=SUPPRESS
+    )
+
+    ont_params.add_argument(
+        "--phase_tumor",
+        type=str2bool,
+        default=None,
+        help=SUPPRESS
+    )
+
+    clair3_params = parser.add_argument_group('Clair3 parameters')
+
+    clair3_params.add_argument(
+        "--clair3_path",
+        type=str_none,
+        default=None,
+        help='Clair3 entry path'
+    )
+
+    clair3_params.add_argument(
+        "--clair3_model_path",
+        type=str,
+        default=None,
+        help='Clair3 pileup and full-alignment model path.'
+    )
+
+    clair3_params.add_argument(
+        "--longphase",
+        type=str,
+        default=None,
+        help="Path of longphase, longphase >= 1.3 is required."
+    )
+
+    clair3_params.add_argument(
+        "--whatshap",
+        type=str,
+        default=None,
+        help="Path of whatshap, whatshap >= 1.0 is required."
+    )
+
+    clair3_params.add_argument(
+        "--whatshap_for_phasing",
+        type=str2bool,
+        default=None,
+        help="Use whatshap for phasing, default: disable."
+    )
+
+    clair3_params.add_argument(
+        "--clair3_option",
+        type=namedtuple,
+        default=None,
+        help=SUPPRESS
+    )
+
     # options for internal process control
     ##If set then will use GPUs for inference. CUDA required
     optional_params.add_argument(
@@ -1239,57 +1305,6 @@ def somatic_parser():
         help=SUPPRESS
     )
 
-    ont_params = parser.add_argument_group('ONT parameters')
-
-    ont_params.add_argument(
-        "--phase_normal",
-        type=str2bool,
-        default=False,
-        help=SUPPRESS
-    )
-
-    ont_params.add_argument(
-        "--phase_tumor",
-        type=str2bool,
-        default=None,
-        help=SUPPRESS
-    )
-
-    clair3_params = parser.add_argument_group('Clair3 parameters')
-
-    clair3_params.add_argument(
-        "--clair3_path",
-        type=str_none,
-        default=None,
-        help='Clair3 entry path'
-    )
-
-    clair3_params.add_argument(
-        "--clair3_model_path",
-        type=str,
-        default=None,
-        help=SUPPRESS
-    )
-
-    clair3_params.add_argument(
-        "--whatshap",
-        type=str,
-        default=None,
-        help=SUPPRESS
-    )
-
-    clair3_params.add_argument(
-        "--whatshap_for_phasing",
-        type=str2bool,
-        default=None,
-        help=SUPPRESS
-    )
-    clair3_params.add_argument(
-        "--clair3_option",
-        type=namedtuple,
-        default=None,
-        help=SUPPRESS
-    )
 
     return parser
 
