@@ -403,7 +403,7 @@ def check_contigs_intersection(args, fai_fn):
     if not found_contig:
         log_warning("[WARNING] Exit calling as no contig found in BAM!")
         sys.exit(0)
-    logging('[INFO] Call variant in contigs: {}'.format(' '.join(sorted_contig_list)))
+    logging('[INFO] Call mutations in contigs: {}'.format(' '.join(sorted_contig_list)))
     logging('[INFO] Chunk number for each contig: {}'.format(
         ' '.join([str(contig_chunk_num[c]) for c in sorted_contig_list])))
 
@@ -422,7 +422,7 @@ def check_contigs_intersection(args, fai_fn):
             '[WARNING] Current maximum contig length {} is much smaller than default chunk size {}, You may set a smaller chunk size by setting --chunk_size=$ for better parallelism.'.format(
                 max(contig_length_list), DEFAULT_CHUNK_SIZE)))
 
-    if is_bed_file_provided:
+    if is_bed_file_provided and args.region is None:
         split_extend_bed(bed_fn=args.bed_fn, output_fn=split_bed_path, contig_set=contig_set)
 
     contig_path = os.path.join(args.output_dir, 'tmp', 'CONTIGS')
@@ -447,7 +447,7 @@ def check_clair3_options(args):
     conda_prefix = os.environ['CONDA_PREFIX']
     if args.clair3_path is None:
         args.clair3_path = os.path.join(conda_prefix, 'bin')
-        if not os.path.exists(args.clair3_path + 'run_clair3.sh'):
+        if not os.path.exists(args.clair3_path + '/run_clair3.sh'):
             sys.exit(log_error("[ERROR] Cannot find clair3 main entry in {}".format(args.clair3_path)))
 
     if args.clair3_model_path is None:
@@ -455,12 +455,16 @@ def check_clair3_options(args):
         args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'clair3_models', 'ont_r104_e81_sup_g5015')
         if os.path.exists(args.clair3_model_path):
             sys.exit(log_error("[ERROR] Cannot find clair3 model path"))
+
     if args.whatshap is None:
         args.whatshap = os.path.join(conda_prefix, 'bin', 'whatshap')
     longphase = os.path.join(args.clair3_path, 'longphase')
     longphase_for_phasing = False if args.whatshap_for_phasing is True else param.clair3_option['longphase_for_phasing']
     if longphase_for_phasing and not os.path.exists(longphase):
         sys.exit(log_error("[ERROR] Cannot find longphase path in {}".format(longphase)))
+    if args.whatshap_for_phasing and not os.path.exists(args.whatshap):
+        sys.exit(log_error("[ERROR] Cannot find whatshap path in {}".format(args.whatshap)))
+
     args.clair3_option = Clair3Option(
         clair3_path=args.clair3_path,
         model_path=args.clair3_model_path,
@@ -514,7 +518,7 @@ def check_args(args):
 
     if args.snv_min_af is None:
         args.snv_min_af = param.snv_min_af
-    if args.indel_min_af is None: #update
+    if args.indel_min_af is None:
         args.indel_min_af = 1.0
     if args.qual is None:
         args.qual = param.min_qual
@@ -551,22 +555,26 @@ def print_args(args):
     conda_prefix = os.environ['CONDA_PREFIX']
 
     logging("")
-    logging("[INFO] CLAIR SOMATIC VERSION: {}".format(version))
+    logging("[INFO] CALLER VERSION: {}".format(version))
     logging("[INFO] NORMAL BAM FILE PATH: {}".format(args.normal_bam_fn))
     logging("[INFO] TUMOR BAM FILE PATH: {}".format(args.tumor_bam_fn))
     logging("[INFO] REFERENCE FILE PATH: {}".format(args.ref_fn))
     logging("[INFO] PILEUP MODEL PATH: {}".format(args.pileup_model_path))
     logging("[INFO] FULL-ALIGNMENT MODEL PATH: {}".format(args.full_alignment_model_path))
     logging("[INFO] OUTPUT FOLDER: {}".format(args.output_dir))
+    logging("[INFO] OUTPUT VCF PATH: {}".format(os.path.join(args.output_dir, args.sample_name + '.vcf.gz')))
     logging("[INFO] PLATFORM: {}".format(args.platform))
     logging("[INFO] THREADS: {}".format(args.threads))
     logging("[INFO] BED FILE PATH: {}".format(args.bed_fn))
     logging("[INFO] VCF FILE PATH: {}".format(args.vcf_fn))
+    logging("[INFO] REGION: {}".format(args.region))
     logging("[INFO] CONTIGS: {}".format(args.ctg_name))
     logging("[INFO] CONDA PREFIX: {}".format(conda_prefix))
     logging("[INFO] SAMTOOLS PATH: {}".format(args.samtools))
     logging("[INFO] PYTHON PATH: {}".format(args.python))
     logging("[INFO] PYPY PATH: {}".format(args.pypy))
+    logging("[INFO] PARALLEL PATH: {}".format(args.parallel))
+    logging("[INFO] PARALLEL PATH: {}".format(args.parallel))
     logging("[INFO] CHUNK SIZE: {}".format(args.chunk_size))
     logging("[INFO] SNV THRESHOLD: {}".format(args.snv_min_af))
     # logging("[INFO] INDEL THRESHOLD: {}".format(args.indel_min_af))
