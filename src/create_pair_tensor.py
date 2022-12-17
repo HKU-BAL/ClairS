@@ -5,8 +5,6 @@ import logging
 import random
 import heapq
 from subprocess import PIPE
-from os.path import isfile
-from copy import deepcopy
 from itertools import product
 from argparse import ArgumentParser, SUPPRESS
 from collections import Counter, defaultdict, OrderedDict
@@ -15,8 +13,8 @@ import shared.param as param
 from shared.utils import subprocess_popen, file_path_from, IUPAC_base_to_num_dict as BASE2NUM, region_from, \
     reference_sequence_from, str2bool, vcf_candidates_from
 from shared.interval_tree import bed_tree_from, is_region_in
-from shared.intervaltree.intervaltree import IntervalTree
 
+from src.create_tensor import NORMAL_HAP_TYPE, TUMOR_HAP_TYPE, normalize_bq, normalize_mq, ACGT_NUM, STRAND_0, STRAND_1
 logging.basicConfig(format='%(message)s', level=logging.INFO)
 BASES = set(list(BASE2NUM.keys()) + ["-"])
 no_of_positions = param.no_of_positions
@@ -28,10 +26,7 @@ ILMN_MAX_BQ = 40.0
 ONT_MAX_BQ = 60.0
 MAX_MQ = 60.0
 MAX_AF = 1.0
-STRAND_0 = -100
-STRAND_1 = 100
-HAP_TYPE = dict(zip((1, 0, 2), (30, 60, 90)))  # hap1 UNKNOWN H2 # should be better using
-from src.create_tensor import NORMAL_HAP_TYPE, TUMOR_HAP_TYPE, normalize_bq, normalize_mq, ACGT_NUM
+HAP_TYPE = dict(zip((1, 0, 2), (30, 60, 90)))  # hap1 UNKNOWN H2
 
 
 
@@ -67,16 +62,9 @@ class Position(object):
         for read_name, base_info, bq, mq in zip(self.read_name_list, self.base_list, self.base_quality,
                                                 self.mapping_quality):
             hp = hap_dict[read_name] if hap_dict is not None and read_name in hap_dict else 0
-            read_channel, ins_base, query_base = get_tensor_info(base_info, bq, self.ref_base, mask_low_bq, mq, is_tumor, hp=hp)
+            read_channel, ins_base, query_base = get_tensor_info(base_info, bq, self.ref_base, mask_low_bq, mq,
+                                                                 is_tumor, hp=hp)
             self.read_info[read_name] = (read_channel, ins_base)
-
-
-#
-# class PhasingRead(object):
-#     def __init__(self):
-#         self.read_seq = defaultdict(str)
-#         self.read_start = None
-#         self.read_end = None
 
 
 def phredscore2raw_score(qual):
@@ -123,7 +111,7 @@ def sorted_by_hap_read_name(center_pos, haplotag_dict, pileup_dict, hap_dict, ma
         hap = max(haplotag_dict[read_name], hap_dict[read_name])  # no phasing is 0
         sorted_read_name_list.append((hap, order, read_name))
 
-    sorted_read_name_list = sorted(sorted_read_name_list, key=lambda x: (x[0],x[1]))
+    sorted_read_name_list = sorted(sorted_read_name_list, key=lambda x: (x[0], x[1]))
     return sorted_read_name_list
 
 
@@ -169,8 +157,15 @@ def get_tensor_info(base_info, bq, ref_base, mask_low_bq=False, read_mq=None, is
     return read_channel, ins_base, query_base
 
 
-def decode_pileup_bases(pos, pileup_bases, reference_base, minimum_snv_af_for_candidate, minimum_indel_af_for_candidate,
-                        has_pileup_candidates, candidates_type_dict, is_tumor, platform="ont"):
+def decode_pileup_bases(pos,
+                        pileup_bases,
+                        reference_base,
+                        minimum_snv_af_for_candidate,
+                        minimum_indel_af_for_candidate,
+                        has_pileup_candidates,
+                        candidates_type_dict,
+                        is_tumor,
+                        platform="ont"):
     """
     Decode mpileup input string.
     pileup_bases: pileup base string for each position, include all mapping information.
@@ -223,7 +218,8 @@ def decode_pileup_bases(pos, pileup_bases, reference_base, minimum_snv_af_for_ca
             pileup_dict['D'] += count
 
     minimum_snv_af_for_candidate = minimum_snv_af_for_candidate if minimum_snv_af_for_candidate > 0 else param.min_af
-    minimum_indel_af_for_candidate = minimum_indel_af_for_candidate if minimum_indel_af_for_candidate > 0 else param.min_af_dict[platform]
+    minimum_indel_af_for_candidate = minimum_indel_af_for_candidate if minimum_indel_af_for_candidate > 0 else \
+    param.min_af_dict[platform]
 
     denominator = depth if depth > 0 else 1
     pileup_list = sorted(list(pileup_dict.items()), key=lambda x: x[1], reverse=True)
@@ -294,10 +290,12 @@ def get_alt_info(center_pos, pileup_dict, ref_seq, reference_sequence, reference
 
     return alt_info
 
+
 def find_tumor_alt_match(center_pos, sorted_read_name_list, pileup_dict, truths_variant_dict):
     tumor_reads = [read_name for (hap, _, read_name) in sorted_read_name_list if read_name.startswith('t')]
     normal_reads = [read_name for (hap, _, read_name) in sorted_read_name_list if read_name.startswith('n')]
-    ref_base, alt_base = truths_variant_dict[center_pos].reference_bases, truths_variant_dict[center_pos].alternate_bases[0]
+    ref_base, alt_base = truths_variant_dict[center_pos].reference_bases, \
+                         truths_variant_dict[center_pos].alternate_bases[0]
     is_ins = len(alt_base) > 1 and len(ref_base) == 1
     is_del = len(ref_base) > 1 and len(alt_base) == 1
     is_snv = len(ref_base) == 1 and len(alt_base) == 1
@@ -315,6 +313,7 @@ def find_tumor_alt_match(center_pos, sorted_read_name_list, pileup_dict, truths_
             elif is_snv and base_upper == alt_base:
                 matched_read_name_set.add(read_name)
     return matched_read_name_set, normal_read_name_set
+
 
 def generate_tensor(args,
                     ctg_name,
@@ -366,7 +365,8 @@ def generate_tensor(args,
 
     for p in range(start_pos, end_pos):
         if p in pileup_dict and not pileup_dict[p].update_info:
-            pileup_dict[p].update_infos(is_tumor=is_tumor, hap_dict=hap_dict, mask_low_bq=args.mask_low_bq, platform=platform)
+            pileup_dict[p].update_infos(is_tumor=is_tumor, hap_dict=hap_dict, mask_low_bq=args.mask_low_bq,
+                                        platform=platform)
         for read_idx, read_name_info in enumerate(sorted_read_name_list):
             hap, read_order, read_name = read_name_info
             offset = p - start_pos
@@ -381,200 +381,42 @@ def generate_tensor(args,
         for ins_idx in range(min(len(ins_base), no_of_positions - p)):
             tensor[read_idx][ins_idx + p][6] = ACGT_NUM[ins_base[ins_idx]]
 
-    matrix_depth = param.tumor_matrix_depth_dict[platform] if is_tumor else param.normal_matrix_depth_dict[platform]
-
-    min_af_for_samping = 0.06
-    max_af_for_sampling = 1.0
-    chunk_read_size = 4
-    min_tumor_support_read_num = param.min_tumor_support_read_num
-    tensor_string_list = []
-    alt_info_list = []
-    # gradient = each reads
-    if use_tensor_sample_mode:
-
-        tumor_reads_meet_alt_info_set, normal_read_name_set = find_tumor_alt_match(center_pos, sorted_read_name_list, pileup_dict, truths_variant_dict)
-        if len(tumor_reads_meet_alt_info_set) == 0:
-            print ("No reads support tumor alternative in pos:{}".format(center_pos))
-            return None, None
-        # TODO also sampled tumor reads here?
-        paired_reads_num = len(normal_read_name_set)
-        sampled_reads_num_list = []
-        for read_num in range(len(tumor_reads_meet_alt_info_set)):
-            if read_num == 0 or paired_reads_num == 0:
-                continue
-            tumor_af = read_num / (read_num + paired_reads_num)
-            if tumor_af >= min_af_for_samping and tumor_af <= max_af_for_sampling:
-                sampled_reads_num_list.append(read_num)
-        sampled_reads_num_list = [read_num for read_num in sampled_reads_num_list if min_tumor_support_read_num is None or read_num >= min_tumor_support_read_num]
-        sampled_reads_num_list = sampled_reads_num_list[::chunk_read_size]
-        tumor_reads_meet_alt_info_list = list(tumor_reads_meet_alt_info_set)
-        normal_read_name_list = list(normal_read_name_set)
-        for read_num in sampled_reads_num_list:
-
-            sampled_tumor_read_name_list = random.sample(tumor_reads_meet_alt_info_list, read_num)
-            re_sorted_read_name_list = normal_read_name_list + sampled_tumor_read_name_list
-            tmp_tensor = []
-
-            re_sorted_read_name_set = set(re_sorted_read_name_list)
-            if len(re_sorted_read_name_list) > matrix_depth:
-                # set same seed for reproducibility
-                random.seed(0)
-                re_sorted_read_name_set = set(random.sample(re_sorted_read_name_list, matrix_depth))
-
-            tmp_depth = len(re_sorted_read_name_set)
-            af_set = set()
-            tmp_read_name_list = []
-            for row_idx, (hap, _, read_name) in enumerate(sorted_read_name_list):
-                if read_name in re_sorted_read_name_set:
-                    tmp_tensor.append(tensor[row_idx])
-                    tmp_read_name_list.append(read_name)
-            alt_dict = defaultdict(int)
-            for read_name, (base, indel) in zip(pileup_dict[center_pos].read_name_list,
-                                                pileup_dict[center_pos].base_list):
-                if base in "#*":
-                    continue
-                if read_name not in re_sorted_read_name_set:
-                    continue
-                base_upper = base.upper()
-                if indel != '':
-                    if indel[0] == '+':
-                        alt_dict['+' + base_upper + indel[1:].upper()] += 1
-                    else:  # del
-                        alt_dict[indel.upper()] += 1
-                elif base.upper() != reference_base:
-                    alt_dict[base.upper()] += 1
-            use_alt_base = False
-            if use_alt_base:
-                alt_dict[truths_variant_dict[center_pos].alternate_bases[0]] -= alt_base_num
-            # for row_idx, read_name in enumerate(tmp_read_name_list):
-            #     af_num = 0
-            #     if read_name in pileup_dict[center_pos].read_name_dict:
-            #         base, indel = pileup_dict[center_pos].read_name_dict[read_name]
-            #         base_upper = base.upper()
-            #         if indel != '':
-            #             if indel[0] == '+':
-            #                 insert_str = ('+' + base_upper + indel.upper()[1:])
-            #                 af_num = alt_dict[insert_str] / max(1,
-            #                                                     float(tmp_depth)) if insert_str in alt_dict else af_num
-            #             else:
-            #                 af_num = alt_dict[indel.upper()] / max(1, float(
-            #                     tmp_depth)) if indel.upper() in alt_dict else af_num
-            #         elif base.upper() in alt_dict:
-            #             af_num = alt_dict[base_upper] / max(1, float(tmp_depth))
-                # af_num = _normalize_af(af_num) if af_num != 0 else af_num
-                # af_set.add(round(af_num / 100, 3))
-                # hap_type = HAP_TYPE[hap]
-                # hap_type = 100 if is_tumor else 50
-                # for p in range(no_of_positions):
-                #     if tmp_tensor[row_idx][p][0] != 0:  # skip all del #*
-                #         tmp_tensor[row_idx][p][5] = hap_type
-                #         # tmp_tensor[row_idx][p][7] = hap_type
-
-            # print (len(tmp_tensor))
-            alt_info = []
-            af_infos = ' '.join([str(item) for item in sorted(list(af_set), reverse=True) if item != 0])
-            for alt_type, alt_count in alt_dict.items():
-                if alt_type[0] == '+':
-                    alt_info.append(['I' + alt_type[1:].upper(), str(alt_count)])
-                elif alt_type[0] == '-':
-                    del_bases_num = len(alt_type[1:])
-                    del_ref_bases = reference_sequence[
-                                    center_pos - reference_start + 1:center_pos - reference_start + del_bases_num + 1]
-                    alt_info.append(['D' + del_ref_bases, str(alt_count)])
-                else:
-                    alt_info.append(['X' + alt_type, str(alt_count)])
-            alt_info = str(tmp_depth) + '-' + ' '.join(
-                [' '.join([item[0], str(item[1])]) for item in alt_info]) + '-' + af_infos
-            alt_info_list.append(alt_info)
-            tensor_string_list.append(" ".join(
-                (" ".join(" ".join(str(x) for x in innerlist) for innerlist in outerlist)) for outerlist in tmp_tensor))
-
-        if 0:
-            import numpy as np
-            tmp_list = [item.split(' ') for item in tensor_string_list]
-            a = [np.array(tmp, dtype=int).reshape((-1, 25, 7)) for tmp in tmp_list]
-
-        return tensor_string_list, alt_info_list
-        # return '\n'.join(["%s\t%d\t%s\t%s\t%s\t%s\t%s" % (
-        #     ctg_name,
-        #     center_pos,
-        #     ref_seq,
-        #     tensor_string,
-        #     alt_info,
-        #     "tumor" if is_tumor else "normal",
-        #     variant_type
-        # ) for tensor_string, alt_info in zip(tensor_string_list, alt_info_list)]), None
-
-    else:
-        alt_dict = defaultdict(int)
-        depth, max_del_length = 0, 0
-        for base, indel in pileup_dict[center_pos].base_list:
-            if base in "#*":
-                depth += 1
-                continue
+    alt_dict = defaultdict(int)
+    depth, max_del_length = 0, 0
+    for base, indel in pileup_dict[center_pos].base_list:
+        if base in "#*":
             depth += 1
-            base_upper = base.upper()
-            if indel != '':
-                if indel[0] == '+':
-                    alt_dict['+' + base_upper + indel[1:].upper()] += 1
-                else:  # del
-                    alt_dict[indel.upper()] += 1
-                    max_del_length = max(len(indel), max_del_length)
-            elif base.upper() != reference_base:
-                alt_dict[base.upper()] += 1
+            continue
+        depth += 1
+        base_upper = base.upper()
+        if indel != '':
+            if indel[0] == '+':
+                alt_dict['+' + base_upper + indel[1:].upper()] += 1
+            else:  # del
+                alt_dict[indel.upper()] += 1
+                max_del_length = max(len(indel), max_del_length)
+        elif base.upper() != reference_base:
+            alt_dict[base.upper()] += 1
 
-        af_set = set()
-        # for row_idx, (hap, _, read_name) in enumerate(sorted_read_name_list):
-            # af_num = 0
-            # if read_name in pileup_dict[center_pos].read_name_dict:
-            #     base, indel = pileup_dict[center_pos].read_name_dict[read_name]
-            #     base_upper = base.upper()
-            #     if indel != '':
-            #         if indel[0] == '+':
-            #             insert_str = ('+' + base_upper + indel.upper()[1:])
-            #             af_num = alt_dict[insert_str] / max(1, float(depth)) if insert_str in alt_dict else af_num
-            #         else:
-            #             af_num = alt_dict[indel.upper()] / max(1, float(depth)) if indel.upper() in alt_dict else af_num
-            #     elif base.upper() in alt_dict:
-            #         af_num = alt_dict[base_upper] / max(1, float(depth))
-            # af_num = _normalize_af(af_num) if af_num != 0 else af_num
-            # af_set.add(round(af_num / 100, 3))
-            # hap_type = HAP_TYPE[hap]
-            # hap_type = 100 if is_tumor else 50
-            # for p in range(no_of_positions):
-            #     if tensor[row_idx][p][1] != 0:  # skip all del #*
-            #         tensor[row_idx][p][5] = hap_type
-                    # tensor[row_idx][p][7] = hap_type
+    af_set = set()
 
-        alt_info = []
-        af_infos = ' '.join([str(item) for item in sorted(list(af_set), reverse=True) if item != 0])
-        for alt_type, alt_count in alt_dict.items():
-            if alt_type[0] == '+':
-                alt_info.append(['I' + alt_type[1:].upper(), str(alt_count)])
-            elif alt_type[0] == '-':
-                del_bases_num = len(alt_type[1:])
-                del_ref_bases = reference_sequence[
-                                center_pos - reference_start + 1:center_pos - reference_start + del_bases_num + 1]
-                alt_info.append(['D' + del_ref_bases, str(alt_count)])
-            else:
-                alt_info.append(['X' + alt_type, str(alt_count)])
-        alt_info = str(depth) + '-' + ' '.join([' '.join([item[0], str(item[1])]) for item in alt_info]) + '-' + af_infos
-        tensor_string_list = [" ".join((" ".join(" ".join(str(x) for x in innerlist) for innerlist in outerlist)) for outerlist in tensor)]
-        variant_type = candidates_type_dict[center_pos] if center_pos in candidates_type_dict else 'unknown'
+    alt_info = []
+    af_infos = ' '.join([str(item) for item in sorted(list(af_set), reverse=True) if item != 0])
+    for alt_type, alt_count in alt_dict.items():
+        if alt_type[0] == '+':
+            alt_info.append(['I' + alt_type[1:].upper(), str(alt_count)])
+        elif alt_type[0] == '-':
+            del_bases_num = len(alt_type[1:])
+            del_ref_bases = reference_sequence[
+                            center_pos - reference_start + 1:center_pos - reference_start + del_bases_num + 1]
+            alt_info.append(['D' + del_ref_bases, str(alt_count)])
+        else:
+            alt_info.append(['X' + alt_type, str(alt_count)])
+    alt_info = str(depth) + '-' + ' '.join([' '.join([item[0], str(item[1])]) for item in alt_info]) + '-' + af_infos
+    tensor_string_list = [
+        " ".join((" ".join(" ".join(str(x) for x in innerlist) for innerlist in outerlist)) for outerlist in tensor)]
 
-        return tensor_string_list, [alt_info]
-
-        # return '\n'.join(["%s\t%d\t%s\t%s\t%s\t%s\t%s" % (
-        #     ctg_name,
-        #     center_pos,
-        #     ref_seq,
-        #     tensor_string,
-        #     alt_info,
-        #     "tumor" if is_tumor else "normal",
-        #     variant_type
-        # ) for tensor_string in tensor_string_list]), alt_info
-
-
+    return tensor_string_list, [alt_info]
 
 
 class TensorStdout(object):
@@ -593,6 +435,7 @@ def update_hetero_ref(pos, reference_sequence, reference_start, extend_bp, alt_b
     alt_seq = ref_seq[:extend_bp] + alt_base + ref_seq[extend_bp + 1:]
     return ref_seq, alt_seq
 
+
 def get_normal_set(alt_fn):
     normal_pos_set = set()
     file_path_process = subprocess_popen(shlex.split("gzip -fdc %s" % (alt_fn)))
@@ -603,6 +446,7 @@ def get_normal_set(alt_fn):
     file_path_output.close()
     file_path_process.wait()
     return normal_pos_set
+
 
 def heapq_merge_generator_from(normal_bam_pileup_generator, tumor_bam_pileup_generator, skip_if_normal_empty=True):
     normal_candidates_set = set()
@@ -621,16 +465,16 @@ def heapq_merge_generator_from(normal_bam_pileup_generator, tumor_bam_pileup_gen
         if pos in normal_candidates_set:
             yield pos
 
-def get_key_list(input_dict, normal_tensor_infos_dict, tumor_tensor_infos_dict, shuffle = True):
-    # output_list = []
+
+def get_key_list(input_dict, normal_tensor_infos_dict, tumor_tensor_infos_dict, shuffle=True):
     normal_index_list = range(len(input_dict['normal'][0]))
     tumor_index_list = range(len(input_dict['tumor'][0]))
     for normal_idx, tumor_idx in product(normal_index_list, tumor_index_list):
-        normal_tensor, normal_alt_info = normal_tensor_infos_dict[0][normal_idx], normal_tensor_infos_dict[1][normal_idx]
+        normal_tensor, normal_alt_info = normal_tensor_infos_dict[0][normal_idx], normal_tensor_infos_dict[1][
+            normal_idx]
         tumor_tensor, tumor_alt_info = tumor_tensor_infos_dict[0][normal_idx], tumor_tensor_infos_dict[1][normal_idx]
         yield (normal_tensor, normal_alt_info, tumor_tensor, tumor_alt_info)
-        # output_list.append((x, y))
-    # return output_list
+
 
 def create_pair_tensor(args):
     ctg_start = args.ctg_start
@@ -638,7 +482,6 @@ def create_pair_tensor(args):
     candidates_bed_regions = args.candidates_bed_regions
     fasta_file_path = args.ref_fn
     ctg_name = args.ctg_name
-    need_phasing = args.need_phasing
     samtools_execute_command = args.samtools
     normal_bam_file_path = args.normal_bam_fn
     tumor_bam_file_path = args.tumor_bam_fn
@@ -646,8 +489,6 @@ def create_pair_tensor(args):
     chunk_num = args.chunk_num
     tensor_can_output_path = args.tensor_can_fn
     is_candidates_bed_regions_given = candidates_bed_regions is not None
-    # phasing_info_in_bam = args.phasing_info_in_bam
-    phasing_window_size = args.phasing_window_size
     minimum_snv_af_for_candidate = args.snv_min_af
     minimum_indel_af_for_candidate = args.indel_min_af
     min_coverage = args.min_coverage
@@ -662,8 +503,6 @@ def create_pair_tensor(args):
     phase_tumor = args.phase_tumor if args.phase_tumor is not None else param.phase_tumor[platform]
     is_known_vcf_file_provided = vcf_fn is not None
     tensor_sample_mode = args.tensor_sample_mode
-    hetero_snv_pos_dict = defaultdict()
-    hetero_snv_tree = IntervalTree()
     candidates_pos_set = set()
     candidates_type_dict = defaultdict(str)
     add_read_regions = True
@@ -678,13 +517,6 @@ def create_pair_tensor(args):
         truths_variant_dict = unified_vcf_reader.variant_dict
 
     if candidates_bed_regions:
-
-        """
-        If given full alignment bed regions, all candidate positions will be directly selected from each row, define as 
-        'ctg start end', where 0-based center position is the candidate for full alignment calling.
-        if 'need_phasing' option enables, full alignment bed regions will also include nearby heterozygous snv candidates for reads
-        haplotag, which is faster than whatshap haplotag with more memory occupation.
-        """
 
         candidate_file_path_process = subprocess_popen(shlex.split("gzip -fdc %s" % (candidates_bed_regions)))
         candidate_file_path_output = candidate_file_path_process.stdout
@@ -740,8 +572,8 @@ def create_pair_tensor(args):
     is_ctg_range_given = is_ctg_name_given and ctg_start is not None and ctg_end is not None
     extend_start, extend_end = None, None
     if is_ctg_range_given:
-        extend_start = ctg_start - (phasing_window_size if need_phasing else no_of_positions)
-        extend_end = ctg_end + (phasing_window_size if need_phasing else no_of_positions)
+        extend_start = ctg_start - (no_of_positions)
+        extend_end = ctg_end + (no_of_positions)
         reads_regions.append(region_from(ctg_name=ctg_name, ctg_start=extend_start, ctg_end=extend_end))
         reference_start, reference_end = ctg_start - param.expandReferenceRegion, ctg_end + param.expandReferenceRegion
         reference_start = 1 if reference_start < 1 else reference_start
@@ -783,18 +615,11 @@ def create_pair_tensor(args):
     samtools_mpileup_tumor_process = subprocess_popen(
         shlex.split(samtools_command + ' ' + tumor_phasing_option + ' ' + tumor_bam_file_path))
 
-
     if tensor_can_output_path != "PIPE":
         tensor_can_fpo = open(tensor_can_output_path, "wb")
         tensor_can_fp = subprocess_popen(shlex.split("{} -c".format(args.zstd)), stdin=PIPE, stdout=tensor_can_fpo)
     else:
         tensor_can_fp = TensorStdout(sys.stdout)
-
-    # if unify_repre_fn:
-    #     label_fp = open(unify_repre_fn, 'w')
-    # if alt_fn:
-    #     output_alt_fn = alt_fn
-    #     alt_fp = open(output_alt_fn, 'w')
 
     normal_hap_dict = defaultdict(int)
     tumor_hap_dict = defaultdict(int)
@@ -802,8 +627,7 @@ def create_pair_tensor(args):
     normal_pileup_dict = defaultdict(str)
     tumor_pileup_dict = defaultdict(str)
 
-    # phasing_read_seq = defaultdict(PhasingRead)
-    extend_bp_distance = phasing_window_size if need_phasing else no_of_positions + param.extend_bp
+    extend_bp_distance = no_of_positions + param.extend_bp
     confident_bed_tree = bed_tree_from(bed_file_path=confident_bed_fn,
                                        contig_name=ctg_name,
                                        bed_ctg_start=extend_start,
@@ -815,7 +639,7 @@ def create_pair_tensor(args):
                                     bed_ctg_end=extend_end)
 
     def samtools_pileup_generator_from(samtools_mpileup_process, is_tumor=True, phasing_info_in_bam=False):
-        need_phasing_pos_list = sorted(list(candidates_pos_set))
+        candidate_pos_list = sorted(list(candidates_pos_set))
         current_pos_index = 0
         has_pileup_candidates = len(candidates_pos_set)
         pileup_dict = tumor_pileup_dict if is_tumor else normal_pileup_dict
@@ -826,8 +650,8 @@ def create_pair_tensor(args):
             pos = int(columns[1])
             # pos that near bed region should include some indel cover in bed
             pass_extend_bed = not is_extend_bed_file_given or is_region_in(extend_bed_tree,
-                                                                                     ctg_name, pos - 1,
-                                                                                     pos + 1)
+                                                                           ctg_name, pos - 1,
+                                                                           pos + 1)
             pass_ctg_range = not ctg_start or (pos >= ctg_start and pos <= ctg_end)
             if not has_pileup_candidates and not pass_extend_bed and pass_ctg_range:
                 continue
@@ -868,10 +692,10 @@ def create_pair_tensor(args):
 
             if not is_known_vcf_file_provided and not has_pileup_candidates and reference_base in 'ACGT' and (
                     pass_af and depth >= min_coverage):
-                need_phasing_pos_list.append(pos)
+                candidate_pos_list.append(pos)
 
             if is_known_vcf_file_provided and not has_pileup_candidates and pos in known_variants_set:
-                need_phasing_pos_list.append(pos)
+                candidate_pos_list.append(pos)
 
             pileup_dict[pos] = Position(pos=pos,
                                         ref_base=reference_base,
@@ -882,28 +706,31 @@ def create_pair_tensor(args):
                                         af=af,
                                         depth=depth)
 
-            if current_pos_index < len(need_phasing_pos_list) and pos - need_phasing_pos_list[
+            if current_pos_index < len(candidate_pos_list) and pos - candidate_pos_list[
                 current_pos_index] > extend_bp_distance:
-                yield (need_phasing_pos_list[current_pos_index], is_tumor)
+                yield (candidate_pos_list[current_pos_index], is_tumor)
                 for pre_pos in sorted(pileup_dict.keys()):
-                    if need_phasing_pos_list[current_pos_index] - pre_pos > extend_bp_distance:
+                    if candidate_pos_list[current_pos_index] - pre_pos > extend_bp_distance:
                         del pileup_dict[pre_pos]
                     else:
                         break
                 current_pos_index += 1
-        while current_pos_index != len(need_phasing_pos_list):
-            yield (need_phasing_pos_list[current_pos_index], is_tumor)
+        while current_pos_index != len(candidate_pos_list):
+            yield (candidate_pos_list[current_pos_index], is_tumor)
             for pre_pos in sorted(pileup_dict.keys()):
-                if need_phasing_pos_list[current_pos_index] - pre_pos > extend_bp_distance:
+                if candidate_pos_list[current_pos_index] - pre_pos > extend_bp_distance:
                     del pileup_dict[pre_pos]
                 else:
                     break
             current_pos_index += 1
 
-    normal_bam_pileup_generator = samtools_pileup_generator_from(samtools_mpileup_process=samtools_mpileup_normal_process, is_tumor=False, phasing_info_in_bam=phase_normal)
-    tumor_bam_pileup_generator = samtools_pileup_generator_from(samtools_mpileup_process=samtools_mpileup_tumor_process, phasing_info_in_bam=phase_tumor)
+    normal_bam_pileup_generator = samtools_pileup_generator_from(
+        samtools_mpileup_process=samtools_mpileup_normal_process, is_tumor=False, phasing_info_in_bam=phase_normal)
+    tumor_bam_pileup_generator = samtools_pileup_generator_from(samtools_mpileup_process=samtools_mpileup_tumor_process,
+                                                                phasing_info_in_bam=phase_tumor)
 
-    for pos in heapq_merge_generator_from(normal_bam_pileup_generator=normal_bam_pileup_generator, tumor_bam_pileup_generator=tumor_bam_pileup_generator):
+    for pos in heapq_merge_generator_from(normal_bam_pileup_generator=normal_bam_pileup_generator,
+                                          tumor_bam_pileup_generator=tumor_bam_pileup_generator):
         if pos not in normal_pileup_dict or pos not in tumor_pileup_dict:
             continue
         ref_seq = reference_sequence[
@@ -912,27 +739,31 @@ def create_pair_tensor(args):
         variant_type = candidates_type_dict[pos] if pos in candidates_type_dict else 'unknown'
 
         tensor_infos_dict = defaultdict()
-        for pileup_dict, is_tumor, tumor_flag in zip((normal_pileup_dict, tumor_pileup_dict), (False, True), ('normal', 'tumor')):
-            use_tensor_sample_mode = tensor_sample_mode and candidates_type_dict[pos] == 'homo_somatic' and pos in truths_variant_dict
-            max_depth = param.tumor_matrix_depth_dict[platform] if is_tumor else param.normal_matrix_depth_dict[platform]
+        for pileup_dict, is_tumor, tumor_flag in zip((normal_pileup_dict, tumor_pileup_dict), (False, True),
+                                                     ('normal', 'tumor')):
+            use_tensor_sample_mode = tensor_sample_mode and candidates_type_dict[
+                pos] == 'homo_somatic' and pos in truths_variant_dict
+            max_depth = param.tumor_matrix_depth_dict[platform] if is_tumor else param.normal_matrix_depth_dict[
+                platform]
             hap_dict = tumor_hap_dict if is_tumor else normal_hap_dict
-            sorted_read_name_list = sorted_by_hap_read_name(pos, haplotag_dict, pileup_dict, hap_dict, max_depth, use_tensor_sample_mode)
+            sorted_read_name_list = sorted_by_hap_read_name(pos, haplotag_dict, pileup_dict, hap_dict, max_depth,
+                                                            use_tensor_sample_mode)
 
             tensor_string_list, alt_info_list = generate_tensor(args=args,
-                                                   ctg_name=ctg_name,
-                                                   center_pos=pos,
-                                                   sorted_read_name_list=sorted_read_name_list,
-                                                   pileup_dict=pileup_dict,
-                                                   ref_seq=ref_seq,
-                                                   reference_sequence=reference_sequence,
-                                                   reference_start=reference_start,
-                                                   platform=platform,
-                                                   confident_bed_tree=confident_bed_tree,
-                                                   is_tumor=is_tumor,
-                                                   candidates_type_dict=candidates_type_dict,
-                                                   use_tensor_sample_mode=use_tensor_sample_mode,
-                                                   truths_variant_dict=truths_variant_dict,
-                                                   hap_dict=hap_dict)
+                                                                ctg_name=ctg_name,
+                                                                center_pos=pos,
+                                                                sorted_read_name_list=sorted_read_name_list,
+                                                                pileup_dict=pileup_dict,
+                                                                ref_seq=ref_seq,
+                                                                reference_sequence=reference_sequence,
+                                                                reference_start=reference_start,
+                                                                platform=platform,
+                                                                confident_bed_tree=confident_bed_tree,
+                                                                is_tumor=is_tumor,
+                                                                candidates_type_dict=candidates_type_dict,
+                                                                use_tensor_sample_mode=use_tensor_sample_mode,
+                                                                truths_variant_dict=truths_variant_dict,
+                                                                hap_dict=hap_dict)
             if tensor_string_list is None:
                 continue
 
@@ -951,17 +782,6 @@ def create_pair_tensor(args):
                 tumor_alt_info,
                 variant_type)
             tensor_can_fp.stdin.write(tensor)
-            # if alt_fn:
-            #     # alt_info = alt_info.replace('-', '\t')
-            #     alt_fp.write('\t'.join([ctg_name + ' ' + str(pos)]) + '\n')
-        # if unify_repre and unify_repre_fn:
-        #     label_info = get_alt_info(center_pos=pos,
-        #                               pileup_dict=pileup_dict,
-        #                               ref_seq=ref_seq,
-        #                               reference_sequence=reference_sequence,
-        #                               reference_start=reference_start,
-        #                               hap_dict=hap_dict)
-        #     label_fp.write('\t'.join([ctg_name + ' ' + str(pos), label_info]) + '\n')
 
     samtools_mpileup_normal_process.stdout.close()
     samtools_mpileup_normal_process.wait()
@@ -972,26 +792,20 @@ def create_pair_tensor(args):
         tensor_can_fp.wait()
         tensor_can_fpo.close()
 
-    # if alt_fn:
-    #     alt_fp.close()
-    #
-    # if unify_repre_fn:
-    #     label_fp.close()
-
 
 def main():
     parser = ArgumentParser(description="Generate normal-tumor pair variant candidate tensors")
 
     parser.add_argument('--platform', type=str, default='ont',
-                        help="Sequencing platform of the input. Options: 'ont,hifi,ilmn', default: %(default)s")
+                        help="Sequencing platform of the input. Options: 'ont,ilmn', default: %(default)s")
 
-    parser.add_argument('--normal_bam_fn', type=str, default="input.bam",
+    parser.add_argument('--normal_bam_fn', type=str, default=None,
                         help="Sorted BAM file input, required")
 
-    parser.add_argument('--tumor_bam_fn', type=str, default="input.bam",
+    parser.add_argument('--tumor_bam_fn', type=str, default=None,
                         help="Sorted BAM file input, required")
 
-    parser.add_argument('--ref_fn', type=str, default="ref.fa",
+    parser.add_argument('--ref_fn', type=str, default=None,
                         help="Reference fasta file input, required")
 
     parser.add_argument('--tensor_can_fn', type=str, default="PIPE",
@@ -1000,7 +814,7 @@ def main():
     parser.add_argument('--vcf_fn', type=str, default=None,
                         help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file,  default: %(default)s")
 
-    parser.add_argument('--snv_min_af', type=float, default=0.1,
+    parser.add_argument('--snv_min_af', type=float, default=param.snv_min_af,
                         help="Minimum snv allele frequency for a site to be considered as a candidate site, default: %(default)f")
 
     parser.add_argument('--ctg_name', type=str, default=None,
@@ -1031,16 +845,7 @@ def main():
     parser.add_argument('--max_depth', type=int, default=None,
                         help="EXPERIMENTAL: Maximum full alignment depth to be processed. default: %(default)s")
 
-    parser.add_argument('--indel_min_af', type=float, default=0.2,
-                        help="EXPERIMENTAL: Minimum indel allele frequency for a site to be considered as a candidate site, default: %(default)f")
-
     # options for debug purpose
-    parser.add_argument('--phasing_info_in_bam', action='store_true',
-                        help="DEBUG: Skip phasing and use the phasing info provided in the input BAM (HP tag), default: False")
-
-    parser.add_argument('--phasing_window_size', type=int, default=param.phasing_window_size,
-                        help="DEBUG: The window size for read phasing")
-
     parser.add_argument('--extend_bed', nargs='?', action="store", type=str, default=None,
                         help="DEBUG: Extend the regions in the --bed_fn by a few bp for tensor creation, default extend 16bp")
 
@@ -1053,6 +858,10 @@ def main():
     # options for internal process control
     ## Path to the 'zstd' compression
     parser.add_argument('--zstd', type=str, default=param.zstd,
+                        help=SUPPRESS)
+
+    ## Minimum indel allele frequency for a site to be considered as a candidate site
+    parser.add_argument('--indel_min_af', type=float, default=0.2,
                         help=SUPPRESS)
 
     ## Test in specific candidate position. Only for testing
@@ -1071,19 +880,11 @@ def main():
     parser.add_argument('--candidates_bed_regions', type=str, default=None,
                         help=SUPPRESS)
 
-    ## Use Clair3's own phasing module for read level phasing when creating tensor, compared to using Whatshap, speed is faster but has higher memory footprint, default: False
-    parser.add_argument('--need_phasing', action='store_true',
-                        help=SUPPRESS)
-
     parser.add_argument('--phase_normal', type=str2bool, default=0,
                         help="Phase normal tensor in calling")
 
     parser.add_argument('--phase_tumor', type=str2bool, default=None,
                         help="Phase tumor tensor in calling")
-
-    ## Apply read realignment for illumina platform. Greatly boost indel performance in trade of running time
-    parser.add_argument('--add_adjacent', action='store_true',
-                        help=SUPPRESS)
 
     ## apply tensor sample mode in training
     parser.add_argument('--tensor_sample_mode', type=str2bool, default=0,
