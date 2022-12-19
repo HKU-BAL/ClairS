@@ -1,16 +1,19 @@
 import sys
+import os
+import subprocess
+import concurrent.futures
+
 from collections import Counter
 from argparse import ArgumentParser
-import subprocess
-import os
-import concurrent.futures
 from collections import defaultdict
+
 import shared.param as param
 from shared.vcf import VcfReader, VcfWriter
 from shared.utils import str2bool
 
 file_directory = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 main_entry = os.path.join(file_directory, "clair-somatic.py")
+
 
 def get_base_list(columns):
     pileup_bases = columns[4]
@@ -38,12 +41,11 @@ def get_base_list(columns):
             base_idx += 1
         # skip $, the end of read
         base_idx += 1
-    # base_counter = Counter([''.join(item) for item in base_list])
     upper_base_counter = Counter([''.join(item).upper() for item in base_list])
     return upper_base_counter, base_list
 
-def extract_base(POS):
 
+def extract_base(POS):
     pos = POS.pos
     ref_base = POS.reference_bases
     alt_base = POS.alternate_bases[0]
@@ -55,32 +57,46 @@ def extract_base(POS):
     min_mq = args.min_mq
     min_bq = args.min_bq
     python = args.python
-
-    if POS.extra_infos is False:
-        return ctg_name, pos, True, (-1,-1,-1,-1)
+    qual = float(POS.qual) if POS.qual is not None else None
+    if POS.extra_infos is False or (qual is not None and qual >= 0.95):
+        return ctg_name, pos, True, (-1, -1, -1, -1)
 
     ctg_range = "{}:{}-{}".format(ctg_name, pos, pos)
-    samtools_command = "{} mpileup {} --min-MQ {} --min-BQ {} --excl-flags 2316 -r {}".format(samtools, bam_fn, min_mq, min_bq, ctg_range)
+    samtools_command = "{} mpileup {} --min-MQ {} --min-BQ {} --excl-flags 2316 -r {}".format(samtools,
+                                                                                              bam_fn,
+                                                                                              min_mq,
+                                                                                              min_bq,
+                                                                                              ctg_range)
 
     output = subprocess.run(samtools_command, shell=True, stdout=subprocess.PIPE, universal_newlines=True)
     output = output.stdout.rstrip()
 
     columns = output.split('\t')
     if len(columns) < 4:
-        return ctg_name, pos, True, (-1,-1,-1,-1)
+        return ctg_name, pos, True, (-1, -1, -1, -1)
     base_counter, base_list = get_base_list(columns)
 
-    realign_command = "{} {} realign_reads --pos {} --ctg_name {} --bam_fn {} --ref_fn {}".format(python, main_entry, pos, ctg_name, bam_fn, ref_fn)
-    samtools_pile_command = "{} mpileup - --reverse-del --min-MQ {} --min-BQ {} --excl-flags 2316 | grep -w {}".format(samtools, min_mq, min_bq, pos)
+    realign_command = "{} {} realign_reads --pos {} --ctg_name {} --bam_fn {} --ref_fn {} --samtools {}".format(python,
+                                                                                                                main_entry,
+                                                                                                                pos,
+                                                                                                                ctg_name,
+                                                                                                                bam_fn,
+                                                                                                                ref_fn,
+                                                                                                                samtools)
+
+    samtools_pile_command = "{} mpileup - --reverse-del --min-MQ {} --min-BQ {} --excl-flags 2316 | grep -w {}".format(
+        samtools,
+        min_mq,
+        min_bq,
+        pos)
     realign_command += " | " + samtools_pile_command
     realign_output = subprocess.run(realign_command, shell=True, stdout=subprocess.PIPE, universal_newlines=True)
 
     realign_output = realign_output.stdout.rstrip()
-    # print(realign_command)
-    # print(realign_output)
     columns = realign_output.split('\t')
     if len(columns) < 4:
-        return ctg_name, pos, True, (-1,-1,-1,-1)
+        return ctg_name, pos, True, (-1, -1, -1, -1)
+
     realign_base_counter, realign_base_list = get_base_list(columns)
 
     raw_depth = len(base_list)
@@ -89,59 +105,60 @@ def extract_base(POS):
     realign_support_read_num = realign_base_counter[alt_base]
 
     pass_realign_filter = True
-    if raw_support_read_num / float(raw_depth) > realign_support_read_num / realign_depth and realign_support_read_num < raw_support_read_num:
+    if raw_support_read_num / float(
+            raw_depth) > realign_support_read_num / realign_depth and realign_support_read_num < raw_support_read_num:
         pass_realign_filter = False
-    return ctg_name, pos, pass_realign_filter, (raw_support_read_num, raw_depth, realign_support_read_num, realign_depth)
+    return ctg_name, pos, pass_realign_filter, (
+    raw_support_read_num, raw_depth, realign_support_read_num, realign_depth)
 
 
 def realign_variants(args):
-
     ctg_name = args.ctg_name
     threads = args.threads
-
-    p_reader = VcfReader(vcf_fn=args.pileup_vcf_fn, ctg_name=ctg_name, show_ref=False, keep_row_str=True,
-                                 filter_tag="PASS;HighConf,PASS;MedConf,PASS,RefCall", save_header=True)
+    qual_cut_off = args.qual if args.qual is not None else param.qual_dict['ilmn']
+    p_reader = VcfReader(vcf_fn=args.pileup_vcf_fn, ctg_name=ctg_name, show_ref=True, keep_row_str=True,
+                         filter_tag=None, save_header=True)
     p_reader.read_vcf()
     p_input_variant_dict = p_reader.variant_dict
 
-    fa_reader = VcfReader(vcf_fn=args.full_alignment_vcf_fn, ctg_name=ctg_name, show_ref=False, keep_row_str=True,
-                                 filter_tag="PASS;HighConf,PASS;MedConf,PASS,RefCall", save_header=True)
+    fa_reader = VcfReader(vcf_fn=args.full_alignment_vcf_fn, ctg_name=ctg_name, show_ref=True, keep_row_str=True,
+                          filter_tag=None, save_header=True)
     fa_reader.read_vcf()
     fa_input_variant_dict = fa_reader.variant_dict
 
+    print(len(p_input_variant_dict), len(fa_input_variant_dict))
     for k, v in fa_input_variant_dict.items():
-        if k not in p_input_variant_dict:
+        if v.filter != "PASS":
             v.extra_infos = False
+            continue
+        if qual_cut_off is not None and float(v.qual) <= qual_cut_off:
+            if k not in p_input_variant_dict:
+                v.extra_infos = False
 
     output_vcf_fn = args.output_vcf_fn
     vcf_writer = VcfWriter(vcf_fn=output_vcf_fn, ref_fn=args.ref_fn, ctg_name=ctg_name, show_ref_calls=True)
-
-    # for key in list(input_variant_dict):
-    #     if key != 193147846:
-    #         del input_variant_dict[key]
-    # for POS in input_variant_dict.values():
-    #     pos, pass_realign_filter = extract_base(POS)
 
     realign_fail_pos_set = set()
     realign_info_dict = defaultdict()
     with concurrent.futures.ProcessPoolExecutor(max_workers=threads) as exec:
         for result in exec.map(extract_base, list(fa_input_variant_dict.values())):
             contig, pos, pass_realign_filter = result[:3]
-            raw_support_read_num, raw_depth, realign_support_read_num, realign_depth = result[3]
             if args.output_realign_info:
                 realign_info_dict[(contig, pos)] = result[3]
 
             if pass_realign_filter is False:
                 realign_fail_pos_set.add((contig, pos))
 
-    for key in sorted(fa_input_variant_dict.keys()):
-        pos = key if ctg_name is not None else key[1]
-        contig = ctg_name if ctg_name is not None else key[0]
+    for k, v in fa_input_variant_dict.items():
+        pos = k if ctg_name is not None else k[1]
+        contig = ctg_name if ctg_name is not None else k[0]
 
-        row_str = fa_input_variant_dict[key].row_str.rstrip()
-
+        if k not in p_input_variant_dict or p_input_variant_dict[k].filter != "PASS":
+            continue
+        row_str = v.row_str.rstrip()
         if (contig, pos) in realign_fail_pos_set:
-            row_str = row_str.replace("PASS", "Low_realign")
+            row_str = row_str.replace("PASS", "LowQual")
+
         if args.output_realign_info:
             row_str += "\t" + ' '.join([str(item) for item in realign_info_dict[(contig, pos)]])
         vcf_writer.vcf_writer.write(row_str + '\n')
@@ -162,9 +179,6 @@ def main():
     parser.add_argument('--ref_fn', type=str, default="ref.fa",
                         help="Reference fasta file input, required")
 
-    parser.add_argument('--read_fn', type=str, default="PIPE",
-                        help="Output realigned BAM. Default directly pass reads to CreateTensor_phasing using PIPE. Default: %(default)s")
-
     parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of sequence to be processed")
 
@@ -175,7 +189,7 @@ def main():
                         help="Full-alignment VCF file input")
 
     parser.add_argument('--output_vcf_fn', type=str, default=None,
-                        help="The 1-based starting position of the sequence to be processed")
+                        help="Output VCF path")
 
     # options for advanced users
     parser.add_argument('--min_mq', type=int, default=param.min_mq,
@@ -197,22 +211,20 @@ def main():
     parser.add_argument('--python', type=str, default="python3",
                         help="Path to the 'python3', default: %(default)s")
 
-    parser.add_argument('--bed_fn', type=str, default=None,
-                        help="Call variant only in the provided regions. Will take an intersection if --ctg_name and/or (--ctg_start, --ctg_end) are set")
-
-    parser.add_argument('--input_filter_tag', type=str, default="PASS:HighConf",
-                        help='Output VCF filename, required')
-
     ## Test in specific candidate position. Only for testing
     parser.add_argument('--output_realign_info', type=str2bool, default=False,
                         help="")
 
     parser.add_argument('--enable_realignment', type=str2bool, default=True,
-                        help="")
+                        help="Enable realignment for illumina calls, default: enable")
 
-    # if len(sys.argv[1:]) == 0:
-    #     parser.print_help()
-    #     sys.exit(1)
+    parser.add_argument('--qual', type=float, default=None,
+                        help="Maximum QUAL to realign a variant")
+
+    if len(sys.argv[1:]) == 0:
+        parser.print_help()
+        sys.exit(1)
+
     global args
     args = parser.parse_args()
 
@@ -221,4 +233,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
