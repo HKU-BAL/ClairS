@@ -236,65 +236,6 @@ def print_label(path=""):
         '[INFO] total reference: {}, total germline:{}, total somatic:{}'.format(total, total_germline, total_somatic))
 
 
-def check_bin_af_distrbution_pileup(path):
-    import tables
-    import os
-    from shared.vcf import VcfReader
-    path = "/autofs/bal36/zxzheng/somatic/ilmn/ilmn/pileup_training_novaseq/build/bins"
-    total = 0
-    total_germline = 0
-    total_somatic = 0
-    normal_max = np.empty(shape=(0))
-    tumor_max = np.empty(shape=(0))
-    all_label = np.empty(shape=(0, 3))
-    for fn_idx, file_name in enumerate(os.listdir(path)[:2]):
-        table = tables.open_file(os.path.join(path, file_name), 'r')
-        print("[INFO] {} size is: {}".format(file_name, len(table.root.label)))
-        total += sum(table.root.label[:, 0])
-        pos_infos, normal_info_list, tumor_info_list = table.root.position, table.root.normal_alt_info, table.root.tumor_alt_info
-        pos_info = [int(item[0].decode().split(":")[1]) for item in pos_infos]
-        normal_info_list = [item[0].decode() for item in normal_info_list]
-        tumor_info_list = [item[0].decode() for item in tumor_info_list]
-        label_list = [np.argmax(item) for item in table.root.label]
-        for pos, normal_info, tumor_info, label in zip(pos_info, normal_info_list, tumor_info_list, label_list):
-            normal_depth, normal_alt = normal_info.split('-')[:2]
-            tumor_depth, tumor_alt = tumor_info.split('-')[:2]
-            normal_alt = normal_alt.split(' ')
-            tumor_alt = tumor_alt.split(' ')
-            normal_alt_dict = dict(zip(normal_alt[::2], [int(item) for item in normal_alt[1::2]])) if len(
-                normal_alt) else {}
-            tumor_alt_dict = dict(zip(tumor_alt[::2], [int(item) for item in tumor_alt[1::2]])) if len(
-                tumor_alt) else {}
-            # is_somatic = pos in truth_variant_dict
-            # if is_somatic:
-            support_alt_dict = {}
-            max_normal_af = 0
-            max_tumor_af = 0
-            for tumor_alt, tumor_count in tumor_alt_dict.items():
-                if tumor_alt[0] != 'X':
-                    # print(str(pos) + ' not SNP', normal_alt_dict, tumor_alt_dict)
-                    continue
-                tumor_af = tumor_count / float(tumor_depth)
-                normal_count = normal_alt_dict[tumor_alt] if tumor_alt in normal_alt_dict else 0
-                normal_af = normal_count / float(normal_depth)
-                # if tumor_af - normal_af > 0:
-                support_alt_dict[tumor_alt] = [tumor_af - normal_af, tumor_af, normal_af]
-                max_tumor_af = max(tumor_af, max_tumor_af)
-                max_normal_af = max(normal_af, max_normal_af)
-            # if len(support_alt_dict) == 0:
-            #     return "", 0, 0
-            alt_type_list = sorted(support_alt_dict.items(), key=lambda x: x[1][0], reverse=True)
-            if len(alt_type_list) == 0:
-                print(str(pos) + ' not found', normal_alt_dict, tumor_alt_dict, label)
-                continue
-            best_match_alt, best_af_list = alt_type_list[0]
-            af_gap, tumor_af, normal_af = best_af_list
-            print(af_gap, tumor_af, normal_af)
-            tumor_supported_reads_count = tumor_alt_dict[best_match_alt]
-            normal_supported_reads_count = normal_alt_dict[
-                best_match_alt] if best_match_alt in normal_alt_dict else 0
-
-
 def check_bin_af_distrbution(path):
     import tables
     import os
