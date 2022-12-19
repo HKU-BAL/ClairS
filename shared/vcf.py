@@ -49,9 +49,9 @@ class VcfWriter(object):
                     ##INFO=<ID=F,Number=0,Type=Flag,Description="Result from full-alignment calling">
                     ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
                     ##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
-                    ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Overall Read Depth(Normal+Tumor)">
-                    ##FORMAT=<ID=AF,Number=1,Type=Float,Description="Estimated allele frequency in tumor sample in the range of [0,1]">
-                    ##FORMAT=<ID=NAF,Number=1,Type=Float,Description="Estimated allele frequency in normal sample in the range of [0,1]">
+                    ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Tumor Read Depth">
+                    ##FORMAT=<ID=AF,Number=1,Type=Float,Description="Estimated allele frequency in tumor sample">
+                    ##FORMAT=<ID=NAF,Number=1,Type=Float,Description="Estimated allele frequency in normal sample">
                     ##FORMAT=<ID=NDP,Number=1,Type=Integer,Description="Normal Read Depth">
                     ##FORMAT=<ID=AU,Number=1,Type=Integer,Description="Number of 'A' alleles in Tumor BAM">
                     ##FORMAT=<ID=CU,Number=1,Type=Integer,Description="Number of 'C' alleles in Tumor BAM">
@@ -214,7 +214,6 @@ class VcfReader(object):
                 except:
                     qual = None
 
-            # normal GetTruth
                 last_column = last_column if not tumor_in_last else columns[-2]
                 if self.is_happy_format and self.is_fp:
                     last_column = columns[10]
@@ -224,7 +223,6 @@ class VcfReader(object):
                 try:
                     genotype_1, genotype_2 = genotype
 
-                    # 1000 Genome GetTruth (format problem) (no genotype is given)
                     if int(genotype_1) > int(genotype_2):
                         genotype_1, genotype_2 = genotype_2, genotype_1
 

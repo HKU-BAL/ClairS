@@ -9,20 +9,7 @@ import argparse
 import shlex
 from subprocess import PIPE
 from os.path import isfile, isdir
-# A->A
-# C->C
-# G->G
-# T or U->T
-# R->A or G
-# Y->C or T
-# S->G or C
-# W->A or T
-# K->G or T
-# M->A or C
-# B->C or G or T
-# D->A or G or T
-# H->A or C or T
-# V->A or C or G
+
 IUPAC_base_to_ACGT_base_dict = dict(zip(
     "ACGTURYSWKMBDHVN",
     ("A", "C", "G", "T", "T", "A", "C", "C", "A", "G", "A", "C", "A", "A", "A", "A")
@@ -88,7 +75,7 @@ def folder_path_from(folder_name, create_not_found=True, exit_on_not_found=False
         exit(log_error("[ERROR] folder %s not found" % (folder_name)))
     if create_not_found:
         if not os.path.exists(folder_name):
-            os.makedirs(abspath(folder_name))
+            os.makedirs(abspath(folder_name), exist_ok=True)
             print("[INFO] Create folder %s" % (folder_name), file=stderr)
             return abspath(folder_name)
     return None
@@ -116,6 +103,14 @@ def executable_command_string_from(command_to_execute, exit_on_not_found=False):
 def subprocess_popen(args, stdin=None, stdout=PIPE, stderr=stderr, bufsize=8388608):
     return Popen(args, stdin=stdin, stdout=stdout, stderr=stderr, bufsize=bufsize, universal_newlines=True)
 
+
+def str_none(v):
+    if v is None:
+        return None
+    if v.upper() == "NONE":
+        return None
+    if isinstance(v, str):
+        return v
 
 def str2bool(v):
     if v is None:
@@ -172,7 +167,7 @@ def reference_sequence_from(samtools_execute_command, fasta_file_path, regions):
 
 def vcf_candidates_from(vcf_fn, contig_name=None):
 
-    known_variants_set =  set()
+    known_variants_set = set()
     unzip_process = subprocess_popen(shlex.split("gzip -fdc %s" % (vcf_fn)))
 
     start_pos, end_pos = float('inf'), 0

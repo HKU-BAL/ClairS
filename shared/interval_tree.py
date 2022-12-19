@@ -21,12 +21,14 @@ def bed_tree_from(bed_file_path,
     if region is not None:
         try:
             ctg_name, start_end = region.split(':')
-            ctg_start, ctg_end = int(start_end.split('-')[0]), int(start_end.split('-')[1])
+            ctg_start, ctg_end = int(start_end.split('-')[0]) - 1, int(start_end.split('-')[1]) - 1 # bed format
         except:
             sys.exit("[ERROR] Please input the correct format for --region ctg_name:start-end, your input is {}".format(region))
         if ctg_end < ctg_start or ctg_start < 0 or ctg_end < 0:
             sys.exit("[ERROR] Invalid region input: {}".format(region))
 
+        if ctg_name not in tree:
+            tree[ctg_name] = IntervalTree()
         tree[ctg_name].addi(ctg_start, ctg_end)
         if return_bed_region:
             return tree, None, None
