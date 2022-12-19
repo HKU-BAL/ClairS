@@ -26,8 +26,7 @@ def get_coverage(coverage_log, ctg_name=None):
 
 
 def check_max_sampled_coverage(nor_cov, tum_cov, synthetic_proportion, pair_gamma=0.5, min_bin_coverage=4):
-    # nor_cov = int(nor_cov / min_bin_coverage * min_bin_coverage)
-    # tum_cov = int(tum_cov / min_bin_coverage * min_bin_coverage)
+
     max_synthetic_coverage_for_tumor = int(tum_cov / synthetic_proportion)
     max_synthetic_coverage_for_normal = int(nor_cov / (1 + pair_gamma - synthetic_proportion))
 
@@ -54,7 +53,6 @@ def MixBin(args):
     min_bin_coverage = args.min_bin_coverage
     synthetic_proportion = args.synthetic_proportion
     synthetic_coverage = args.synthetic_coverage
-    contaminative_proportions = args.contaminative_proportions
     normal_coverage_proportion = args.normal_coverage_proportion
     normal_coverage_log = os.path.join(cov_dir, 'raw_normal_' + ctg_name + cov_suffix)
     tumor_coverage_log = os.path.join(cov_dir, 'raw_tumor_' + ctg_name + cov_suffix)
@@ -180,47 +178,6 @@ def MixBin(args):
     subprocess_run(
         shlex.split("{} index -@{} {}".format(samtools_execute_command, samtools_threads, normal_output_bam)))
 
-    # if contaminative_proportions is not None:
-    #     # contam_tumor_num =
-    #     contaminative_proportion_list = contaminative_proportions.split(',')
-    #     normal_output_bam = output_fn.replace('tumor_', 'normal_')
-    #     normal_sampled_bam_list = ' '.join([os.path.join(input_dir, bam) for bam in pair_normal_bam_list])
-    #     subprocess_run(shlex.split(
-    #         "{} merge -f -@{} {} {}".format(samtools_execute_command, samtools_threads, normal_output_bam,
-    #                                         normal_sampled_bam_list)))
-    #     subprocess_run(
-    #         shlex.split("{} index -@{} {}".format(samtools_execute_command, samtools_threads, normal_output_bam)))
-
-    # subprocess_run(shlex.split("ln -sf {} {}".format(normal_bam_fn, normal_output_bam)))
-    # subprocess_run(shlex.split("ln -sf {}.bai {}.bai".format(normal_bam_fn, normal_output_bam)))
-    #
-    # for bam_fn, bin_num, prefix in zip((normal_bam_fn, tumor_bam_fn), (normal_bin_num, tumor_bin_num), ("normal", 'tumor')):
-    #     subprocess_list = []
-    #     for bin_idx in range(bin_num):
-    #         output_fn = os.path.join(output_dir, prefix + "_" + str(bin_idx))
-    #         save_file_fp = subprocess_popen(
-    #             shlex.split("{} view -bh - -o {}".format(samtools_execute_command, output_fn)), stdin=PIPE,
-    #             stdout=PIPE)
-    #         subprocess_list.append(save_file_fp)
-    #
-    #     samtools_view_command = "{} view -@ {} -h {} {}".format(samtools_execute_command, samtools_threads, bam_fn, ctg_name if ctg_name else "")
-    #
-    #     samtools_view_process = subprocess_popen(shlex.split(samtools_view_command))
-    #
-    #     for row_id, row in enumerate(samtools_view_process.stdout):
-    #         if row[0] == '@':
-    #             for subprocess in subprocess_list:
-    #                 subprocess.stdin.write(row)
-    #             continue
-    #         bin_id = int(random.random() * 100) % bin_num
-    #         subprocess_list[bin_id].stdin.write(row)
-    #
-    #     samtools_view_process.stdout.close()
-    #     samtools_view_process.wait()
-    #     for save_file_fp in subprocess_list:
-    #         save_file_fp.stdin.close()
-    #         save_file_fp.wait()
-
 
 def main():
     parser = ArgumentParser(description="Mix splited chunk BAM into multiple BAM")
@@ -274,12 +231,6 @@ def main():
     parser.add_argument('--dry_run', type=str2bool, default=0,
                         help="EXPERIMENTAL: Only print the synthetic log, debug only")
 
-
-    # parser.add_argument('--normal_bam_fn', type=str, default=None,
-    #                     help="Sorted normal BAM file input, required")
-    #
-    # parser.add_argument('--tumor_bam_fn', type=str, default=None,
-    #                     help="Sorted tumor BAM file input, required")
 
     args = parser.parse_args()
 

@@ -5,8 +5,8 @@ from sys import stdin, exit
 from argparse import ArgumentParser
 from collections import defaultdict
 
-
 from shared.utils import log_error, log_warning, file_path_from, subprocess_popen, str2bool
+
 major_contigs_order = ["chr" + str(a) for a in list(range(1, 23)) + ["X", "Y"]] + [str(a) for a in
                                                                                    list(range(1, 23)) + ["X", "Y"]]
 
@@ -15,7 +15,9 @@ def compress_index_vcf(input_vcf):
     # use bgzip to compress vcf -> vcf.gz
     # use tabix to index vcf.gz
     proc = subprocess.run('bgzip -f {}'.format(input_vcf), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    proc = subprocess.run('tabix -f -p vcf {}.gz'.format(input_vcf), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    proc = subprocess.run('tabix -f -p vcf {}.gz'.format(input_vcf), shell=True, stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE)
+
 
 def output_header(output_fn, reference_file_path, sample_name='SAMPLE'):
     output_file = open(output_fn, "w")
@@ -33,7 +35,7 @@ def output_header(output_fn, reference_file_path, sample_name='SAMPLE'):
         ##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Read depth for each allele">
         ##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Phred-scaled genotype likelihoods rounded to the closest integer">
         ##FORMAT=<ID=AF,Number=1,Type=Float,Description="Estimated allele frequency in the range of [0,1]">"""
-                  ) + '\n')
+                             ) + '\n')
 
     if reference_file_path is not None:
         reference_index_file_path = file_path_from(reference_file_path, suffix=".fai", exit_on_not_found=True, sep='.')
@@ -46,8 +48,8 @@ def output_header(output_fn, reference_file_path, sample_name='SAMPLE'):
     output_file.write('#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t%s' % (sample_name))
     output_file.close()
 
-def print_calling_step(output_fn=""):
 
+def print_calling_step(output_fn=""):
     merge_output = os.path.join(os.path.dirname(output_fn), 'merge_output.vcf.gz')
     pileup_output = os.path.join(os.path.dirname(output_fn), 'pileup.vcf.gz')
 
@@ -55,19 +57,7 @@ def print_calling_step(output_fn=""):
     # subprocess.run('cp {} {}'.format(pileup_output, merge_output), shell=True, stdout=subprocess.PIPE,
     #                stderr=subprocess.PIPE)
 
-def check_header_in_gvcf(header, contigs_list):
-    # Only output the contigs processed to be consistent with GATK
-    # Contig format: ##contig=<ID=%s,length=%s>
 
-    update_header = []
-    for row_id, row in enumerate(header):
-        if row.startswith("##contig="):
-            contig = row.split(',')[0].split('=')[2]
-            if contig not in contigs_list:
-                continue
-        update_header.append(row)
-
-    return update_header
 
 def sort_vcf_from_stdin(args):
     """
@@ -160,8 +150,9 @@ def sort_vcf_from(args):
         all_files = [item for item in all_files if item.startswith(vcf_fn_prefix)]
         if len(all_files) == 0:
             output_header(output_fn=output_fn, reference_file_path=ref_fn, sample_name=sample_name)
-            print (log_warning(
-                "[WARNING] No vcf file found with prefix:{}/{}, output empty vcf file".format(input_dir,vcf_fn_prefix)))
+            print(log_warning(
+                "[WARNING] No vcf file found with prefix:{}/{}, output empty vcf file".format(input_dir,
+                                                                                              vcf_fn_prefix)))
             if compress_vcf:
                 compress_index_vcf(output_fn)
             print_calling_step(output_fn=output_fn)
@@ -171,8 +162,9 @@ def sort_vcf_from(args):
         all_files = [item for item in all_files if item.endswith(vcf_fn_suffix)]
         if len(all_files) == 0:
             output_header(output_fn=output_fn, reference_file_path=ref_fn, sample_name=sample_name)
-            print (log_warning(
-                "[WARNING] No vcf file found with suffix:{}/{}, output empty vcf file".format(input_dir,vcf_fn_prefix)))
+            print(log_warning(
+                "[WARNING] No vcf file found with suffix:{}/{}, output empty vcf file".format(input_dir,
+                                                                                              vcf_fn_prefix)))
             compress_index_vcf(output_fn)
             print_calling_step(output_fn=output_fn)
             return
@@ -217,7 +209,6 @@ def sort_vcf_from(args):
             fn.close()
 
         if need_write_header and len(header):
-
             output.write(''.join(header))
             need_write_header = False
         all_pos = sorted(contig_dict.keys())
@@ -227,7 +218,7 @@ def sort_vcf_from(args):
     output.close()
 
     if row_count == 0:
-        print (log_warning("[WARNING] No vcf file found, output empty vcf file"))
+        print(log_warning("[WARNING] No vcf file found, output empty vcf file"))
         output_header(output_fn=output_fn, reference_file_path=ref_fn, sample_name=sample_name)
         if compress_vcf:
             compress_index_vcf(output_fn)
@@ -235,7 +226,7 @@ def sort_vcf_from(args):
         return
     if no_vcf_output:
         output_header(output_fn=output_fn, reference_file_path=ref_fn, sample_name=sample_name)
-        print (log_warning("[WARNING] No variant found, output empty vcf file"))
+        print(log_warning("[WARNING] No variant found, output empty vcf file"))
         if compress_vcf:
             compress_index_vcf(output_fn)
         return
@@ -274,7 +265,6 @@ def main():
     parser.add_argument('--bed_format', action='store_true',
                         help="Only work for gvcf file, reduce hard disk space")
 
-
     args = parser.parse_args()
     if args.input_dir is None:
         if args.bed_format:
@@ -283,6 +273,7 @@ def main():
             sort_vcf_from_stdin(args)
     else:
         sort_vcf_from(args)
+
 
 if __name__ == "__main__":
     main()

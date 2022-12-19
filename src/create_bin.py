@@ -17,6 +17,7 @@ def Run(args):
     logging.info("Loading the dataset ...")
     
     utils.get_training_array(
+        args=args,
         normal_tensor_fn=args.normal_tensor_fn,
         tumor_tensor_fn=args.tumor_tensor_fn,
         var_fn=args.var_fn,
@@ -28,7 +29,6 @@ def Run(args):
         chunk_num=args.chunk_num,
         pileup=args.pileup,
         platform=args.platform,
-        phase_tumor=args.phase_tumor,
         merge_bins=args.merge_bins)
     logging.info("Finish!")
 
@@ -37,16 +37,16 @@ def main():
     parser = ArgumentParser(description="Combine the variant and non-variant tensors and convert them to a binary")
 
     parser.add_argument('--platform', type=str, default="ont",
-                        help="Sequencing platform of the input. Options: 'ont,hifi,ilmn', default: %(default)s")
+                        help="Sequencing platform of the input. Options: 'ont,ilmn', default: %(default)s")
 
     parser.add_argument('--normal_tensor_fn', type=str, default=None,
-                        help="Normal tensor input, required")
+                        help="Normal tensor input")
 
     parser.add_argument('--tumor_tensor_fn', type=str, default=None,
                         help="Tumor tensor input, required")
 
     parser.add_argument('--var_fn', type=str, default=None,
-                        help="Truth variants list input, required")
+                        help="Truth variants list input")
 
     parser.add_argument('--bin_fn', type=str, default=None,
                         help="Output a binary tensor file, required")

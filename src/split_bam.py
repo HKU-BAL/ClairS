@@ -118,7 +118,6 @@ def main():
     parser.add_argument('--samtools_output_threads', type=int, default=24,
                         help="Samtools threads to write input BAM")
 
-
     args = parser.parse_args()
 
     split_bin(args)
