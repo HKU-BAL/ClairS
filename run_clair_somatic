@@ -135,7 +135,7 @@ def check_python_path():
 def check_tools_version(args):
 
     required_tool_version = {
-        'python': LooseVersion('3.9.0'),
+        'python': LooseVersion('3.6.0'),
         'pypy': LooseVersion('3.6'),
         'samtools': LooseVersion('1.10'),
         'whatshap': LooseVersion('1.0'),
@@ -476,10 +476,10 @@ def check_clair3_options(args):
 
 def check_args(args):
 
-    try:
-        conda_prefix = os.environ['CONDA_PREFIX']
-    except:
-        sys.exit(log_error("[ERROR] Conda prefix not found, please activate conda environment first!"))
+    # try:
+    #     conda_prefix = os.environ['CONDA_PREFIX']
+    # except:
+    #     sys.exit(log_error("[ERROR] Conda prefix not found, please activate conda environment first!"))
 
     args.normal_bam_fn = file_path_from(file_name=args.normal_bam_fn, exit_on_not_found=True, allow_none=False)
     normal_bai_fn = file_path_from(file_name=args.normal_bam_fn, suffix=".bai", exit_on_not_found=False, sep='.')
@@ -597,11 +597,16 @@ def somatic_calling(args):
     normal_bam_fn = clair3_output_path + '/phased_output/normal_{1/.}.bam' if args.phase_normal else args.normal_bam_fn
     tumor_bam_fn = clair3_output_path + '/phased_output/tumor_{1/.}.bam' if args.phase_tumor else args.tumor_bam_fn
     tumor_bam_prefix = clair3_output_path + '/phased_output/tumor_' if args.phase_tumor else args.tumor_bam_fn
+    try:
+        rc = subprocess.check_call('time', shell=True, stdout=sys.stderr)
+        time = 'time '
+    except subprocess.CalledProcessError as e:
+        time = ''
 
     if args.clair3_path is not None and args.platform == 'ont' and args.phase_tumor:
 
         echo_list.append("[INFO] Call Germline Variants in Normal BAM using Clair3")
-        clair3_normal_command = '( time ' + args.clair3_path + '/run_clair3.sh'
+        clair3_normal_command = '( ' + time  + args.clair3_path + '/run_clair3.sh'
         clair3_normal_command += ' --bam_fn ' + args.normal_bam_fn
         clair3_normal_command += ' --ref_fn ' + args.ref_fn
         clair3_normal_command += ' --model_path ' + args.clair3_model_path
@@ -617,11 +622,11 @@ def somatic_calling(args):
         clair3_normal_command += ' --indel_min_af=' + args.clair3_option.indel_min_af
         if args.clair3_option.longphase_for_phasing is not None:
             clair3_normal_command += ' --longphase_for_phasing '
-        clair3_normal_command += ') |& tee ' + args.output_dir + '/logs/clair3_log/1_CLAIR3_NORMAL.log'
+        clair3_normal_command += ') 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/1_CLAIR3_NORMAL.log'
         commands_list.append(clair3_normal_command)
 
         echo_list.append("[INFO] Call Germline Variant in Tumor BAM using Clair3")
-        clair3_tumor_command = '( time ' + args.clair3_path + '/run_clair3.sh'
+        clair3_tumor_command = '( ' + time + args.clair3_path + '/run_clair3.sh'
         clair3_tumor_command += ' --bam_fn ' + args.tumor_bam_fn
         clair3_tumor_command += ' --ref_fn ' + args.ref_fn
         clair3_tumor_command += ' --model_path ' + args.clair3_model_path
@@ -637,11 +642,11 @@ def somatic_calling(args):
         clair3_tumor_command += ' --indel_min_af=' + args.clair3_option.indel_min_af
         if args.clair3_option.longphase_for_phasing is not None:
             clair3_tumor_command += ' --longphase_for_phasing '
-        clair3_tumor_command += ') |& tee ' + args.output_dir + '/logs/clair3_log/2_CLAIR3_TUMOR.log'
+        clair3_tumor_command += ') 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/2_CLAIR3_TUMOR.log'
         commands_list.append(clair3_tumor_command)
 
         echo_list.append("[INFO] Select Hetero SNP for Phasing")
-        ssp_command = '(time ' + args.parallel
+        ssp_command = '( ' + time + args.parallel
         ssp_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_1_select_hetero_snp_for_phasing.log'
         ssp_command += ' -j ' + str(args.threads)
         ssp_command += ' ' + args.pypy + ' ' + main_entry + ' select_hetero_snp_for_phasing'
@@ -650,13 +655,13 @@ def somatic_calling(args):
         ssp_command += ' --output_folder ' + clair3_output_path + '/vcf'
         ssp_command += ' --ctg_name {1}'
         ssp_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-        ssp_command += ') |& tee ' + args.output_dir + '/logs/clair3_log/1_select_hetero_snp_for_phasing.log'
+        ssp_command += ') 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/1_select_hetero_snp_for_phasing.log'
         commands_list.append(ssp_command)
 
         if args.phase_normal:
             echo_list.append("[INFO] Phase VCF using Normal BAM")
             if args.clair3_option.longphase_for_phasing is not None:
-                pn_command = '(time ' + args.parallel
+                pn_command = '( ' + time + args.parallel
                 pn_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_2_phase_normal.log'
                 pn_command += ' -j ' + str(args.threads)
                 pn_command += ' ' + args.clair3_option.longphase + ' phase '
@@ -671,9 +676,9 @@ def somatic_calling(args):
                 pn_command += ' -j ' + str(args.threads)
                 pn_command += ' bgzip -f ' + clair3_output_path + '/phased_output/normal_phased_{1}.vcf'
                 pn_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-                pn_command += ') |& tee ' + args.output_dir + '/logs/clair3_log/2_phase_normal.log'
+                pn_command += ') 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/2_phase_normal.log'
             else:
-                pn_command = '(time ' + args.parallel
+                pn_command = '( ' + time + args.parallel
                 pn_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_2_phase_normal.log'
                 pn_command += ' -j ' + str(args.threads)
                 pn_command += ' ' + args.whatshap + ' phase '
@@ -684,7 +689,7 @@ def somatic_calling(args):
                 pn_command += ' --ignore-read-groups'
                 pn_command += ' ' + clair3_output_path + '/vcf/{1}.vcf'
                 pn_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-                pn_command += ') |& tee ' + args.output_dir + '/logs/clair3_log/2_phase_normal.log'
+                pn_command += ') 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/2_phase_normal.log'
 
             tabix_command = args.parallel + ' -j ' + str(args.threads)
             tabix_command += ' tabix' + ' -f -p vcf'
@@ -693,7 +698,7 @@ def somatic_calling(args):
             commands_list.append(pn_command + ' && ' + tabix_command)
 
             echo_list.append("[INFO] Haplotag Normal BAM")
-            ht_command = '(time ' + args.parallel
+            ht_command = '( ' + time + args.parallel
             ht_command += ' --joblog ' + args.output_dir + '/logs/parallel_3_haplotag_normal.log'
             ht_command += ' -j ' + str(args.threads)
             ht_command += ' ' + args.whatshap + ' haplotag'
@@ -704,7 +709,7 @@ def somatic_calling(args):
             ht_command += ' ' + clair3_output_path + '/phased_output/normal_phased_{1}.vcf.gz'
             ht_command += ' ' + args.normal_bam_fn
             ht_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-            ht_command += ') |& tee ' + args.output_dir + '/logs/3_normal_haplotag.log'
+            ht_command += ') 2>&1 | tee ' + args.output_dir + '/logs/3_normal_haplotag.log'
 
             index_command = args.parallel + ' -j ' + str(args.threads)
             index_command += ' ' + args.samtools + ' index '
@@ -716,7 +721,7 @@ def somatic_calling(args):
 
         echo_list.append("[INFO] Phase VCF using Tumor BAM")
         if args.clair3_option.longphase_for_phasing is not None:
-            pt_command = '(time ' + args.parallel
+            pt_command = '( ' + time + args.parallel
             pt_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_4_phase_tumor.log'
             pt_command += ' -j ' + str(args.threads)
             pt_command += ' ' + args.clair3_option.longphase + ' phase '
@@ -731,9 +736,9 @@ def somatic_calling(args):
             pt_command += ' -j ' + str(args.threads)
             pt_command += ' bgzip -f ' + clair3_output_path + '/phased_output/tumor_phased_{1}.vcf'
             pt_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-            pt_command += ') |& tee ' + args.output_dir + '/logs/clair3_log/4_phase_tumor.log'
+            pt_command += ') 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/4_phase_tumor.log'
         else:
-            pt_command = '(time ' + args.parallel
+            pt_command = '( ' + time + args.parallel
             pt_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_5_phase_tumor.log'
             pt_command += ' -j ' + str(args.threads)
             pt_command += ' ' + args.whatshap + ' phase '
@@ -744,7 +749,7 @@ def somatic_calling(args):
             pt_command += ' --ignore-read-groups'
             pt_command += ' ' + clair3_output_path + '/vcf/{1}.vcf'
             pt_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-            pt_command += ') |& tee ' + args.output_dir + '/logs/clair3_log/5_phase_tumor.log'
+            pt_command += ') 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/5_phase_tumor.log'
 
         tabix_command = args.parallel + ' -j ' + str(args.threads)
         tabix_command += ' tabix' + ' -f -p vcf'
@@ -753,7 +758,7 @@ def somatic_calling(args):
         commands_list.append(pt_command + ' && ' + tabix_command)
 
         echo_list.append("[INFO] STEP ?: Haplotag Tumor BAM")
-        ht_command = '(time ' + args.parallel
+        ht_command = '( ' + time + args.parallel
         ht_command += ' --joblog ' + args.output_dir + '/logs/parallel_6_haplotag_tumor.log'
         ht_command += ' -j ' + str(args.threads)
         ht_command += ' ' + args.whatshap + ' haplotag'
@@ -764,7 +769,7 @@ def somatic_calling(args):
         ht_command += ' ' + clair3_output_path + '/phased_output/tumor_phased_{1}.vcf.gz'
         ht_command += ' ' + args.tumor_bam_fn
         ht_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-        ht_command += ') |& tee ' + args.output_dir + '/logs/6_tumor_haplotag.log'
+        ht_command += ') 2>&1 | tee ' + args.output_dir + '/logs/6_tumor_haplotag.log'
 
         index_command = args.parallel + ' -j ' + str(args.threads)
         index_command += ' ' + args.samtools + ' index '
@@ -777,7 +782,7 @@ def somatic_calling(args):
     #STEP 1: EXTRACT CANDIDATES
     echo_list.append("[INFO] STEP {}: Extract Candidates form Tumor and Normal BAMs".format(step))
     step += 1
-    ec_command = '(time ' + args.parallel
+    ec_command = '( ' + time + args.parallel
     ec_command += ' --joblog ' + args.output_dir + '/logs/parallel_1_extract_tumor_candidates.log'
     ec_command += ' -C " " -j ' + str(args.threads)
     ec_command += ' ' + args.pypy + ' ' + main_entry + ' extract_pair_candidates'
@@ -797,14 +802,14 @@ def somatic_calling(args):
     ec_command += ' --candidates_folder ' + args.output_dir + '/tmp/candidates'
     ec_command += ' --output_depth True '
     ec_command += ' :::: ' + os.path.join(args.output_dir, 'tmp', 'CHUNK_LIST')
-    ec_command += ') |& tee ' + args.output_dir + '/logs/1_EC.log'
+    ec_command += ') 2>&1 | tee ' + args.output_dir + '/logs/1_EC.log'
     ec_command += ' && cat {}/tmp/candidates/CANDIDATES_FILE_* > {}/tmp/candidates/CANDIDATES_FILES '.format(args.output_dir, args.output_dir)
     commands_list.append(ec_command)
 
     ##STEP 2: CREATE PAIR TENSOR
     echo_list.append("[INFO] STEP 2: Pileup Model Calling\n")
     echo_list[-1] += ("[INFO] Create Pair Tensor")
-    cpt_command = '(time ' + args.parallel
+    cpt_command = '( ' + time + args.parallel
     cpt_command += ' --joblog ' + args.output_dir + '/logs/parallel_2-1_create_pair_tensor.log'
     cpt_command += ' -j ' + str(args.threads)
     cpt_command += ' ' + args.pypy + ' ' + main_entry + ' create_pair_tensor_pileup'
@@ -817,12 +822,12 @@ def somatic_calling(args):
     cpt_command += ' --tensor_can_fn ' + args.output_dir + '/tmp/pileup_tensor_can/{1/} '
     cpt_command += ' --platform ' + args.platform
     cpt_command += ' :::: ' + args.output_dir + '/tmp/candidates/CANDIDATES_FILES'
-    cpt_command += ') |& tee ' + args.output_dir + '/logs/2-1_CPT.log'
+    cpt_command += ') 2>&1 | tee ' + args.output_dir + '/logs/2-1_CPT.log'
     commands_list += [cpt_command]
 
     ## STEP 3: PREDICT
     echo_list.append("[INFO] Pileup Model Prediction")
-    p_predict_command = '(time ' + args.parallel
+    p_predict_command = '( ' + time + args.parallel
     p_predict_command += ' --joblog ' + args.output_dir + '/logs/parallel_2-2_predict.log'
     p_predict_command += ' -j ' + str(args.threads)
     p_predict_command += ' ' + args.python + ' ' + main_entry + ' predict'
@@ -835,7 +840,7 @@ def somatic_calling(args):
     p_predict_command += ' --show_ref ' if args.print_ref_calls else ""
     p_predict_command += ' --show_germline ' if args.print_germline_calls else ""
     p_predict_command += ' :::: ' + args.output_dir + '/tmp/candidates/CANDIDATES_FILES'
-    p_predict_command += ') |& tee ' + args.output_dir + '/logs/2-2_PREDICT.log'
+    p_predict_command += ') 2>&1 | tee ' + args.output_dir + '/logs/2-2_PREDICT.log'
     commands_list += [p_predict_command]
 
     # STEP 4: MERGE VCF
@@ -855,7 +860,7 @@ def somatic_calling(args):
 
     echo_list.append("[INFO] STEP 3: Full-alignment Model Calling\n")
     echo_list[-1] += "[INFO] Create FA Pair Tensor"
-    cpt_fa_command = '(time ' + args.parallel
+    cpt_fa_command = '( ' + time + args.parallel
     cpt_fa_command += ' --joblog ' + args.output_dir + '/logs/parallel_3-1_create_pair_tensor_fa.log'
     cpt_fa_command += ' -j ' + str(args.threads)
     cpt_fa_command += ' ' + args.pypy + ' ' + main_entry + ' create_pair_tensor'
@@ -868,12 +873,12 @@ def somatic_calling(args):
     cpt_fa_command += ' --tensor_can_fn ' + args.output_dir + '/tmp/fa_tensor_can/{1/} '
     cpt_fa_command += ' --platform ' + args.platform
     cpt_fa_command += ' :::: ' + args.output_dir + '/tmp/candidates/CANDIDATES_FILES'
-    cpt_fa_command += ') |& tee ' + args.output_dir + '/logs/3-1_CPT.log'
+    cpt_fa_command += ') 2>&1 | tee ' + args.output_dir + '/logs/3-1_CPT.log'
     commands_list += [cpt_fa_command]
 
     ## STEP 3: PREDICT
     echo_list.append("[INFO] FA Model Prediction")
-    fa_predict_command = '(time ' + args.parallel
+    fa_predict_command = '( ' + time + args.parallel
     fa_predict_command += ' --joblog ' + args.output_dir + '/logs/parallel_3-2_predict.log'
     fa_predict_command += ' -j ' + str(args.threads)
     fa_predict_command += ' ' + args.python + ' ' + main_entry + ' predict'
@@ -885,12 +890,12 @@ def somatic_calling(args):
     fa_predict_command += ' --show_ref ' if args.print_ref_calls else ""
     fa_predict_command += ' --show_germline ' if args.print_germline_calls else ""
     fa_predict_command += ' :::: ' + args.output_dir + '/tmp/candidates/CANDIDATES_FILES'
-    fa_predict_command += ') |& tee ' + args.output_dir + '/logs/3-2_PREDICT.log'
+    fa_predict_command += ') 2>&1 | tee ' + args.output_dir + '/logs/3-2_PREDICT.log'
     commands_list += [fa_predict_command]
 
     ## STEP 4: MERGE VCF
     echo_list.append("[INFO] Merge FA VCF")
-    fa_mv_command = 'time ' + args.pypy + ' ' + main_entry + ' sort_vcf'
+    fa_mv_command = args.pypy + ' ' + main_entry + ' sort_vcf'
     fa_mv_command += ' --ref_fn ' + args.ref_fn
     fa_mv_command += ' --contigs_fn ' + os.path.join(args.output_dir, 'tmp', 'CONTIGS')
     fa_mv_command += ' --input_dir ' + args.output_dir + '/tmp/vcf_output'
@@ -900,7 +905,7 @@ def somatic_calling(args):
 
     if args.enable_realignment and args.platform == 'ilmn':
         echo_list.append("[INFO] STEP 4:  Short-read realignment")
-        realign_command = '(time ' + args.python + ' ' + main_entry + ' realign_variants'
+        realign_command = '( ' + time + args.python + ' ' + main_entry + ' realign_variants'
         realign_command += ' --bam_fn ' + args.tumor_bam_fn
         realign_command += ' --ref_fn ' + args.ref_fn
         realign_command += ' --pileup_vcf_fn ' + args.output_dir + '/tmp/vcf_output/pileup.vcf'
@@ -910,13 +915,13 @@ def somatic_calling(args):
         realign_command += ' --python ' + args.python
         realign_command += ' --threads ' + str(args.threads)
         realign_command += ' --enable_realignment ' + str(args.enable_realignment)
-        realign_command += ') |& tee ' + args.output_dir + '/logs/4_REALIGN.log'
+        realign_command += ') 2>&1 | tee ' + args.output_dir + '/logs/4_REALIGN.log'
         commands_list += [realign_command]
 
     #graph postprocessing
     if args.platform == 'ont':
         echo_list.append("[INFO] STEP 4: Haplotype graph postprocessing")
-        hap_g_command = '(time ' + args.pypy + ' ' + main_entry + ' haplotype_filtering'
+        hap_g_command = '( ' + time + args.pypy + ' ' + main_entry + ' haplotype_filtering'
         hap_g_command += ' --tumor_bam_fn ' + tumor_bam_prefix
         hap_g_command += ' --ref_fn ' + args.ref_fn
         hap_g_command += ' --germline_vcf_fn ' + clair3_output_path + '/clair3_tumor_output/merge_output.vcf.gz'
@@ -926,18 +931,18 @@ def somatic_calling(args):
         hap_g_command += ' --samtools ' + args.samtools
         hap_g_command += ' --threads ' + str(args.threads)
         hap_g_command += ' --apply_post_processing ' + str(args.apply_post_processing)
-        hap_g_command += ') |& tee ' + args.output_dir + '/logs/4_HAP_FILTER.log'
+        hap_g_command += ') 2>&1 | tee ' + args.output_dir + '/logs/4_HAP_FILTER.log'
 
         commands_list += [hap_g_command]
 
         echo_list.append("[INFO] STEP 5: Merge and sort VCF")
-        sort_vcf_command = '(time ' + args.pypy + ' ' + main_entry + ' merge_vcf'
+        sort_vcf_command = '( ' + time + args.pypy + ' ' + main_entry + ' merge_vcf'
         sort_vcf_command += ' --ref_fn ' + args.ref_fn
         sort_vcf_command += ' --pileup_vcf_fn ' + args.output_dir + '/tmp/vcf_output/pileup_filter.vcf'
         sort_vcf_command += ' --full_alignment_vcf_fn ' + args.output_dir + '/tmp/vcf_output/full_alignment_filter.vcf'
         sort_vcf_command += ' --output_fn ' + args.output_dir + '/{}.vcf'.format(args.sample_name)
         sort_vcf_command += ' --platform ' + args.platform
-        sort_vcf_command += ') |& tee ' + args.output_dir + '/logs/5_MV.log'
+        sort_vcf_command += ') 2>&1 | tee ' + args.output_dir + '/logs/5_MV.log'
 
         commands_list += [sort_vcf_command]
 
@@ -1341,6 +1346,7 @@ def main():
     try:
         args.tee = subprocess.Popen(['tee', tee_logger], stdin=subprocess.PIPE, bufsize=0)
     except:
+        print("[WARNING] Disable tee logging!")
         args.tee = None
 
     args = check_args(args)
