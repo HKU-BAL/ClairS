@@ -10,10 +10,12 @@ from time import time
 from argparse import ArgumentParser, SUPPRESS
 from threading import Thread
 from subprocess import PIPE, run
-from clair_somatic.call_variants import output_vcf_from_probability, OutputConfig
 
-from shared.utils import IUPAC_base_to_ACGT_base_dict as BASE2ACGT, BASIC_BASES, str2bool, file_path_from, log_error, log_warning, subprocess_popen, TensorStdout
+from clair_somatic.call_variants import output_vcf_from_probability, OutputConfig
+from shared.utils import IUPAC_base_to_ACGT_base_dict as BASE2ACGT, BASIC_BASES, str2bool, file_path_from, log_error, \
+    log_warning, subprocess_popen, TensorStdout
 import shared.param as param
+
 
 def batches_from(iterable, item_from, batch_size=1):
     iterable = iter(iterable)
@@ -27,46 +29,43 @@ def batches_from(iterable, item_from, batch_size=1):
                 return
         yield chunk
 
+
 def print_output_message(
-            output_file,
+        output_file,
+        chromosome,
+        position,
+        reference_base,
+        normal_alt_info,
+        tumor_alt_info,
+        probabilities,
+        extra_infomation_string=""
+):
+    global call_fn
+    if call_fn is not None:
+        output_vcf_from_probability(
             chromosome,
             position,
             reference_base,
             normal_alt_info,
             tumor_alt_info,
-            gt21_probabilities,
-            genotype_probabilities,
-            variant_length_probabilities_1,
-            variant_length_probabilities_2,
-            extra_infomation_string=""
-    ):
-        global call_fn
-        if call_fn is not None:
-            output_vcf_from_probability(
-            chromosome,
-            position,
-            reference_base,
-            normal_alt_info,
-            tumor_alt_info,
-            gt21_probabilities,
+            probabilities,
             output_config=output_config,
             vcf_writer=output_file
-            )
-        else:
-            output_file.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format(
-                chromosome,
-                position,
-                reference_base,
-                normal_alt_info,
-                tumor_alt_info,
-                ' '.join(["{:0.8f}".format(x) for x in gt21_probabilities]),
-                # ["{:0.8f}".format(x) for x in genotype_probabilities],
-                # ["{:0.8f}".format(x) for x in variant_length_probabilities_1],
-                # ["{:0.8f}".format(x) for x in variant_length_probabilities_2],
-                extra_infomation_string
-            ))
+        )
+    else:
+        output_file.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format(
+            chromosome,
+            position,
+            reference_base,
+            normal_alt_info,
+            tumor_alt_info,
+            ' '.join(["{:0.8f}".format(x) for x in probabilities]),
+            extra_infomation_string
+        ))
 
-def tensor_generator_from(tensor_file_path, batch_size, pileup=False, min_rescale_cov=None, phase_tumor=False, platform='ont'):
+
+def tensor_generator_from(tensor_file_path, batch_size, pileup=False, min_rescale_cov=None, phase_tumor=False,
+                          platform='ont'):
     float_type = 'float32'
 
     if tensor_file_path != "PIPE":
@@ -86,16 +85,6 @@ def tensor_generator_from(tensor_file_path, batch_size, pileup=False, min_rescal
 
     def item_from(row):
         contig, coord, seq, normal_tensor, normal_alt_info, tumor_tensor, tumor_alt_info, variant_type = row.split("\t")
-        # if pileup:
-        #     tensor = np.array(tensor.split(), dtype=np.dtype(float_type))
-        #     depth = int(alt_info.split('-', maxsplit=1)[0])
-        #     max_depth = param.max_depth_dict[platform]
-        #     # for extreme high coverage data, make sure we could have a truncated coverage
-        #     if depth > 0 and depth > max_depth * 1.5:
-        #         scale_factor = depth / max_depth
-        #         tensor = tensor / scale_factor
-        # else:
-            # need add padding if depth is lower than maximum depth.
         normal_matrix = [float(item) for item in normal_tensor.split()]
         tumor_matrix = [float(item) for item in tumor_tensor.split()]
 
@@ -114,19 +103,19 @@ def tensor_generator_from(tensor_file_path, batch_size, pileup=False, min_rescal
                 if apply_normalize:
 
                     tensor += [float(item) / normal_coverage for item in
-                                     normal_matrix[idx * channel_size: (idx + 1) * channel_size]]
+                               normal_matrix[idx * channel_size: (idx + 1) * channel_size]]
                     tensor += [float(item) / tumor_coverage for item in
-                                     tumor_matrix[idx * channel_size: (idx + 1) * channel_size]]
+                               tumor_matrix[idx * channel_size: (idx + 1) * channel_size]]
                 else:
                     if normal_rescale is not None:
                         tensor += [item * normal_rescale for item in
-                                     normal_matrix[idx * channel_size: (idx + 1) * channel_size]]
+                                   normal_matrix[idx * channel_size: (idx + 1) * channel_size]]
                     else:
                         tensor += normal_matrix[idx * channel_size: (idx + 1) * channel_size]
 
                     if tumor_rescale is not None:
                         tensor += [item * tumor_rescale for item in
-                                     tumor_matrix[idx * tumor_channel_size: (idx + 1) * tumor_channel_size]]
+                                   tumor_matrix[idx * tumor_channel_size: (idx + 1) * tumor_channel_size]]
                     else:
                         tensor += tumor_matrix[idx * tumor_channel_size: (idx + 1) * tumor_channel_size]
 
@@ -143,15 +132,6 @@ def tensor_generator_from(tensor_file_path, batch_size, pileup=False, min_rescal
             suffix_zero_padding = [0] * suffix_padding_depth * tensor_shape[1] * tensor_shape[2]
             tensor = prefix_zero_padding + normal_matrix + center_zero_padding + tumor_matrix + suffix_zero_padding
         tensor = np.array(tensor, dtype=np.dtype(float_type))
-
-        # tensor_depth = len(tensor) // tensor_shape[1] // tensor_shape[2]
-        # padding_depth = tensor_shape[0] - tensor_depth
-        # prefix_padding_depth = int(padding_depth / 2)
-        # suffix_padding_depth = padding_depth - int(padding_depth / 2)
-        # prefix_zero_padding = [0] * prefix_padding_depth * tensor_shape[1] * tensor_shape[2]
-        # suffix_zero_padding = [0] * suffix_padding_depth * tensor_shape[1] * tensor_shape[2]
-        # tensor = prefix_zero_padding + tensor + suffix_zero_padding
-        # tensor = np.array(tensor, dtype=np.dtype(float_type))
 
         pos = contig + ":" + coord + ":" + seq
         return tensor, pos, seq, normal_alt_info, tumor_alt_info, variant_type
@@ -181,15 +161,14 @@ def tensor_generator_from(tensor_file_path, batch_size, pileup=False, min_rescal
 
         if current_batch_size <= 0:
             continue
-        yield X[:current_batch_size], positions[:current_batch_size], normal_alt_info_list[:current_batch_size],tumor_alt_info_list[:current_batch_size], variant_type_list[:current_batch_size]
-        # for p, (pos, n_info, t_info) in enumerate(
-        #         zip(positions[:current_batch_size], normal_alt_info_list[:current_batch_size],
-        #             tumor_alt_info_list[:current_batch_size])):
-        #     print(p, pos, n_info, t_info)
+        yield X[:current_batch_size], positions[:current_batch_size], normal_alt_info_list[
+                                                                      :current_batch_size], tumor_alt_info_list[
+                                                                                            :current_batch_size], variant_type_list[
+                                                                                                                  :current_batch_size]
+
     if tensor_file_path != "PIPE":
         fo.close()
         f.wait()
-
 
 
 def get_bins(tensor_file_path, batch_size=10000, pileup=False, platform='ont'):
@@ -204,17 +183,12 @@ def get_bins(tensor_file_path, batch_size=10000, pileup=False, platform='ont'):
     else:
         fo = sys.stdin
 
-    processed_tensors = 0
     if pileup:
         channel_size = param.pileup_channel_size
         tensor_shape = [param.no_of_positions, channel_size * 2]
     else:
         tensor_shape = param.ont_input_shape if platform == 'ont' else param.input_shape
     prod_tensor_shape = np.prod(tensor_shape)
-
-    # def item_from(row):
-    #
-    #     return tensor, pos, seq, normal_alt_info, tumor_alt_info, variant_type
 
     tensors = np.empty(([batch_size, prod_tensor_shape]), dtype=np.dtype(float_type))
     positions = []
@@ -225,8 +199,6 @@ def get_bins(tensor_file_path, batch_size=10000, pileup=False, platform='ont'):
     for row in fo.readline():
 
         contig, coord, seq, normal_tensor, normal_alt_info, tumor_tensor, tumor_alt_info, variant_type = row.split("\t")
-
-        # need add padding if depth is lower than maximum depth.
         normal_matrix = [float(item) for item in normal_tensor.split()]
         tumor_matrix = [float(item) for item in tumor_tensor.split()]
 
@@ -259,7 +231,6 @@ def get_bins(tensor_file_path, batch_size=10000, pileup=False, platform='ont'):
             tensor = prefix_zero_padding + normal_matrix + center_zero_padding + tumor_matrix + suffix_zero_padding
         tensor = np.array(tensor, dtype=np.dtype(float_type))
 
-
         pos = contig + ":" + coord + ":" + seq
 
         # for tensor, pos, seq, normal_alt_info, tumor_alt_info, variant_type in batch:
@@ -271,131 +242,40 @@ def get_bins(tensor_file_path, batch_size=10000, pileup=False, platform='ont'):
         tumor_alt_info_list.append(tumor_alt_info)
         variant_type_list.append(variant_type)
 
-        current_batch_size = len(positions)
-
     X = np.reshape(tensors, ([batch_size] + tensor_shape))
 
-        # if processed_tensors > 0 and processed_tensors % 20000 == 0:
-        #     print("Processed %d tensors" % processed_tensors, file=sys.stderr)
-        #
-        # processed_tensors += current_batch_size
-
-        # if current_batch_size <= 0:
-        #     continue
-        # yield X[:current_batch_size], positions[:current_batch_size], normal_alt_info_list[:current_batch_size],tumor_alt_info_list[:current_batch_size], variant_type_list[:current_batch_size]
-        # for p, (pos, n_info, t_info) in enumerate(
-        #         zip(positions[:current_batch_size], normal_alt_info_list[:current_batch_size],
-        #             tumor_alt_info_list[:current_batch_size])):
-        #     print(p, pos, n_info, t_info)
     if tensor_file_path != "PIPE":
         fo.close()
         f.wait()
 
 
-# def Run(args):
-#     os.environ["OMP_NUM_THREADS"] = "1"
-#     os.environ["OPENBLAS_NUM_THREADS"] = "1"
-#     os.environ["MKL_NUM_THREADS"] = "1"
-#     os.environ["NUMEXPR_NUM_THREADS"] = "1"
-#
-#     # tf.config.threading.set_intra_op_parallelism_threads(1)
-#     # tf.config.threading.set_inter_op_parallelism_threads(1)
-#
-#     global test_pos
-#     test_pos = None
-#
-#     predict(args=args)
-
-# def batch_output_for_ensemble(X, batch_chr_pos_seq, alt_info_list, batch_Y, output_config, output_utilities):
-#     batch_size = len(batch_chr_pos_seq)
-#     batch_gt21_probabilities, batch_genotype_probabilities, = batch_Y
-#
-#     if len(batch_gt21_probabilities) != batch_size:
-#         sys.exit(
-#             "Inconsistent shape between input tensor and output predictions %d/%d" %
-#             (batch_size, len(batch_gt21_probabilities))
-#         )
-#
-#     tensor_position_center = param.flankingBaseNum
-#
-#     for (
-#             x,
-#             chr_pos_seq,
-#             gt21_probabilities,
-#             genotype_probabilities,
-#             alt_info
-#     ) in zip(
-#         X,
-#         batch_chr_pos_seq,
-#         batch_gt21_probabilities,
-#         batch_genotype_probabilities,
-#         alt_info_list
-#     ):
-#         if output_config.tensor_fn != 'PIPE':
-#             chromosome, position, reference_sequence = chr_pos_seq.decode().rstrip().split(":")
-#         else:
-#             chromosome, position, reference_sequence = chr_pos_seq
-#
-#         position = int(position)
-#
-#         if reference_sequence[tensor_position_center] not in BASIC_BASES:
-#             continue
-#
-#         output_utilities.output(
-#             "\t".join(
-#                 [
-#                     chromosome,
-#                     str(position),
-#                     reference_sequence,
-#                     alt_info.decode(),
-#                     ' '.join(["{:0.6f}".format(p) for p in list(gt21_probabilities)]),
-#                     ' '.join(["{:0.6f}".format(p) for p in list(genotype_probabilities)])]
-#             )
-#         )
-
-
 def batch_output(output_file, batch_chr_pos_seq, normal_alt_info_list, tumor_alt_info_list, batch_Y):
     batch_size = len(batch_chr_pos_seq)
 
-    batch_gt21_probabilities = batch_Y[:,:param.label_shape_cum[0]]
-    # batch_genotype_probabilities = batch_Y[:,param.label_shape_cum[0]:param.label_shape_cum[1]]
-    batch_genotype_probabilities = [0] * batch_size
-    if len(batch_gt21_probabilities) != batch_size:
+    batch_probabilities = batch_Y[:, :param.label_shape_cum[0]]
+    if len(batch_probabilities) != batch_size:
         sys.exit(
             "Inconsistent shape between input tensor and output predictions %d/%d" %
-            (batch_size, len(batch_gt21_probabilities))
+            (batch_size, len(batch_probabilities))
         )
-    batch_variant_length_probabilities_1, batch_variant_length_probabilities_2 = [0] * batch_size, [0] * batch_size
 
-    # if output_config.add_indel_length:
-    #     batch_variant_length_probabilities_1, batch_variant_length_probabilities_2 = batch_Y[:,param.label_shape_cum[1]:param.label_shape_cum[2]], batch_Y[:,param.label_shape_cum[2]:param.label_shape_cum[3]]
     for (
             chr_pos_seq,
             normal_alt_info,
             tumor_alt_info,
-            gt21_probabilities,
-            genotype_probabilities,
-            variant_length_probabilities_1,
-            variant_length_probabilities_2
+            probabilities,
     ) in zip(
         batch_chr_pos_seq,
         normal_alt_info_list,
         tumor_alt_info_list,
-        batch_gt21_probabilities,
-        batch_genotype_probabilities,
-        batch_variant_length_probabilities_1,
-        batch_variant_length_probabilities_2
+        batch_probabilities,
     ):
-
         output_with(
             output_file,
             chr_pos_seq,
             normal_alt_info,
             tumor_alt_info,
-            gt21_probabilities,
-            genotype_probabilities,
-            variant_length_probabilities_1,
-            variant_length_probabilities_2,
+            probabilities,
         )
 
 
@@ -404,10 +284,7 @@ def output_with(
         chr_pos_seq,
         normal_alt_info,
         tumor_alt_info,
-        gt21_probabilities,
-        genotype_probabilities,
-        variant_length_probabilities_1,
-        variant_length_probabilities_2,
+        probabilities,
 ):
     if type(chr_pos_seq) == np.ndarray:
         chr_pos_seq = chr_pos_seq[0].decode()
@@ -418,7 +295,6 @@ def output_with(
         normal_alt_info = normal_alt_info.decode()
         tumor_alt_info = tumor_alt_info.decode()
 
-
     chromosome, position, reference_sequence = chr_pos_seq.rstrip().split(':')[:3]
     reference_base = reference_sequence[param.flankingBaseNum].upper()
     print_output_message(
@@ -428,12 +304,10 @@ def output_with(
         reference_base,
         normal_alt_info,
         tumor_alt_info,
-        gt21_probabilities,
-        genotype_probabilities,
-        variant_length_probabilities_1,
-        variant_length_probabilities_2,
+        probabilities,
         ""
     )
+
 
 def DataGenerator(dataset, num_epoch, batch_size, chunk_start_pos, chunk_end_pos):
     for idx in range(num_epoch):
@@ -449,6 +323,7 @@ def DataGenerator(dataset, num_epoch, batch_size, chunk_start_pos, chunk_end_pos
 def predict(args):
     global output_config
     global call_fn
+
     output_config = OutputConfig(
         is_show_reference=args.show_ref,
         is_show_germline=args.show_germline,
@@ -458,6 +333,7 @@ def predict(args):
         input_probabilities=args.input_probabilities,
         pileup=args.pileup
     )
+
     param.flankingBaseNum = param.flankingBaseNum if args.flanking is None else args.flanking
     param.no_of_positions = param.flankingBaseNum * 2 + 1
     param.min_rescale_cov = param.min_rescale_cov if args.min_rescale_cov is None else args.min_rescale_cov
@@ -509,9 +385,6 @@ def predict(args):
     global test_pos
     test_pos = None
 
-    # batch_output_method = batch_output_for_ensemble if output_config.is_output_for_ensemble else batch_output
-    batch_output_method = batch_output
-    # m.load_weights(args.chkpnt_fn)
     if param.use_tf:
         import clair_somatic.model_tf as model_path
         model = model_path.Clair3_P()
@@ -519,7 +392,9 @@ def predict(args):
 
     else:
         model = torch.load(chkpnt_fn, map_location=torch.device(device))
-    # model = torch.nn.DataParallel(model, device_ids=[0,1,2,3])
+
+        model.eval()
+
     total = 0
     softmax = torch.nn.Softmax(dim=1)
     if not args.is_from_tables:
@@ -552,10 +427,10 @@ def predict(args):
                     if args.pileup:
                         input_matrix = torch.from_numpy(input_tensor).to(device)
                     else:
-                        input_matrix = torch.from_numpy(np.transpose(input_tensor, (0, 3, 1, 2)) / 100.0).float().to(device)
+                        input_matrix = torch.from_numpy(np.transpose(input_tensor, (0, 3, 1, 2)) / 100.0).float().to(
+                            device)
                         if input_matrix.shape[1] != param.channel_size:
-                            input_matrix = input_matrix[:,:param.channel_size, :,:]
-                        # print(np.unique(input_tensor[:,:,:,5]))
+                            input_matrix = input_matrix[:, :param.channel_size, :, :]
                     with torch.no_grad():
                         prediction = model(input_matrix)
                     prediction = softmax(prediction)
@@ -593,7 +468,6 @@ def predict(args):
         batch_size = param.predictBatchSize
         dataset_size = len(dataset.label)
         chunk_start_pos, chunk_end_pos = 0, dataset_size
-        tensor_shape = param.ont_input_shape if args.platform == 'ont' else param.input_shape
         # process by chunk windows
         if chunk_id is not None and chunk_num is not None:
             chunk_dataset_size = dataset_size // chunk_num if dataset_size % chunk_num == 0 else dataset_size // chunk_num + 1
@@ -611,8 +485,6 @@ def predict(args):
                 prediction = model(input_matrix)
             prediction = softmax(prediction)
             prediction = prediction.cpu().numpy()
-            start_pos = idx * batch_size
-            end_pos = min((idx + 1) * batch_size, dataset_size)
             batch_output(output_file, position, normal_alt_info_list, tumor_alt_info_list, prediction)
             total += len(input_tensor)
 
@@ -634,8 +506,6 @@ def predict(args):
         predict_fn_fp.stdin.close()
         predict_fn_fp.wait()
         predict_fn_fpo.close()
-
-
 
 
 def main():
@@ -674,13 +544,10 @@ def main():
     parser.add_argument('--samtools', type=str, default="samtools",
                         help="Path to the 'samtools', samtools version >= 1.10 is required, default: %(default)s")
 
-    parser.add_argument('--min_rescale_cov', type=int, default=None,
+    parser.add_argument('--min_rescale_cov', type=int, default=param.min_rescale_cov,
                         help="Minimum rescale coverage for high-coverage calling data")
 
     # options for debug purpose
-    parser.add_argument('--use_gpu', type=str2bool, default=False,
-                        help="DEBUG: Use GPU for calling. Speed up is mostly insignficiant. Only use this for building your own pipeline")
-
     parser.add_argument('--predict_fn', type=str, default="PIPE",
                         help="DEBUG: Output network output probabilities for further analysis")
 
@@ -691,6 +558,10 @@ def main():
                         help="DEBUG: Output the network probabilities of gt21, genotype, indel_length_1 and indel_length_2")
 
     # options for internal process control
+    ## Use GPU for calling
+    parser.add_argument('--use_gpu', type=str2bool, default=False,
+                        help=SUPPRESS)
+
     ## In pileup mode or not (full alignment mode), default: False
     parser.add_argument('--pileup', action='store_true',
                         help=SUPPRESS)
@@ -706,7 +577,7 @@ def main():
     ## Generating outputs for ensemble model calling
     parser.add_argument('--output_for_ensemble', action='store_true',
                         help=SUPPRESS)
-    
+
     ## Use bin file from pytables to speed up calling.
     parser.add_argument('--is_from_tables', type=str2bool, default=False,
                         help=SUPPRESS)
@@ -725,24 +596,7 @@ def main():
     parser.add_argument('--flanking', type=int, default=None,
                         help=SUPPRESS)
 
-    # parser.add_argument('--gvcf', type=str2bool, default=False,
-    #                     help="Enable GVCF output, default: disabled")
-    #
-    # parser.add_argument('--haploid_precise', action='store_true',
-    #                     help="EXPERIMENTAL: Enable haploid calling mode. Only 1/1 is considered as a variant")
-    #
-    # parser.add_argument('--haploid_sensitive', action='store_true',
-    #                     help="EXPERIMENTAL: Enable haploid calling mode. 0/1 and 1/1 are considered as a variant")
-    #
-    # ## Include indel length in training and calling, false for pileup and true for raw alignment
-    # parser.add_argument('--add_indel_length', type=str2bool, default=False,
-    #                     help=SUPPRESS)
-
     args = parser.parse_args()
-
-    # if len(sys.argv[1:]) == 0:
-    #     parser.print_help()
-    #     sys.exit(1)
 
     predict(args)
 
