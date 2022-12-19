@@ -1097,7 +1097,6 @@ def somatic_parser():
         help="Minimum SNV AF required for a candidate variant. Lowering the value might increase a bit of sensitivity in trade of speed and accuracy, default: 0.08"
     )
 
-    # # TODO
     optional_params.add_argument(
         "--min_coverage",
         type=int,
@@ -1187,25 +1186,10 @@ def somatic_parser():
     )
 
     ont_params = parser.add_argument_group('ONT parameters')
-
     ont_params.add_argument(
         "--disable_phasing",
         action='store_true',
         help="If true then call variants without longphase or whatshap phasing."
-    )
-
-    ont_params.add_argument(
-        "--phase_normal",
-        type=str2bool,
-        default=False,
-        help=SUPPRESS
-    )
-
-    ont_params.add_argument(
-        "--phase_tumor",
-        type=str2bool,
-        default=None,
-        help=SUPPRESS
     )
 
     clair3_params = parser.add_argument_group('Clair3 parameters')
@@ -1245,6 +1229,24 @@ def somatic_parser():
         help="Use whatshap for phasing, default: disable."
     )
 
+    # options for internal process control
+    ## Phase normal BAM in calling
+    ont_params.add_argument(
+        "--phase_normal",
+        type=str2bool,
+        default=False,
+        help=SUPPRESS
+    )
+
+    ## Phase tumor BAM in calling
+    ont_params.add_argument(
+        "--phase_tumor",
+        type=str2bool,
+        default=None,
+        help=SUPPRESS
+    )
+
+    ##Clair3 options used in calling
     clair3_params.add_argument(
         "--clair3_option",
         type=namedtuple,
@@ -1252,7 +1254,6 @@ def somatic_parser():
         help=SUPPRESS
     )
 
-    # options for internal process control
     ##If set then will use GPUs for inference. CUDA required
     optional_params.add_argument(
         "-g",
