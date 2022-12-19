@@ -7,11 +7,11 @@ import numpy as np
 import heapq
 from random import random
 from collections import defaultdict
-import shared.param as param
 from itertools import product
+
 from clair_somatic.task.main import *
 from shared.interval_tree import bed_tree_from, is_region_in
-from shared.utils import subprocess_popen, IUPAC_base_to_ACGT_base_dict as BASE2BASE, IUPAC_base_to_num_dict as BASE2NUM
+from shared.utils import subprocess_popen, IUPAC_base_to_num_dict as BASE2NUM
 
 FILTERS = tables.Filters(complib='blosc:lz4hc', complevel=5)
 shuffle_bin_size = 3000
@@ -134,22 +134,6 @@ def variant_map_from(var_fn, tree, is_tree_empty):
 
 def write_table_dict(table_dict, normal_matrix, tumor_matrix, label, pos, total, normal_alt_info, tumor_alt_info,
                      tensor_shape, pileup, proportion=None):
-    """
-    Write pileup or full alignment tensor into a dictionary.compressed bin file.
-    table_dict: dictionary include all training information (tensor position, label, altnative bases).
-    string: input tensor string, need add padding to meet the depth requirement.
-    label: include gt21 genotype, indel length 1, indel length 2.
-    alt_info: altnative information for querying variant.
-    """
-
-    # if len(string) == 1:
-    #     string = string[0]
-    # normal_matrix = normal_string.split()
-    # tumor_matrix = tumor_string.split()
-
-    # if pileup:
-    #     table_dict['position_matrix'].append(position_matrix)
-    # else:
     normal_depth = len(normal_matrix) // tensor_shape[1] // tensor_shape[2]
     tumor_depth = len(tumor_matrix) // tensor_shape[1] // tensor_shape[2]
     tensor_depth = normal_depth + tumor_depth
@@ -160,15 +144,8 @@ def write_table_dict(table_dict, normal_matrix, tumor_matrix, label, pos, total,
     prefix_zero_padding = ['0'] * prefix_padding_depth * tensor_shape[1] * tensor_shape[2]
     center_zero_padding = ['0'] * center_padding_depth * tensor_shape[1] * tensor_shape[2]
     suffix_zero_padding = ['0'] * suffix_padding_depth * tensor_shape[1] * tensor_shape[2]
-    table_dict['input_matrix'].append(prefix_zero_padding + normal_matrix + center_zero_padding + tumor_matrix + suffix_zero_padding)
-    # for matrix, append_list in zip([normal_matrix, tumor_matrix], [table_dict['normal_matrix'], table_dict['tumor_matrix']]):
-    #     tensor_depth = len(matrix) // tensor_shape[1] // tensor_shape[2]
-    #     padding_depth = tensor_shape[0] - tensor_depth
-    #     prefix_padding_depth = int(padding_depth / 2)
-    #     suffix_padding_depth = padding_depth - int(padding_depth / 2)
-    #     prefix_zero_padding = ['0'] * prefix_padding_depth * tensor_shape[1] * tensor_shape[2]
-    #     suffix_zero_padding = ['0'] * suffix_padding_depth * tensor_shape[1] * tensor_shape[2]
-    #     append_list.append(prefix_zero_padding + matrix + suffix_zero_padding)
+    table_dict['input_matrix'].append(
+        prefix_zero_padding + normal_matrix + center_zero_padding + tumor_matrix + suffix_zero_padding)
     table_dict['position'].append(pos)
     table_dict['label'].append(label)
     table_dict['normal_alt_info'].append(normal_alt_info)
@@ -181,7 +158,6 @@ def write_table_dict(table_dict, normal_matrix, tumor_matrix, label, pos, total,
 def update_table_dict():
     table_dict = {}
     table_dict['input_matrix'] = []
-    # table_dict['tumor_matrix'] = []
     table_dict['normal_alt_info'] = []
     table_dict['tumor_alt_info'] = []
     table_dict['position'] = []
@@ -205,9 +181,6 @@ def write_table_file(table_file, table_dict, tensor_shape, label_size, float_typ
     input_matrix = np.array(table_dict['input_matrix'], np.dtype(float_type)).reshape([-1] + tensor_shape)
     table_file.root.input_matrix.append(input_matrix)
 
-    # tumor_matrix = np.array(table_dict['tumor_matrix'], np.dtype(float_type)).reshape([-1] + tensor_shape)
-    # table_file.root.tumor_matrix.append(tumor_matrix)
-
     table_file.root.normal_alt_info.append(np.array(table_dict['normal_alt_info']).reshape(-1, 1))
     table_file.root.tumor_alt_info.append(np.array(table_dict['tumor_alt_info']).reshape(-1, 1))
     table_file.root.position.append(np.array(table_dict['position']).reshape(-1, 1))
@@ -230,6 +203,7 @@ def print_bin_size(path, prefix=None):
         total += len(table.root.label)
     print('[INFO] total: {}'.format(total))
 
+
 def print_label(path):
     import tables
     import os
@@ -244,7 +218,8 @@ def print_label(path):
         total_germline += sum(table.root.label[:, 1])
         total_somatic += sum(table.root.label[:, 2])
         table.close()
-    print('[INFO] reference: {}, total germline:{}, total somatic:{}'.format(total,total_germline, total_somatic))
+    print('[INFO] reference: {}, total germline:{}, total somatic:{}'.format(total, total_germline, total_somatic))
+
 
 def check_bin_af_distrbution(path):
     import tables
@@ -259,9 +234,9 @@ def check_bin_af_distrbution(path):
         table = tables.open_file(os.path.join(path, file_name), 'r')
         print("[INFO] {} size is: {}".format(file_name, len(table.root.label)))
         total += sum(table.root.label[:, 0])
-        input_matrix_af_channel = table.root.input_matrix[:,:,16,4]
-        normal_part = input_matrix_af_channel[:,:42]
-        tumor_part = input_matrix_af_channel[:,44:]
+        input_matrix_af_channel = table.root.input_matrix[:, :, 16, 4]
+        normal_part = input_matrix_af_channel[:, :42]
+        tumor_part = input_matrix_af_channel[:, 44:]
         label = table.root.label[:]
         normal_max = np.concatenate([normal_max, np.max(normal_part, axis=1)], axis=0)
         tumor_max = np.concatenate([tumor_max, np.max(tumor_part, axis=1)], axis=0)
@@ -286,71 +261,10 @@ def check_bin_af_distrbution(path):
         germline_matrix = input_matrix[germline]
         somatic_matrix = input_matrix[somatic]
 
-    print('[INFO] total: {}, total germline:{}, total somatic:{}'.format(total,total_germline, total_somatic))
+    print('[INFO] total: {}, total germline:{}, total somatic:{}'.format(total, total_germline, total_somatic))
 
 
-# def bin_reader_generator_from(subprocess_list, Y, is_tree_empty, tree, miss_variant_set, is_allow_duplicate_chr_pos=False, non_variant_subsample_ratio=1.0):
-#
-#     """
-#     Bin reader generator for bin file generation.
-#     subprocess_list: a list includes all tensor generator of each tensor file.
-#     Y: dictionary (contig name: label information) to store all variant and non variant information.
-#     tree: dictionary(contig name : intervaltree) for quick region querying.
-#     miss_variant_set:  sometimes there will have true variant missing after downsampling reads.
-#     is_allow_duplicate_chr_pos: whether allow duplicate positions when training, if there exists downsampled data, lower depth will add a random prefix character.
-#     non_variant_subsample_ratio: define a maximum non variant ratio for training, we always expect use more non variant data, while it would greatly increase training
-#     time, especially in ont data, here we usually use 1:1 or 1:2 for variant candidate: non variant candidate.
-#     """
-#
-#     X = {}
-#     total = 0
-#     for f in subprocess_list:
-#         for row_idx, row in enumerate(f.stdout):
-#             chrom, coord, seq, string, alt_info, tumor_tag = row.split("\t")
-#             is_tumor = tumor_tag == 'tumor'
-#             alt_info = alt_info.rstrip()
-#             if not (is_tree_empty or is_region_in(tree, chrom, int(coord))):
-#                 continue
-#             seq = seq.upper()
-#             if seq[param.flankingBaseNum] not in 'ACGT':
-#                 continue
-#             key = chrom + ":" + coord
-#             is_reference = key not in Y
-#
-#             if key in miss_variant_set:
-#                 continue
-#
-#             if is_reference and non_variant_subsample_ratio < 1.0 and random() >= non_variant_subsample_ratio:
-#                 continue
-#             if key not in X:
-#                 X[key] = (string, alt_info, seq, is_tumor)
-#             elif is_allow_duplicate_chr_pos:
-#                 new_key = ""
-#                 for character in PREFIX_CHAR_STR:
-#                     tmp_key = character + key
-#                     if tmp_key not in X:
-#                         new_key = tmp_key
-#                         break
-#                 if len(new_key) > 0:
-#                     X[new_key] = (string, alt_info, seq)
-#
-#             if is_reference:
-#                 Y[key] = output_labels_from_reference(BASE2BASE[seq[param.flankingBaseNum]])
-#
-#             if len(X) == shuffle_bin_size:
-#                 yield X, total
-#                 X = {}
-#             total += 1
-#             if total % 100000 == 0:
-#                 print("[INFO] Processed %d tensors" % total, file=sys.stderr)
-#         f.stdout.close()
-#         f.wait()
-#     yield X, total
-#     yield None, total
-
-
-def get_key_list(input_dict, shuffle = True):
-    input_size = len(input_dict)
+def get_key_list(input_dict, shuffle=True):
     output_list = []
     for key, infos in input_dict.items():
         if 'normal' not in infos or 'tumor' not in infos:
@@ -363,8 +277,9 @@ def get_key_list(input_dict, shuffle = True):
         np.random.shuffle(output_list)
     return output_list
 
-def bin_reader_generator_from(subprocess_process, Y, is_tree_empty, tree, miss_variant_set, is_allow_duplicate_chr_pos=False, non_variant_subsample_ratio=1.0, is_tumor=False):
 
+def bin_reader_generator_from(subprocess_process, Y, is_tree_empty, tree, miss_variant_set,
+                              is_allow_duplicate_chr_pos=False, non_variant_subsample_ratio=1.0, is_tumor=False):
     """
     Bin reader generator for bin file generation.
     subprocess_list: a list includes all tensor generator of each tensor file.
@@ -402,17 +317,11 @@ def bin_reader_generator_from(subprocess_process, Y, is_tree_empty, tree, miss_v
         if pre_pos == center_pos:
             dup_pos_end_flag = False
         elif pre_pos and center_pos != pre_pos:
-                dup_pos_end_flag = True
+            dup_pos_end_flag = True
         pre_pos = center_pos
         key = chrom + ":" + center_pos
         yield (int(center_pos), key, is_tumor, string, alt_info, seq, variant_type, dup_pos_end_flag)
 
-        # if len(X) == shuffle_bin_size:
-        #     yield X, total
-        #     X = {}
-        # total += 1
-        # if total % 100000 == 0:
-        #     print("[INFO] Processed %d tensors" % total, file=sys.stderr)
     subprocess_process.stdout.close()
     subprocess_process.wait()
 
@@ -449,27 +358,23 @@ def heapq_merge_generator_from(normal_bin_reader_generator, tumor_bin_reader_gen
     if len(X):
         yield X, batch_count
 
-def get_training_array(args, normal_tensor_fn, tumor_tensor_fn, var_fn, bed_fn, bin_fn, shuffle=True, is_allow_duplicate_chr_pos=True, chunk_id=None,
-                       chunk_num=None, platform='ont', pileup=False, maximum_non_variant_ratio=None, phase_tumor=False, candidate_details_fn_prefix=None, merge_bins=False):
 
-    """
-    Generate training array for training. here pytables with blosc:lz4hc are used for extreme fast compression and decompression,
-    which can meet the requirement of gpu utilization. lz4hc decompression allows speed up training array decompression 4~5x compared
-    with tensorflow tfrecord file format, current gpu utilization could reach over 85% with only 10G memory.
-    tensor_fn: string format tensor acquired from CreateTensorPileup or CreateTensorFullAlign, include contig name position, tensor matrix, alternative information.
-    var_fn: simplified variant(vcf) format from GetTruths, which include contig name, position, reference base, alternative base, genotype.
-    bin_fn: pytables format output bin file name.
-    shuffle: whether apply index shuffling when generating training data, default True, which would promote robustness.
-    is_allow_duplicate_chr_pos: whether allow duplicate positions when training, if there exists downsampled data, lower depth will add a random prefix character.
-    chunk_id: specific chunk id works with total chunk_num for parallel execution. Here will merge all tensor file with sampe prefix.
-    chunk_num: total chunk number for parallel execution. Each chunk refer to a smaller reference regions.
-    platform: platform for tensor shape, ont give a larger maximum depth compared with pb and illumina.
-    pileup: whether in pileup mode. Define two calling mode, pileup or full alignment.
-    maximum_non_variant_ratio: define a maximum non variant ratio for training, we always expect use more non variant data, while it would greatly increase training
-    time, especially in ont data, here we usually use 1:1 or 1:2 for variant candidate: non variant candidate.
-    candidate_details_fn_prefix: a counter to calculate total variant and non variant from the information in alternative file.
-    """
-
+def get_training_array(args,
+                       normal_tensor_fn,
+                       tumor_tensor_fn,
+                       var_fn,
+                       bed_fn,
+                       bin_fn,
+                       shuffle=True,
+                       is_allow_duplicate_chr_pos=True,
+                       chunk_id=None,
+                       chunk_num=None,
+                       platform='ont',
+                       pileup=False,
+                       maximum_non_variant_ratio=None,
+                       phase_tumor=False,
+                       candidate_details_fn_prefix=None,
+                       merge_bins=False):
     tree = bed_tree_from(bed_file_path=bed_fn)
     is_tree_empty = len(tree.keys()) == 0
     Y, miss_variant_set = variant_map_from(var_fn, tree, is_tree_empty)
@@ -484,29 +389,7 @@ def get_training_array(args, normal_tensor_fn, tumor_tensor_fn, var_fn, bed_fn, 
 
     tensor_shape = param.ont_input_shape if platform == 'ont' else param.input_shape
 
-    # variant_num, non_variant_num, non_variant_subsample_ratio = 0, 0, 1.0
     non_variant_subsample_ratio = maximum_non_variant_ratio if maximum_non_variant_ratio is not None else 1.0
-    # if maximum_non_variant_ratio is not None and candidate_details_fn_prefix:
-    #     candidate_details_fn_prefix = candidate_details_fn_prefix.split('/')
-    #     directry, file_prefix = '/'.join(candidate_details_fn_prefix[:-1]), candidate_details_fn_prefix[-1]
-    #     file_list = [f for f in os.listdir(directry) if f.startswith(file_prefix)]
-    #     for f in file_list:
-    #         for row in open(os.path.join(directry, f), 'r'):
-    #             chr_pos = row.split('\t')[0]
-    #             key = chr_pos.replace(' ', ':')
-    #             if key in Y:
-    #                 variant_num += 1
-    #             else:
-    #                 non_variant_num += 1
-    #
-    #     max_non_variant_num = variant_num * maximum_non_variant_ratio
-    #     if max_non_variant_num < non_variant_num:
-    #         non_variant_subsample_ratio = float(max_non_variant_num / non_variant_num)
-    #     print("[INFO] variants/non variants/subsample ratio: {}/{}/{}".format(variant_num, non_variant_num,
-    #                                                                           round(non_variant_subsample_ratio, 4)),
-    #           file=sys.stderr)
-    # select all match prefix if file path not exists
-
 
     normal_tensor_list = []
     tumor_tensor_list = []
@@ -522,28 +405,12 @@ def get_training_array(args, normal_tensor_fn, tumor_tensor_fn, var_fn, bed_fn, 
         normal_tensor_info = normal_tensor_fn.split('/')
         normal_directry, file_prefix = '/'.join(normal_tensor_info[:-1]), normal_tensor_info[-1]
 
-        all_file_name = []
         for file_name in os.listdir(tumor_directry):
             if file_name.startswith(file_prefix + '_') or file_name.startswith(
                     file_prefix + '.'):  # add '_.' to avoid add other prefix chr
                 if os.path.exists(os.path.join(normal_directry, file_name)):
                     normal_tensor_list.append(os.path.join(normal_directry, file_name))
                     tumor_tensor_list.append(os.path.join(tumor_directry, file_name))
-        # all_file_name = sorted(all_file_name)
-        # if chunk_id is not None:
-        #     chunk_size = len(all_file_name) // chunk_num if len(all_file_name) % chunk_num == 0 else len(
-        #         all_file_name) // chunk_num + 1
-        #     chunk_start = chunk_size * chunk_id
-        #     chunk_end = chunk_start + chunk_size
-        #     normal_tensor_list = normal_tensor_list[chunk_start:chunk_end]
-        #     tumor_tensor_list = tumor_tensor_list[chunk_start:chunk_end]
-        # if not len(all_file_name):
-        #     print("[INFO] chunk_id exceed total file number, skip chunk", file=sys.stderr)
-        #     return 0
-        # for file_name in all_file_name:
-        #
-        #     subprocess_list.append(
-        #         subprocess_popen(shlex.split("{} -fdc {}".format(param.zstd, os.path.join(directry, file_name)))))
 
     tables.set_blosc_max_threads(64)
     int_atom = tables.Atom.from_dtype(np.dtype(float_type))
@@ -553,8 +420,6 @@ def get_training_array(args, normal_tensor_fn, tumor_tensor_fn, var_fn, bed_fn, 
     table_file = tables.open_file(bin_fn, mode='w', filters=FILTERS)
     table_file.create_earray(where='/', name='input_matrix', atom=float_atom, shape=[0] + tensor_shape,
                              filters=FILTERS)
-    # table_file.create_earray(where='/', name='tumor_matrix', atom=int_atom, shape=[0] + tensor_shape,
-    #                          filters=FILTERS)
     table_file.create_earray(where='/', name='position', atom=string_atom, shape=(0, 1), filters=FILTERS)
     table_file.create_earray(where='/', name='label', atom=float_atom, shape=(0, param.label_size), filters=FILTERS)
     table_file.create_earray(where='/', name='normal_alt_info', atom=long_string_atom, shape=(0, 1), filters=FILTERS)
@@ -571,21 +436,21 @@ def get_training_array(args, normal_tensor_fn, tumor_tensor_fn, var_fn, bed_fn, 
 
         proportion = float(tumor_tensor_fn.split("_")[-1])
         normal_bin_reader_generator = bin_reader_generator_from(subprocess_process=normal_subprocess_process,
-                                                         Y=Y,
-                                                         is_tree_empty=is_tree_empty,
-                                                         tree=tree,
-                                                         miss_variant_set=miss_variant_set,
-                                                         is_allow_duplicate_chr_pos=is_allow_duplicate_chr_pos,
-                                                         non_variant_subsample_ratio=non_variant_subsample_ratio)
+                                                                Y=Y,
+                                                                is_tree_empty=is_tree_empty,
+                                                                tree=tree,
+                                                                miss_variant_set=miss_variant_set,
+                                                                is_allow_duplicate_chr_pos=is_allow_duplicate_chr_pos,
+                                                                non_variant_subsample_ratio=non_variant_subsample_ratio)
 
         tumor_bin_reader_generator = bin_reader_generator_from(subprocess_process=tumor_subprocess_process,
-                                                         Y=Y,
-                                                         is_tree_empty=is_tree_empty,
-                                                         tree=tree,
-                                                         miss_variant_set=miss_variant_set,
-                                                         is_allow_duplicate_chr_pos=is_allow_duplicate_chr_pos,
-                                                         non_variant_subsample_ratio=non_variant_subsample_ratio,
-                                                         is_tumor=True)
+                                                               Y=Y,
+                                                               is_tree_empty=is_tree_empty,
+                                                               tree=tree,
+                                                               miss_variant_set=miss_variant_set,
+                                                               is_allow_duplicate_chr_pos=is_allow_duplicate_chr_pos,
+                                                               non_variant_subsample_ratio=non_variant_subsample_ratio,
+                                                               is_tumor=True)
 
         total_compressed = 0
         total = 0
@@ -626,16 +491,14 @@ def get_training_array(args, normal_tensor_fn, tumor_tensor_fn, var_fn, bed_fn, 
                 if total_compressed % 500 == 0 and total_compressed > 0:
                     table_dict = write_table_file(table_file, table_dict, tensor_shape, param.label_size, float_type)
 
-                # if total_compressed % 2000 == 0:
-                #     print("[INFO] Compressed %d tensor" % (total_compressed), file=sys.stderr)
-
         if total_compressed % 500 != 0 and total_compressed > 0:
             table_dict = write_table_file(table_file, table_dict, tensor_shape, param.label_size, float_type)
 
     table_file.close()
     print("[INFO] Compressed %d/%d tensor" % (total_compressed, total), file=sys.stderr)
-    #
+
     # if 0:
+    #     bin_fn = ""
     #     import numpy as np
     #     import tables
     #     a = tables.open_file(bin_fn)
@@ -644,3 +507,4 @@ def get_training_array(args, normal_tensor_fn, tumor_tensor_fn, var_fn, bed_fn, 
     #     position = np.array(a.root.position[:100])
     #     normal_info = np.array(a.root.normal_alt_info[:100])
     #     tumor_info = np.array(a.root.tumor_alt_info[:100])
+    #     a.close()

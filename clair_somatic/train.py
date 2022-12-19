@@ -5,22 +5,21 @@ import os
 import random
 import numpy as np
 import torch
-
-from tqdm import tqdm
 import torch.nn as nn
 import torch.optim as optim
+import torch.nn.functional as F
+
+from tqdm import tqdm
 from subprocess import run
 from argparse import ArgumentParser, SUPPRESS
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.tensorboard import SummaryWriter
-import torch.nn.functional as F
 from torch.autograd import Variable
 
 from shared.utils import str2bool
 import shared.param as param
 import clair_somatic.model as model_path
 
-# reuqired package  torchsummary, tqdm tables, einops
 logging.basicConfig(format='%(message)s', level=logging.INFO)
 tables.set_blosc_max_threads(512)
 os.environ['NUMEXPR_MAX_THREADS'] = '256'
@@ -35,47 +34,8 @@ torch.cuda.manual_seed(seed)
 torch.cuda.manual_seed_all(seed)
 torch.backends.cudnn.deterministic = True
 
-#
-# class FocalLoss(nn.Module):
-#     def __init__(self, gamma=2, alpha=None, size_average=True):
-#         super(FocalLoss, self).__init__()
-#         self.gamma = gamma
-#         self.alpha = alpha
-#         if isinstance(alpha,(float,int)): self.alpha = torch.Tensor([alpha,1-alpha])
-#         if isinstance(alpha,list): self.alpha = torch.Tensor(alpha)
-#         self.size_average = size_average
-#
-#     def forward(self, input, target):
-#         if input.dim() > 2:
-#             input = input.view(input.size(0),input.size(1),-1)  # N,C,H,W => N,C,H*W
-#             input = input.transpose(1,2)    # N,C,H*W => N,H*W,C
-#             input = input.contiguous().view(-1,input.size(2))   # N,H*W,C => N*H*W,C
-#         target = torch.argmax(target, axis=1)
-#         target = target.view(-1,1)
-#
-#         logpt = F.log_softmax(input,dim=-1)
-#         logpt = logpt.gather(1,target)
-#         logpt = logpt.view(-1)
-#         pt = Variable(logpt.data.exp())
-#
-#         if self.alpha is not None:
-#             if self.alpha.type()!=input.data.type():
-#                 self.alpha = self.alpha.type_as(input.data)
-#             at = self.alpha.gather(0,target.data.view(-1))
-#             logpt = logpt * Variable(at)
-#
-#         loss = -1 * (1-pt)**self.gamma * logpt
-#         if self.size_average:
-#             return loss.mean()
-#         else:
-#             return loss.sum()
 
 class FocalLoss(nn.Module):
-    """
-    updated version of focal loss function, for multi class classification, we remove alpha parameter, which the loss
-    more stable, and add gradient clipping to avoid gradient explosion and precision overflow.
-    """
-
     def __init__(self, alpha=None, gamma=2):
         super(FocalLoss, self).__init__()
         self.gamma = gamma
@@ -83,21 +43,16 @@ class FocalLoss(nn.Module):
     def forward(self, input, target):
         y_pred, y_true = input, target
         y_pred = torch.nn.functional.softmax(y_pred, dim=1)
-        y_pred = torch.clamp(y_pred, min=1e-9, max=1-1e-9)
+        y_pred = torch.clamp(y_pred, min=1e-9, max=1 - 1e-9)
         cross_entropy = -y_true * torch.log(y_pred)
         weight = ((1 - y_pred) ** self.gamma) * y_true
         FCLoss = cross_entropy * weight
 
-        reduce_fl = torch.mean(torch.sum(FCLoss,dim=1))
+        reduce_fl = torch.mean(torch.sum(FCLoss, dim=1))
         return reduce_fl
 
 
 class AFLoss(nn.Module):
-    """
-    updated version of focal loss function, for multi class classification, we remove alpha parameter, which the loss
-    more stable, and add gradient clipping to avoid gradient explosion and precision overflow.
-    """
-
     def __init__(self, alpha=None, gamma=2):
         super(AFLoss, self).__init__()
         self.gamma = gamma
@@ -105,19 +60,15 @@ class AFLoss(nn.Module):
     def forward(self, input, target):
         y_pred, y_true = input, target
         y_pred = torch.nn.functional.softmax(y_pred, dim=1)
-        y_pred = torch.clamp(y_pred, min=1e-9, max=1-1e-9)
+        y_pred = torch.clamp(y_pred, min=1e-9, max=1 - 1e-9)
 
         cross_entropy = -y_true * torch.log(y_pred)
         reduce_fl = torch.mean(torch.sum(cross_entropy, dim=1))
-        # cross_entropy = -y_true * torch.log(y_pred)
-        # weight = ((1 - y_pred) ** self.gamma) * y_true
-        # FCLoss = cross_entropy * weight
-        # reduce_fl = torch.mean(torch.sum(FCLoss,dim=1))
 
         return reduce_fl
 
-def cal_metrics(tp, fp, fn):
 
+def cal_metrics(tp, fp, fn):
     precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
     recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
     f1_score = 2 * precision * recall / (precision + recall) if precision + recall > 0 else 0.0
@@ -141,11 +92,6 @@ def cal_class_weight(samples_per_cls, no_of_classes, beta=0.999):
 
 
 def get_chunk_list(chunk_offset, train_chunk_num, chunks_per_batch=10, training_dataset_percentage=None):
-    """
-    get chunk list for training and validation data. we will randomly split training and validation dataset,
-    all training data is directly acquired from various tensor bin files.
-
-    """
     need_split_validation_data = training_dataset_percentage is not None
     all_shuffle_chunk_list = []
     training_chunk_list, validation_chunk_list = [], []
@@ -181,15 +127,13 @@ def exist_file_prefix(exclude_training_samples, f):
 def pass_chr(fn, ctg_name_list):
     if ctg_name_list is None or len(ctg_name_list) == 0:
         return True
-    in_testing_chr = False
     for ctg_name in ctg_name_list:
         if ctg_name + '.' in fn:
             return True
     return False
 
+
 def train_model(args):
-
-
     apply_focal_loss = param.apply_focal_loss
     discard_germline = param.discard_germline
     add_l2_regulation_loss = param.add_l2_regulation_loss
@@ -218,18 +162,12 @@ def train_model(args):
         writer = SummaryWriter("{}/log".format(ochk_prefix))
     device = 'cpu'
     if torch.cuda.is_available():
-        # gpu_id = torch.cuda.current_device()
-        # total_memory = torch.cuda.get_device_properties(gpu_id).total_memory
-        # reserved = torch.cuda.memory_reserved(gpu_id)
-        # allocated = torch.cuda.memory_allocated(gpu_id)
-        # free_memory = (reserved - allocated) / (1024 ** 3)  # free inside reserved
-        # if free_memory >= 1:
         device = 'cuda'
     apply_softmax = False if apply_focal_loss else True
     if args.pileup:
         channel_size = param.pileup_channel_size
         tumor_channel_size = param.tumor_channel_size if phase_tumor else channel_size
-        pileup_tensor_shape = [param.no_of_positions, channel_size + tumor_channel_size] # normal and tumor
+        pileup_tensor_shape = [param.no_of_positions, channel_size + tumor_channel_size]  # normal and tumor
         tensor_shape = pileup_tensor_shape
         model = model_path.bigru(apply_softmax=apply_softmax,
                                  num_classes=2 if discard_germline else 3,
@@ -238,45 +176,7 @@ def train_model(args):
         input = torch.ones(size=[100] + tensor_shape).to(device)
 
     else:
-        #use torchinfo
-        model = model_path.CvT(
-            num_classes=2 if discard_germline else 3,
-            s1_emb_dim=16,  # stage 1 - dimension
-            s1_emb_kernel=3,  # stage 1 - conv kernel
-            s1_emb_stride=2,  # stage 1 - conv stride
-            s1_proj_kernel=3,  # stage 1 - attention ds-conv kernel size
-            s1_kv_proj_stride=2,  # stage 1 - attention key / value projection stride
-            s1_heads=1,  # stage 1 - heads
-            s1_depth=1,  # stage 1 - depth
-            s1_mlp_mult=4,  # stage 1 - feedforward expansion factor
-            s2_emb_dim=64,  # stage 2 - (same as above)
-            s2_emb_kernel=3,
-            s2_emb_stride=2,
-            s2_proj_kernel=3,
-            s2_kv_proj_stride=2,
-            s2_heads=3,
-            s2_depth=2,
-            s2_mlp_mult=4,
-            s3_emb_dim=128,  # stage 3 - (same as above)
-            s3_emb_kernel=3,
-            s3_emb_stride=2,
-            s3_proj_kernel=3,
-            s3_kv_proj_stride=2,
-            s3_heads=4,
-            s3_depth=3,
-            s3_mlp_mult=4,
-            dropout=0.,
-            depth=param.max_depth,
-            width=param.no_of_positions,
-            dim=param.channel_size,
-            apply_softmax=apply_softmax
-        ).to(device)
-        input = torch.ones(size=(100, param.channel_size, param.matrix_depth_dict[platform], param.no_of_positions)).to(device)
-        print(input.shape)
-        tensor_shape = param.ont_input_shape if platform == 'ont' else param.input_shape
-
-        if use_resnet:
-            model = model_path.ResNet(platform=platform).to(device)
+        model = model_path.ResNet(platform=platform).to(device)
 
     if chkpnt_fn is not None:
         model = torch.load(chkpnt_fn)
@@ -284,8 +184,6 @@ def train_model(args):
     output = model(input)
 
     batch_size, chunk_size = param.trainBatchSize, param.chunk_size
-    # if args.pileup:
-    #     batch_size = 200
     assert batch_size % chunk_size == 0
     chunks_per_batch = batch_size // chunk_size
     random.seed(param.RANDOM_SEED)
@@ -294,7 +192,8 @@ def train_model(args):
     max_epoch = args.max_epoch if args.max_epoch else param.maxEpoch
     bin_list = os.listdir(args.bin_fn)
 
-    bin_list = [f for f in bin_list if pass_chr(f, ctg_name_list) and not exist_file_prefix(exclude_training_samples, f)]
+    bin_list = [f for f in bin_list if
+                pass_chr(f, ctg_name_list) and not exist_file_prefix(exclude_training_samples, f)]
     failed_bin_set = set()
     for bin_file in bin_list:
         try:
@@ -339,19 +238,18 @@ def train_model(args):
         training_dataset_percentage = param.trainingDatasetPercentage if add_validation_dataset else None
         if add_validation_dataset:
             total_batches = total_chunks // chunks_per_batch
-            validate_chunk_num = int(max(1., np.floor(total_batches * (1 - training_dataset_percentage))) * chunks_per_batch)
-            # +++++++++++++**----
-            # +:training *:buffer -:validation
-            # distribute one batch data as buffer for each bin file, avoiding shifting training data to validation data
+            validate_chunk_num = int(
+                max(1., np.floor(total_batches * (1 - training_dataset_percentage))) * chunks_per_batch)
             train_chunk_num = int(total_chunks - validate_chunk_num)
         else:
             train_chunk_num = total_chunks
-        train_shuffle_chunk_list, validate_shuffle_chunk_list = get_chunk_list(chunk_offset, train_chunk_num, chunks_per_batch, training_dataset_percentage)
+        train_shuffle_chunk_list, validate_shuffle_chunk_list = get_chunk_list(chunk_offset, train_chunk_num,
+                                                                               chunks_per_batch,
+                                                                               training_dataset_percentage)
         train_chunk_num = len(train_shuffle_chunk_list)
         validate_chunk_num = len(validate_shuffle_chunk_list)
     train_data_size = train_chunk_num * chunk_size
     validate_data_size = validate_chunk_num * chunk_size
-
 
     def DataGenerator(x, shuffle_chunk_list, train_flag=True):
 
@@ -373,47 +271,58 @@ def train_model(args):
                     bin_id, chunk_id = offset_chunk_id
 
                     current_tensor = x[bin_id].root.input_matrix[
-                            random_start_position + chunk_id * chunk_size:random_start_position + (chunk_id + 1) * chunk_size]
+                                     random_start_position + chunk_id * chunk_size:random_start_position + (
+                                                 chunk_id + 1) * chunk_size]
+                    if not args.pileup:
+                        current_tensor = current_tensor[:, :, :, :param.channel_size]
+
                     if param.no_indel:
-                        current_tensor = np.concatenate([current_tensor[:,:,:4], current_tensor[:,:, 9:13], current_tensor[:,:,34:38], current_tensor[:,:,43:47]], axis=-1)
+                        current_tensor = np.concatenate(
+                            [current_tensor[:, :, :4], current_tensor[:, :, 9:13], current_tensor[:, :, 34:38],
+                             current_tensor[:, :, 43:47]], axis=-1)
 
                     input_matrix[chunk_idx * chunk_size:(chunk_idx + 1) * chunk_size] = current_tensor
 
                     label[chunk_idx * chunk_size:(chunk_idx + 1) * chunk_size] = x[bin_id].root.label[
-                            random_start_position + chunk_id * chunk_size:random_start_position + (chunk_id + 1) * chunk_size, :param.label_size]
+                                                                                 random_start_position + chunk_id * chunk_size:random_start_position + (
+                                                                                             chunk_id + 1) * chunk_size,
+                                                                                 :param.label_size]
                     if debug_mode:
                         position_info[chunk_idx * chunk_size:(chunk_idx + 1) * chunk_size] = x[bin_id].root.position[
-                                random_start_position + chunk_id * chunk_size:random_start_position + (chunk_id + 1) * chunk_size]
-                        normal_info[chunk_idx * chunk_size:(chunk_idx + 1) * chunk_size] = x[bin_id].root.normal_alt_info[
-                                random_start_position + chunk_id * chunk_size:random_start_position + (chunk_id + 1) * chunk_size]
+                                                                                             random_start_position + chunk_id * chunk_size:random_start_position + (
+                                                                                                         chunk_id + 1) * chunk_size]
+                        normal_info[chunk_idx * chunk_size:(chunk_idx + 1) * chunk_size] = x[
+                                                                                               bin_id].root.normal_alt_info[
+                                                                                           random_start_position + chunk_id * chunk_size:random_start_position + (
+                                                                                                       chunk_id + 1) * chunk_size]
                         tumor_info[chunk_idx * chunk_size:(chunk_idx + 1) * chunk_size] = x[bin_id].root.tumor_alt_info[
-                                random_start_position + chunk_id * chunk_size:random_start_position + (chunk_id + 1) * chunk_size]
-                # input_matrix = np.concatenate((normal_matrix, tumor_matrix), axis=1)
-                # if add_contrastive:
-                # label_for_normal = [[0,1] if np.argmax(item) == 1 else [1,0] for item in label]
+                                                                                          random_start_position + chunk_id * chunk_size:random_start_position + (
+                                                                                                      chunk_id + 1) * chunk_size]
+
                 positive = 1 - smoothing if smoothing is not None else 1
                 negative = smoothing if smoothing is not None else 0
                 if discard_germline:
-                    label_for_tumor = [[negative,positive] if np.argmax(item[:3]) == 2 else \
-                                           ([positive,negative] if np.argmax(item[:3]) == 1 else [positive,negative]) for item in label]
+                    label_for_tumor = [[negative, positive] if np.argmax(item[:3]) == 2 else \
+                                           ([positive, negative] if np.argmax(item[:3]) == 1 else [positive, negative])
+                                       for item in label]
                 else:
-                    label_for_tumor = [[negative,negative,positive] if np.argmax(item[:3]) == 2 else \
-                                           ([negative,positive,negative] if np.argmax(item[:3]) == 1 else [positive,negative,negative]) for item in label]
+                    label_for_tumor = [[negative, negative, positive] if np.argmax(item[:3]) == 2 else \
+                                           ([negative, positive, negative] if np.argmax(item[:3]) == 1 else [positive,
+                                                                                                             negative,
+                                                                                                             negative])
+                                       for item in label]
 
-                # label_for_normal = np.array(label_for_normal, dtype=np.float32)
                 label_for_tumor = np.array(label_for_tumor, dtype=np.float32)
                 af_tensor = []
                 if param.add_af_in_label:
                     af_list = [item[3] for item in label]
-                    af_list = [[item, item, 1/float(max(item, 0.05)) / 20.0 ] for item in af_list]
+                    af_list = [[item, item, 1 / float(max(item, 0.05)) / 20.0] for item in af_list]
                     af_tensor = torch.from_numpy(np.array(af_list)).to(device)
 
-                # input_matrix = np.maximum(input_matrix * 2.55, 255.0)
                 if not args.pileup:
-                    input_tensor = torch.from_numpy(np.transpose(input_matrix, (0,3,1,2))/100.0).to(device)
+                    input_tensor = torch.from_numpy(np.transpose(input_matrix, (0, 3, 1, 2)) / 100.0).to(device)
                 else:
                     input_tensor = torch.from_numpy(input_matrix).to(device)
-                # tumor_tensor = torch.from_numpy(tumor_matrix)
                 label_tensor = torch.from_numpy(label_for_tumor).to(device)
                 if debug_mode:
                     yield input_tensor, label_tensor, position_info, normal_info, tumor_info
@@ -421,25 +330,32 @@ def train_model(args):
                     yield input_tensor, label_tensor, af_tensor, None, None
 
     if args.pileup:
-        from torchinfo import summary
-        print (summary(model, input_size=tuple([100] + tensor_shape), device=device))
+        try:
+            from torchinfo import summary
+            print(summary(model, input_size=tuple([100] + tensor_shape), device=device))
+        except:
+            pass
     else:
         try:
             from torchsummary import summary
-            print(summary(model, input_size=(param.channel_size, param.matrix_depth_dict[platform],param.no_of_positions), device=device))
+            print(summary(model,
+                          input_size=(param.channel_size, param.matrix_depth_dict[platform], param.no_of_positions),
+                          device=device))
         except:
             pass
+
     train_dataset_loder = DataGenerator(table_dataset_list, train_shuffle_chunk_list, True)
-    validate_dataset_loder = DataGenerator(validate_table_dataset_list if validation_fn else table_dataset_list, validate_shuffle_chunk_list, False)
+    validate_dataset_loder = DataGenerator(validate_table_dataset_list if validation_fn else table_dataset_list,
+                                           validate_shuffle_chunk_list, False)
 
     criterion = FocalLoss() if apply_focal_loss else nn.CrossEntropyLoss()
     criterion = criterion.to(device)
     if param.add_af_in_label:
         af_loss = AFLoss().to(device)
+
     # optimizer
     optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=param.weight_decay)
     # learning rate scheduler
-    # lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min')
     lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9)
 
     train_steps = train_data_size // batch_size
@@ -458,11 +374,12 @@ def train_model(args):
     training_loss, validation_loss = 0.0, 0.0
     training_step, validation_step = 0, 0
     echo_each_step = 200
-    for epoch in range(1, max_epoch+1):
+    for epoch in range(1, max_epoch + 1):
         epoch_loss = 0
-        fp, tp, fn = 0,0,0
+        fp, tp, fn = 0, 0, 0
         t = tqdm(enumerate(train_dataset_loder), total=train_steps, position=0, leave=True)
-        v = tqdm(enumerate(validate_dataset_loder), total=validate_steps, position=0, leave=True) if not debug_mode else enumerate(validate_dataset_loder)
+        v = tqdm(enumerate(validate_dataset_loder), total=validate_steps, position=0,
+                 leave=True) if not debug_mode else enumerate(validate_dataset_loder)
         model.train()
         for batch_idx, (data, label, af_list, _, _) in t:
             t.set_description('EPOCH {}'.format(epoch))
@@ -472,21 +389,15 @@ def train_model(args):
             y_truth = torch.argmax(label, axis=1)
             optimizer.zero_grad()
             loss = criterion(input=output_logit, target=label) if apply_focal_loss else criterion(output_logit, y_truth)
-            # loss_2 = nn.CrossEntropyLoss().to(device)(output_logit, y_truth)
-            # loss_1 = nn.CrossEntropyLoss().to(device)(output_logit, y_truth)
-            # loss_2 = FocalLoss(gamma=0).to(device)(input=output_logit, target=label)
-            # a = float(loss_1.detach().cpu().numpy())
-            # b = float(loss_2.detach().cpu().numpy())
-            # print(" ", a, b, round(a, 3) == round(b, 3))
 
-            l2_regularization_loss = sum([l2_regularization_lambda * 0.5 * params.norm(2) ** 2 for params in model.parameters()]) if add_l2_regulation_loss else 0.0
+            l2_regularization_loss = sum([l2_regularization_lambda * 0.5 * params.norm(2) ** 2 for params in
+                                          model.parameters()]) if add_l2_regulation_loss else 0.0
 
             loss += l2_regularization_loss
 
             if param.add_af_in_label:
                 loss += af_loss(input=output_logit, target=af_list)
             loss.backward()
-            # torch.nn.utils.clip_grad_norm_(model.parameters(), param.grad_norm_clip) # apply gradient normalization
             optimizer.step()
 
             training_step += 1
@@ -566,29 +477,12 @@ def train_model(args):
 
                 v.update(1)
 
-        # with torch.no_grad():
-        #     epoch_val_loss = 0
-        #     for data, label in validate_dataset_loder:
-        #         data = data.to(device)
-        #         label = label.to(device)
-        #         current_batch_size = len(label)
-        #
-        #         val_output = model(data.float())
-        #         val_loss = criterion(val_output, label)
-        #
-        #         acc = (val_output.argmax(dim=1) == label).float().mean()
-        #         epoch_val_accuracy += acc / current_batch_size
-        #         epoch_val_loss += val_loss / current_batch_size
-        #
-        #     print(f"Epoch : {epoch+1} - loss : {epoch_loss:.4f} - acc: {epoch_accuracy:.4f} - val_loss : {epoch_val_loss:.4f} - val_acc: {epoch_val_accuracy:.4f}\n")
-
         # leanrning rate decay in each epoch end
         lr_scheduler.step()
-        save_path = os.path.join(ochk_prefix, "{}.pkl".format(epoch)) if ochk_prefix is not None else "{}.pkl".format(epoch)
+        save_path = os.path.join(ochk_prefix, "{}.pkl".format(epoch)) if ochk_prefix is not None else "{}.pkl".format(
+            epoch)
         print(save_path)
         torch.save(model, save_path)
-        # model = torch.load("{}.pkl".format(epoch))
-
 
     if add_writer:
         writer.close()
@@ -597,15 +491,6 @@ def train_model(args):
 
     for table_dataset in validate_table_dataset_list:
         table_dataset.close()
-
-    # # show the parameter set with the smallest validation loss
-    # if 'val_loss' in train_history.history:
-    #     best_validation_epoch = np.argmin(np.array(train_history.history["val_loss"])) + 1
-    #     logging.info("[INFO] Best validation loss at epoch: %d" % best_validation_epoch)
-    # else:
-    #     best_train_epoch = np.argmin(np.array(train_history.history["loss"])) + 1
-    #     logging.info("[INFO] Best train loss at epoch: %d" % best_train_epoch)
-
 
 def main():
     parser = ArgumentParser(description="Train a somatic model")
@@ -638,6 +523,14 @@ def main():
     parser.add_argument('--exclude_training_samples', type=str, default=None,
                         help="Define training samples to be excluded")
 
+    # mutually-incompatible validation options
+    vgrp = parser.add_mutually_exclusive_group()
+    vgrp.add_argument('--random_validation', action='store_true',
+                      help="Use random sample of dataset for validation, default: %(default)s")
+
+    vgrp.add_argument('--validation_fn', type=str, default=None,
+                      help="Binary tensor input for use in validation: %(default)s")
+
     # Internal process control
     ## use siamese network in training
     parser.add_argument('--use_siam', action='store_true',
@@ -669,15 +562,6 @@ def main():
 
     parser.add_argument('--phase_tumor', type=str2bool, default=False,
                         help=SUPPRESS)
-
-    # mutually-incompatible validation options
-    vgrp = parser.add_mutually_exclusive_group()
-    vgrp.add_argument('--random_validation', action='store_true',
-                        help="Use random sample of dataset for validation, default: %(default)s")
-
-    vgrp.add_argument('--validation_fn', type=str, default=None,
-                        help="Binary tensor input for use in validation: %(default)s")
-
 
     args = parser.parse_args()
 
