@@ -33,7 +33,6 @@ NORMAL_HAP_TYPE = dict(zip((1, 0, 2), (13, 25, 37)))  # set normal hap tag
 # TUMOR_HAP_TYPE = dict(zip((1, 0, 2), (75, 88, 100)))  # set tumor hap tag
 TUMOR_HAP_TYPE = dict(zip((1, 0, 2), (50, 75, 100)))  # set tumor hap tag
 
-NORMAL_TUMOR_TYPE = (-60, 60)
 NORMAL_HAP_TYPE = dict(zip((1, 0, 2), (-90, -60, -30)))  # set normal hap tag
 # TUMOR_HAP_TYPE = dict(zip((1, 0, 2), (75, 88, 100)))  # set tumor hap tag
 TUMOR_HAP_TYPE = dict(zip((1, 0, 2), (30, 60, 90)))  # set tumor hap tag
@@ -88,16 +87,9 @@ class Position(object):
 
         for read_name, base_info, bq, mq in zip(self.read_name_list, self.base_list, self.base_quality,
                                                 self.mapping_quality):
-            read_channel, ins_base, query_base = get_tensor_info(base_info, bq, self.ref_base, mask_low_bq, mq, is_tumor)
+            read_channel, ins_base, query_base = get_tensor_info(base_info, bq, self.ref_base, mask_low_bq, mq,
+                                                                 is_tumor)
             self.read_info[read_name] = (read_channel, ins_base)
-
-
-#
-# class PhasingRead(object):
-#     def __init__(self):
-#         self.read_seq = defaultdict(str)
-#         self.read_start = None
-#         self.read_end = None
 
 
 def phredscore2raw_score(qual):
@@ -185,13 +177,7 @@ def get_tensor_info(base_info, bq, ref_base, mask_low_bq=False, read_mq=None, is
     if len(indel) and indel[0] in '+-':
         if indel[0] == "+":
             ins_base = indel[1:].upper()
-
-    nt_type = NORMAL_TUMOR_TYPE[1] if is_tumor else NORMAL_TUMOR_TYPE[0]
     read_channel[:6] = REF_BASE, ALT_BASE, strand, bq, read_mq, hap_type
-    read_channel[7] = nt_type
-    # read_channel[:6] = REF_BASE, ALT_BASE, strand, bq, read_mq, hap_type
-
-
     query_base = "" if base_upper not in "ACGT" else base_upper
     return read_channel, ins_base, query_base
 
@@ -251,7 +237,7 @@ def decode_pileup_bases(pos, pileup_bases, reference_base, minimum_snv_af_for_ca
 
     minimum_snv_af_for_candidate = minimum_snv_af_for_candidate if minimum_snv_af_for_candidate > 0 else param.min_af
     minimum_indel_af_for_candidate = minimum_indel_af_for_candidate if minimum_indel_af_for_candidate > 0 else \
-    param.min_af_dict[platform]
+        param.min_af_dict[platform]
 
     denominator = depth if depth > 0 else 1
     pileup_list = sorted(list(pileup_dict.items()), key=lambda x: x[1], reverse=True)
@@ -276,51 +262,6 @@ def decode_pileup_bases(pos, pileup_bases, reference_base, minimum_snv_af_for_ca
     pass_af = pass_snv_af or pass_indel_af
 
     return base_list, depth, pass_af, af
-
-
-def get_alt_info(center_pos, pileup_dict, ref_seq, reference_sequence, reference_start, hap_dict):
-    """
-    Get alternative information for representation unification, keep all read level alignment information including phasing info.
-    center_pos: center position for processing, default window size = no_of_positions = flankingBaseNum + 1 + flankingBaseNum
-    pileup_dict: dictionary (pos: pos info) which keep read information that cover specific position .
-    ref_seq: chunked reference sequence in window, start: center pos - flankingBaseNum, end: center + flankingBaseNum + 1.
-    reference_sequence: reference sequence index by contig:start-end. 0-based.
-    reference_base: upper reference base for cigar calculation.
-    reference_start: upper reference base for cigar calculation.
-    hap_dict: dictionary (pos: pos info) which keep the read name and haplotype mapping.
-    """
-
-    reference_base = ref_seq[flanking_base_num]
-    alt_read_name_dict = defaultdict(set)
-    depth = 0
-    for (base, indel), read_name in zip(pileup_dict[center_pos].base_list, pileup_dict[center_pos].read_name_list):
-        if base in "#*":
-            alt_read_name_dict['*'].add(read_name)
-            depth += 1
-            continue
-        depth += 1
-        if base.upper() == reference_base and indel == '':
-            alt_read_name_dict['R'].add(read_name)
-        if indel != '':
-            if indel[0] == '+':
-                indel = 'I' + base.upper() + indel.upper()[1:]
-            else:
-                del_bases_num = len(indel[1:])
-                del_ref_bases = reference_sequence[
-                                center_pos - reference_start + 1:center_pos - reference_start + del_bases_num + 1]
-                indel = 'D' + del_ref_bases
-            alt_read_name_dict[indel].add(read_name)
-
-        if indel == '' and base.upper() != reference_base:
-            alt_read_name_dict['X' + base.upper()].add(read_name)
-
-    for alt_type, read_name_set in list(alt_read_name_dict.items()):
-        alt_read_name_dict[alt_type] = ' '.join(
-            [read_name + '_' + str(hap_dict[read_name]) for read_name in list(read_name_set)])
-
-    alt_info = str(depth) + '\t' + json.dumps(alt_read_name_dict)
-
-    return alt_info
 
 
 def find_tumor_alt_match(center_pos, sorted_read_name_list, pileup_dict, truths_variant_dict, proportion=None):
@@ -438,7 +379,6 @@ def generate_tensor(args,
         if len(sorted_read_name_list) > matrix_depth:
             # set same seed for reproducibility
             random.seed(0)
-            # print(len(normal_read_name_list), matrix_depth, read_num)
             sorted_read_name_list = random.sample(sorted_read_name_list, matrix_depth)
 
         tumor_reads_meet_alt_info_set, normal_read_name_set, tumor_read_name_set = find_tumor_alt_match(center_pos,
@@ -449,7 +389,6 @@ def generate_tensor(args,
         if len(tumor_reads_meet_alt_info_set) == 0:
             print("No reads support tumor alternative in pos:{}".format(center_pos))
             return None, None
-        # print(len(tumor_reads_meet_alt_info_set), len(normal_read_name_set), len(tumor_read_name_set))
         tumor_read_name_list = list(tumor_read_name_set)
         normal_read_name_list = list(normal_read_name_set)
         tumor_reads_num = len(tumor_read_name_set)
@@ -569,7 +508,6 @@ def generate_tensor(args,
                     if candidates_type_dict[center_pos] == 'hetero_somatic':
                         hap_counter = Counter([hap_dict[rn] for rn in sampled_tumor_read_name_meet_alt_set])
                         if hap_counter[1] * hap_counter[2] > 0 or (hap_counter[1] < 3 and hap_counter[2] < 3):
-                            # print(hap_counter[1], hap_counter[2])
                             continue
 
                     sorted_phased_read_name_list = sorted(sorted_read_name_list, key=lambda x: (x[0], x[1]))
@@ -600,12 +538,13 @@ def generate_tensor(args,
             import numpy as np
             tmp_list = [item.split(' ') for item in tensor_string_list]
             a = [np.array(tmp, dtype=int).reshape((-1, 25, 7)) for tmp in tmp_list]
-            #check row match seem pretty good
-            channel_1 = [b[:,:,1] for b in a] # bq 3
+            # check row match seem pretty good
+            channel_1 = [b[:, :, 1] for b in a]  # bq 3
             channel_set_list = [set([' '.join([str(i) for i in item]) for item in case]) for case in channel_1]
             for x in range(len(channel_set_list)):
-                for y in range(x+1, len(channel_set_list)):
-                    print(x, y, len(channel_set_list[x]), len(channel_set_list[y]), len(channel_set_list[x].intersection(channel_set_list[y])))
+                for y in range(x + 1, len(channel_set_list)):
+                    print(x, y, len(channel_set_list[x]), len(channel_set_list[y]),
+                          len(channel_set_list[x].intersection(channel_set_list[y])))
 
         return '\n'.join(["%s\t%d\t%s\t%s\t%s\t%s\t%s" % (
             ctg_name,
@@ -636,28 +575,6 @@ def generate_tensor(args,
                 alt_dict[base.upper()] += 1
 
         af_set = set()
-        # for row_idx, (hap, _, read_name) in enumerate(sorted_read_name_list):
-            # af_num = 0
-            # if read_name in pileup_dict[center_pos].read_name_dict:
-            #     base, indel = pileup_dict[center_pos].read_name_dict[read_name]
-            #     base_upper = base.upper()
-            #     if indel != '':
-            #         if indel[0] == '+':
-            #             insert_str = ('+' + base_upper + indel.upper()[1:])
-            #             af_num = alt_dict[insert_str] / max(1, float(depth)) if insert_str in alt_dict else af_num
-            #         else:
-            #             af_num = alt_dict[indel.upper()] / max(1, float(depth)) if indel.upper() in alt_dict else af_num
-            #     elif base.upper() in alt_dict:
-            #         af_num = alt_dict[base_upper] / max(1, float(depth))
-            # af_num = _normalize_af(af_num) if af_num != 0 else af_num
-            # af_set.add(round(af_num / 100, 3))
-            # hap_type = HAP_TYPE[hap]
-            # hap_type = 100 if is_tumor else 50
-            # for p in range(no_of_positions):
-            #     if tensor[row_idx][p][1] != 0:  # skip all del #*
-            #         tensor[row_idx][p][5] = hap_type
-                    # tensor[row_idx][p][7] = hap_type
-
         alt_info = []
         af_infos = ' '.join([str(item) for item in sorted(list(af_set), reverse=True) if item != 0])
         for alt_type, alt_count in alt_dict.items():
@@ -699,10 +616,8 @@ def generate_tensor(args,
 
                 if keep_phase_only:
                     tensor_string_list[-1] = phasing_tensor_string
-                    # alt_info_list[-1] = alt_info
                 else:
                     tensor_string_list.append(phasing_tensor_string)
-                # alt_info_list.append(alt_info)
 
         variant_type = candidates_type_dict[center_pos] if center_pos in candidates_type_dict else 'unknown'
 
@@ -725,34 +640,12 @@ class TensorStdout(object):
         self.stdin.close()
 
 
-def update_hetero_ref(pos, reference_sequence, reference_start, extend_bp, alt_base):
-    # if need phasing option enables, will store reference sequence near hetero snv candidate.
-    ref_start = pos - extend_bp
-    ref_end = pos + extend_bp + 1
-    ref_seq = reference_sequence[ref_start - reference_start: ref_end - reference_start]
-    alt_seq = ref_seq[:extend_bp] + alt_base + ref_seq[extend_bp + 1:]
-    return ref_seq, alt_seq
-
-
-def get_normal_set(alt_fn):
-    normal_pos_set = set()
-    file_path_process = subprocess_popen(shlex.split("gzip -fdc %s" % (alt_fn)))
-    file_path_output = file_path_process.stdout
-    for row in file_path_output:
-        ctg_name, pos = row.rstrip().split(maxsplit=2)
-        normal_pos_set.add(int(pos))
-    file_path_output.close()
-    file_path_process.wait()
-    return normal_pos_set
-
-
 def create_tensor(args):
     ctg_start = args.ctg_start
     ctg_end = args.ctg_end
     candidates_bed_regions = args.candidates_bed_regions
     fasta_file_path = args.ref_fn
     ctg_name = args.ctg_name
-    need_phasing = args.need_phasing
     samtools_execute_command = args.samtools
     bam_file_path = args.bam_fn
     chunk_id = args.chunk_id - 1 if args.chunk_id else None  # 1-base to 0-base
@@ -761,9 +654,7 @@ def create_tensor(args):
     is_candidates_bed_regions_given = candidates_bed_regions is not None
     add_hetero_phasing = phasing_info_in_bam = args.add_hetero_phasing
     keep_phase_only = args.keep_phase_only
-    phasing_window_size = args.phasing_window_size
     extend_bp = param.extend_bp
-    # unify_repre = args.unify_repre
     minimum_snv_af_for_candidate = args.snv_min_af
     minimum_indel_af_for_candidate = args.indel_min_af
     min_coverage = args.min_coverage
@@ -774,14 +665,11 @@ def create_tensor(args):
     is_extend_bed_file_given = extend_bed is not None
     min_mapping_quality = args.min_mq
     min_base_quality = args.min_bq
-    # unify_repre_fn = args.unify_repre_fn
     vcf_fn = args.vcf_fn
     is_known_vcf_file_provided = vcf_fn is not None
     tensor_sample_mode = args.tensor_sample_mode
     global test_pos
     test_pos = None
-    hetero_snv_pos_dict = defaultdict()
-    hetero_snv_tree = IntervalTree()
     candidates_pos_set = set()
     candidates_type_dict = defaultdict(str)
     add_read_regions = True
@@ -790,6 +678,8 @@ def create_tensor(args):
     is_truth_vcf_provided = truth_vcf_fn is not None
     truths_variant_dict = {}
     proportion = args.proportion
+    mask_low_bq = args.mask_low_bq
+
     if is_truth_vcf_provided:
         from shared.vcf import VcfReader
         unified_vcf_reader = VcfReader(vcf_fn=truth_vcf_fn, ctg_name=ctg_name, is_var_format=False)
@@ -797,13 +687,6 @@ def create_tensor(args):
         truths_variant_dict = unified_vcf_reader.variant_dict
 
     if candidates_bed_regions:
-
-        """
-        If given full alignment bed regions, all candidate positions will be directly selected from each row, define as 
-        'ctg start end', where 0-based center position is the candidate for full alignment calling.
-        if 'need_phasing' option enables, full alignment bed regions will also include nearby heterozygous snv candidates for reads
-        haplotag, which is faster than whatshap haplotag with more memory occupation.
-        """
 
         candidate_file_path_process = subprocess_popen(shlex.split("gzip -fdc %s" % (candidates_bed_regions)))
         candidate_file_path_output = candidate_file_path_process.stdout
@@ -816,32 +699,14 @@ def create_tensor(args):
             end = int(row[2]) + 1
             ctg_start = min(position, ctg_start)
             ctg_end = max(end, ctg_end)
-
-            # if platform == "ilmn":
-            #     continue
-            # if len(row) > 3:  # hetero snp positions
-            #     center_pos = position + extend_bp + 1
-            #     ref_base, alt_base, genotype, phase_set = row[3].split('-')
-            #     hetero_snp_pos_dict[center_pos] = Position(pos=center_pos, ref_base=ref_base, alt_base=alt_base,
-            #                                              genotype=int(genotype), phase_set=phase_set)
-            #     hetero_snp_tree.addi(begin=center_pos - extend_bp, end=center_pos + extend_bp + 1)
-            # else:
             center = position + (end - position) // 2 - 1
             candidates_pos_set.add(center)
             variant_type = 'unknown'
             if len(row) == 4:
                 variant_type = row[3]
-            # if variant_type == 'hem'
             candidates_type_dict[center] = variant_type
         candidate_file_path_output.close()
         candidate_file_path_process.wait()
-
-        # currently deprecate using ctg_name.start_end as file name, which will run similar regions for several times when start and end has slight difference
-        # if '.' in candidates_bed_regions.split('/')[-1] and len(candidates_bed_regions.split('/')[-1].split('.')[-1].split('_')) > 0:
-        #     ctg_start, ctg_end = candidates_bed_regions.split('/')[-1].split('.')[-1].split('_')
-        #     ctg_start, ctg_end = int(ctg_start), int(ctg_end)
-    # if platform == 'ilmn' and bam_file_path == "PIPE":
-    #     add_read_regions = False
 
     fai_fn = file_path_from(fasta_file_path, suffix=".fai", exit_on_not_found=True, sep='.')
 
@@ -874,33 +739,6 @@ def create_tensor(args):
         if bam_file_path == "PIPE":
             add_read_regions = False
 
-    # if need_phasing and phased_vcf_fn and os.path.exists(phased_vcf_fn):
-    #     # if need_phasing option enables, scan the phased vcf file and store the heterozygous snp candidates from each phase set
-    #     unzip_process = subprocess_popen(shlex.split("gzip -fdc %s" % (phased_vcf_fn)))
-    #     for row in unzip_process.stdout:
-    #         row = row.rstrip()
-    #         if row[0] == '#':
-    #             continue
-    #         columns = row.strip().split('\t')
-    #         contig_name = columns[0]
-    #         if ctg_name and contig_name != ctg_name:
-    #             continue
-    #         pos = int(columns[1])
-    #         if ctg_start and ctg_end:
-    #             if pos < ctg_start - phasing_window_size or pos > ctg_end + phasing_window_size:
-    #                 continue
-    #         ref_base = columns[3]
-    #         alt_base = columns[4]
-    #         genotype_info = columns[9].split(':')
-    #         genotype, phase_set = genotype_info[0], genotype_info[-1]
-    #         if '|' not in genotype:  # unphasable
-    #             continue
-    #         genotype = ('1' if genotype == '0|1' else '2')
-    #         # need in phasing_window
-    #         hetero_snp_pos_dict[pos] = Position(pos=pos, ref_base=ref_base, alt_base=alt_base,
-    #                                           genotype=int(genotype), phase_set=phase_set)
-    #         hetero_snp_tree.addi(begin=pos - extend_bp, end=pos + extend_bp + 1)
-
     # preparation for candidates near variants
     candidates_pos_set = set([item for item in candidates_pos_set if item >= ctg_start and item <= ctg_end])
     # 1-based regions [start, end] (start and end inclusive)
@@ -911,8 +749,8 @@ def create_tensor(args):
     is_ctg_range_given = is_ctg_name_given and ctg_start is not None and ctg_end is not None
     extend_start, extend_end = None, None
     if is_ctg_range_given:
-        extend_start = ctg_start - (phasing_window_size if need_phasing else no_of_positions)
-        extend_end = ctg_end + (phasing_window_size if need_phasing else no_of_positions)
+        extend_start = ctg_start - no_of_positions
+        extend_end = ctg_end + no_of_positions
         reads_regions.append(region_from(ctg_name=ctg_name, ctg_start=extend_start, ctg_end=extend_end))
         reference_start, reference_end = ctg_start - param.expandReferenceRegion, ctg_end + param.expandReferenceRegion
         reference_start = 1 if reference_start < 1 else reference_start
@@ -952,8 +790,6 @@ def create_tensor(args):
         shlex.split(samtools_command), stdin=stdin)
 
     is_tumor = "tumor_" in bam_file_path or tensor_sample_mode != 0
-    # normal_pos_set = get_normal_set(alt_fn) if is_tumor and alt_fn is not None else None
-    # alt_fn = None if is_tumor else alt_fn
 
     if tensor_can_output_path != "PIPE":
         tensor_can_fpo = open(tensor_can_output_path, "wb")
@@ -961,8 +797,6 @@ def create_tensor(args):
     else:
         tensor_can_fp = TensorStdout(sys.stdout)
 
-    # if unify_repre_fn:
-    #     label_fp = open(unify_repre_fn, 'w')
     if alt_fn:
         output_alt_fn = alt_fn
         alt_fpo = open(output_alt_fn, "wb")
@@ -971,7 +805,7 @@ def create_tensor(args):
     hap_dict = defaultdict(int)
     haplotag_dict = defaultdict(int)
     pileup_dict = defaultdict(str)
-    extend_bp_distance = phasing_window_size if need_phasing else no_of_positions + param.extend_bp
+    extend_bp_distance = no_of_positions + param.extend_bp
     confident_bed_tree = bed_tree_from(bed_file_path=confident_bed_fn,
                                        contig_name=ctg_name,
                                        bed_ctg_start=extend_start,
@@ -983,7 +817,7 @@ def create_tensor(args):
                                     bed_ctg_end=extend_end)
 
     def samtools_pileup_generator_from(samtools_mpileup_process):
-        need_phasing_pos_list = sorted(list(candidates_pos_set))
+        candidate_pos_list = sorted(list(candidates_pos_set))
         current_pos_index = 0
         has_pileup_candidates = len(candidates_pos_set)
         for row in samtools_mpileup_process.stdout:  # chr position N depth seq BQ read_name mapping_quality phasing_info
@@ -1032,10 +866,10 @@ def create_tensor(args):
 
             if not is_known_vcf_file_provided and not has_pileup_candidates and reference_base in 'ACGT' and (
                     pass_af and depth >= min_coverage):
-                need_phasing_pos_list.append(pos)
+                candidate_pos_list.append(pos)
 
             if is_known_vcf_file_provided and not has_pileup_candidates and pos in known_variants_set:
-                need_phasing_pos_list.append(pos)
+                candidate_pos_list.append(pos)
 
             pileup_dict[pos] = Position(pos=pos,
                                         ref_base=reference_base,
@@ -1048,34 +882,25 @@ def create_tensor(args):
 
             # overlap_hetero_region = hetero_snv_tree.at(pos)
 
-            if current_pos_index < len(need_phasing_pos_list) and pos - need_phasing_pos_list[
+            if current_pos_index < len(candidate_pos_list) and pos - candidate_pos_list[
                 current_pos_index] > extend_bp_distance:
-                yield need_phasing_pos_list[current_pos_index]
+                yield candidate_pos_list[current_pos_index]
                 for pre_pos in sorted(pileup_dict.keys()):
-                    if need_phasing_pos_list[current_pos_index] - pre_pos > extend_bp_distance:
+                    if candidate_pos_list[current_pos_index] - pre_pos > extend_bp_distance:
                         del pileup_dict[pre_pos]
                     else:
                         break
                 current_pos_index += 1
-        while current_pos_index != len(need_phasing_pos_list):
-            yield need_phasing_pos_list[current_pos_index]
+        while current_pos_index != len(candidate_pos_list):
+            yield candidate_pos_list[current_pos_index]
             for pre_pos in sorted(pileup_dict.keys()):
-                if need_phasing_pos_list[current_pos_index] - pre_pos > extend_bp_distance:
+                if candidate_pos_list[current_pos_index] - pre_pos > extend_bp_distance:
                     del pileup_dict[pre_pos]
                 else:
                     break
             current_pos_index += 1
 
     samtools_pileup_generator = samtools_pileup_generator_from(samtools_mpileup_process)
-
-    for hetero_pos in hetero_snp_pos_dict:
-        if need_phasing and hetero_snp_pos_dict[hetero_pos].ref_seq is None:
-            hetero_snp_pos_dict[hetero_pos].ref_seq, hetero_snp_pos_dict[hetero_pos].alt_seq = update_hetero_ref(
-                pos=hetero_pos,
-                reference_sequence=reference_sequence,
-                reference_start=reference_start,
-                extend_bp=extend_bp,
-                hetero_snp_pos_dict=hetero_snp_pos_dict[hetero_pos].alt_base)
 
     for pos in samtools_pileup_generator:
         if pos not in pileup_dict:
@@ -1090,8 +915,8 @@ def create_tensor(args):
         ref_seq = reference_sequence[
                   pos - reference_start - flanking_base_num: pos - reference_start + flanking_base_num + 1].upper()
 
-        # if not unify_repre:
-        tensor, alt_info = generate_tensor(ctg_name=ctg_name,
+        tensor, alt_info = generate_tensor(args=args,
+                                           ctg_name=ctg_name,
                                            center_pos=pos,
                                            sorted_read_name_list=sorted_read_name_list,
                                            pileup_dict=pileup_dict,
@@ -1114,17 +939,7 @@ def create_tensor(args):
         tensor_can_fp.stdin.write(tensor)
         tensor_can_fp.stdin.write("\n")
         if alt_fn:
-            # alt_info = alt_info.replace('-', '\t')
             alt_fp.stdin.write('\t'.join([ctg_name + ' ' + str(pos), alt_info]) + '\n')
-
-        # if unify_repre and unify_repre_fn:
-        #     label_info = get_alt_info(center_pos=pos,
-        #                               pileup_dict=pileup_dict,
-        #                               ref_seq=ref_seq,
-        #                               reference_sequence=reference_sequence,
-        #                               reference_start=reference_start,
-        #                               hap_dict=hap_dict)
-        #     label_fp.write('\t'.join([ctg_name + ' ' + str(pos), label_info]) + '\n')
 
     samtools_mpileup_process.stdout.close()
     samtools_mpileup_process.wait()
@@ -1138,9 +953,6 @@ def create_tensor(args):
         alt_fp.stdin.close()
         alt_fp.wait()
         alt_fpo.close()
-
-    if unify_repre_fn:
-        label_fp.close()
 
 
 def main():
@@ -1192,16 +1004,7 @@ def main():
     parser.add_argument('--max_depth', type=int, default=None,
                         help="EXPERIMENTAL: Maximum full alignment depth to be processed. default: %(default)s")
 
-    parser.add_argument('--indel_min_af', type=float, default=0.2,
-                        help="EXPERIMENTAL: Minimum indel allele frequency for a site to be considered as a candidate site, default: %(default)f")
-
     # options for debug purpose
-    parser.add_argument('--phasing_info_in_bam', action='store_true',
-                        help="DEBUG: Skip phasing and use the phasing info provided in the input BAM (HP tag), default: False")
-
-    parser.add_argument('--phasing_window_size', type=int, default=param.phasing_window_size,
-                        help="DEBUG: The window size for read phasing")
-
     parser.add_argument('--extend_bed', nargs='?', action="store", type=str, default=None,
                         help="DEBUG: Extend the regions in the --bed_fn by a few bp for tensor creation, default extend 16bp")
 
@@ -1212,6 +1015,10 @@ def main():
                         help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file,  default: %(default)s")
 
     # options for internal process control
+    ## Minimum indel allele frequency for a site to be considered as a candidate site
+    parser.add_argument('--indel_min_af', type=float, default=0.2,
+                        help=SUPPRESS)
+
     ## Path to the 'zstd' compression
     parser.add_argument('--zstd', type=str, default=param.zstd,
                         help=SUPPRESS)
@@ -1232,10 +1039,6 @@ def main():
     parser.add_argument('--candidates_bed_regions', type=str, default=None,
                         help=SUPPRESS)
 
-    ## Use Clair3's own phasing module for read level phasing when creating tensor, compared to using Whatshap, speed is faster but has higher memory footprint, default: False
-    parser.add_argument('--need_phasing', action='store_true',
-                        help=SUPPRESS)
-
     ## Apply read realignment for illumina platform. Greatly boost indel performance in trade of running time
     parser.add_argument('--add_hetero_phasing', type=str2bool, default=0,
                         help=SUPPRESS)
@@ -1248,30 +1051,14 @@ def main():
     parser.add_argument('--tensor_sample_mode', type=str2bool, default=0,
                         help=SUPPRESS)
 
+    parser.add_argument('--mask_low_bq', type=str2bool, default=0,
+                        help=SUPPRESS)
+
     parser.add_argument('--training_mode', type=str2bool, default=0,
                         help=SUPPRESS)
 
     parser.add_argument('--proportion', type=float, default=1.0,
                         help=SUPPRESS)
-
-    # parser.add_argument('--min_af', type=float, default=None,
-    #                     help="Minimum allele frequency for both SNP and Indel for a site to be considered as a condidate site, default: %(default)f")
-    # ## Only call variant in phased vcf file
-    # parser.add_argument('--phased_vcf_fn', type=str, default=None,
-    #                     help=SUPPRESS)
-    # ## Apply read realignment for illumina platform. Greatly boost indel performance in trade of running time
-    # parser.add_argument('--need_realignment', action='store_true',
-    #                     help=SUPPRESS)
-    # ## Output representation unification infos, which refines training labels
-    # parser.add_argument('--unify_repre', action='store_true',
-    #                     help=SUPPRESS)
-    #
-    # ## Path of representation unification output
-    # parser.add_argument('--unify_repre_fn', type=str, default=None,
-    #                     help=SUPPRESS)
-    # ## Apply no phased data in training. Only works in data training, default: False
-    # parser.add_argument('--add_no_phasing_data_training', action='store_true',
-    #                     help=SUPPRESS)
 
     args = parser.parse_args()
 
