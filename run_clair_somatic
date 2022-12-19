@@ -505,10 +505,10 @@ def check_args(args):
                                                                                       args.tumor_bam_fn + '.crai')))
 
     if args.pileup_model_path is None:
-        args.pileup_model_path = os.path.join(conda_prefix, 'bin', 'models', args.platform, 'pileup.pkl')
+        args.pileup_model_path = os.path.join(conda_prefix, 'bin', 'somatic_models', args.platform, 'pileup.pkl')
 
     if args.full_alignment_model_path is None:
-        args.full_alignment_model_path = os.path.join(conda_prefix, 'bin', 'models', args.platform, 'full_alignment.pkl')
+        args.full_alignment_model_path = os.path.join(conda_prefix, 'bin', 'somatic_models', args.platform, 'full_alignment.pkl')
 
     args.pileup_model_path = file_path_from(file_name=args.pileup_model_path, exit_on_not_found=True, is_directory=False, allow_none=False)
     args.full_alignment_model_path = file_path_from(file_name=args.full_alignment_model_path, exit_on_not_found=True, is_directory=False, allow_none=False)
@@ -791,7 +791,7 @@ def somatic_calling(args):
     ec_command += ' --chunk_num {3} '
     ec_command += ' --ctg_name {1} '
     ec_command += ' --platform ' + args.platform
-    ec_command += ' --min_coverage ' + args.min_coverage
+    ec_command += ' --min_coverage ' + str(args.min_coverage)
     ec_command += ' --bed_fn ' + str(args.bed_fn)
     ec_command += ' --extend_bed ' + str(args.bed_fn)
     ec_command += ' --candidates_folder ' + args.output_dir + '/tmp/candidates'
@@ -931,7 +931,7 @@ def somatic_calling(args):
         commands_list += [hap_g_command]
 
         echo_list.append("[INFO] STEP 5: Merge and sort VCF")
-        sort_vcf_command = args.pypy + ' ' + main_entry + ' merge_vcf'
+        sort_vcf_command = '(time ' + args.pypy + ' ' + main_entry + ' merge_vcf'
         sort_vcf_command += ' --ref_fn ' + args.ref_fn
         sort_vcf_command += ' --pileup_vcf_fn ' + args.output_dir + '/tmp/vcf_output/pileup_filter.vcf'
         sort_vcf_command += ' --full_alignment_vcf_fn ' + args.output_dir + '/tmp/vcf_output/full_alignment_filter.vcf'
