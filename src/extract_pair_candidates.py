@@ -506,9 +506,6 @@ def main():
     parser.add_argument('--max_pro', type=int, default=None,
                         help="DEBUG: The window size for read phasing")
 
-    parser.add_argument('--phasing_window_size', type=int, default=param.phasing_window_size,
-                        help="DEBUG: The window size for read phasing")
-
     # options for internal process control
     ## Minimum SNV allele frequency for a truth site for training
     parser.add_argument('--min_truth_snv_af', type=float, default=None,

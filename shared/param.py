@@ -22,6 +22,7 @@ center_padding_depth = 2
 min_rescale_cov = 50
 min_qual = 0.8
 SAMTOOLS_VIEW_FILTER_FLAG = 2316
+extend_bp = 100
 
 max_depth = tensor_max_depth + center_padding_depth
 normal_tumor_ratio = 1
@@ -60,7 +61,7 @@ pileup_channel_size = len(pileup_channel)
 tumor_channel_size = pileup_channel_size
 flankingBaseNum = 16
 no_of_positions = 2 * flankingBaseNum + 1
-input_shape = [matrix_depth_dict['hifi'], no_of_positions, channel_size]
+input_shape = [matrix_depth_dict['ilmn'], no_of_positions, channel_size]
 ont_input_shape = [matrix_depth_dict['ont'], no_of_positions, channel_size]
 
 
