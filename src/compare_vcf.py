@@ -4,7 +4,7 @@ from argparse import ArgumentParser, SUPPRESS
 
 from shared.vcf import VcfReader, VcfWriter
 from shared.interval_tree import bed_tree_from, is_region_in
-
+from shared.utils import file_path_from
 major_contigs_order = ["chr" + str(a) for a in list(range(1, 23)) + ["X", "Y"]] + [str(a) for a in
                                                                                    list(range(1, 23)) + ["X", "Y"]]
 
@@ -36,12 +36,29 @@ def compare_vcf(args):
     remove_fn_out_of_fp_bed = args.remove_fn_out_of_fp_bed
     fp_bed_tree = bed_tree_from(bed_file_path=bed_fn, contig_name=ctg_name)
     # fp_bed_tree = {}
+    truth_vcf_fn = file_path_from(file_name=truth_vcf_fn, exit_on_not_found=True, allow_none=False)
+    input_vcf_fn = file_path_from(file_name=input_vcf_fn, exit_on_not_found=True, allow_none=False)
 
-    truth_vcf_reader = VcfReader(vcf_fn=truth_vcf_fn, ctg_name=ctg_name, show_ref=False, keep_row_str=True, skip_genotype=skip_genotyping, filter_tag=truth_filter_tag)
+    truth_vcf_reader = VcfReader(vcf_fn=truth_vcf_fn,
+                                 ctg_name=ctg_name,
+                                 ctg_start=args.ctg_start,
+                                 ctg_end=args.ctg_end,
+                                 show_ref=False,
+                                 keep_row_str=True,
+                                 skip_genotype=skip_genotyping,
+                                 filter_tag=truth_filter_tag)
     truth_vcf_reader.read_vcf()
     truth_variant_dict = truth_vcf_reader.variant_dict
 
-    input_vcf_reader = VcfReader(vcf_fn=input_vcf_fn, ctg_name=ctg_name, show_ref=False, keep_row_str=True, skip_genotype=skip_genotyping, filter_tag=input_filter_tag)
+    input_vcf_reader = VcfReader(vcf_fn=input_vcf_fn,
+                                 ctg_name=ctg_name,
+                                 ctg_start=args.ctg_start,
+                                 ctg_end=args.ctg_end,
+                                 show_ref=False,
+                                 keep_row_str=True,
+                                 skip_genotype=skip_genotyping,
+                                 filter_tag=input_filter_tag,
+                                 discard_indel=True)#, naf_filter=0.03, taf_filter=0.25)
     input_vcf_reader.read_vcf()
     input_variant_dict = input_vcf_reader.variant_dict
 
@@ -347,6 +364,15 @@ def main():
                         help="Reference fasta file input")
 
     parser.add_argument('--ctg_name', type=str, default=None,
+                        help="Contigs file with all processing contigs")
+
+    parser.add_argument('--ctg_start', type=int, default=None,
+                        help="Contigs file with all processing contigs")
+
+    parser.add_argument('--ctg_end', type=int, default=None,
+                        help="Contigs file with all processing contigs")
+
+    parser.add_argument('--contigs_fn', type=str, default=None,
                         help="Contigs file with all processing contigs")
 
     parser.add_argument('--output_dir', type=str, default=None,
