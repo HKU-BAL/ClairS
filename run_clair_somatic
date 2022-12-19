@@ -299,8 +299,6 @@ def check_contigs_intersection(args, fai_fn):
 
     MIN_CHUNK_LENGTH = 200000
     MAX_CHUNK_LENGTH = 20000000
-    # contig_name_list = os.path.join(args.output_dir, 'tmp','CONTIGS')
-    # chunk_list = os.path.join(args.output_dir, 'tmp', 'CHUNK_LIST')
     is_include_all_contigs = args.include_all_ctgs
     is_bed_file_provided = args.bed_fn is not None or args.region is not None
     is_known_vcf_file_provided = args.vcf_fn is not None
@@ -560,12 +558,12 @@ def print_args(args):
     logging("[INFO] NORMAL BAM FILE PATH: {}".format(args.normal_bam_fn))
     logging("[INFO] TUMOR BAM FILE PATH: {}".format(args.tumor_bam_fn))
     logging("[INFO] REFERENCE FILE PATH: {}".format(args.ref_fn))
-    logging("[INFO] PILEUP MODEL PATH: {}".format(args.pileup_model_path))
-    logging("[INFO] FULL-ALIGNMENT MODEL PATH: {}".format(args.full_alignment_model_path))
-    logging("[INFO] OUTPUT FOLDER: {}".format(args.output_dir))
-    logging("[INFO] OUTPUT VCF PATH: {}".format(os.path.join(args.output_dir, args.sample_name + '.vcf.gz')))
     logging("[INFO] PLATFORM: {}".format(args.platform))
     logging("[INFO] THREADS: {}".format(args.threads))
+    logging("[INFO] OUTPUT FOLDER: {}".format(args.output_dir))
+    logging("[INFO] OUTPUT VCF PATH: {}".format(os.path.join(args.output_dir, args.sample_name + '.vcf.gz')))
+    logging("[INFO] PILEUP MODEL PATH: {}".format(args.pileup_model_path))
+    logging("[INFO] FULL-ALIGNMENT MODEL PATH: {}".format(args.full_alignment_model_path))
     logging("[INFO] BED FILE PATH: {}".format(args.bed_fn))
     logging("[INFO] VCF FILE PATH: {}".format(args.vcf_fn))
     logging("[INFO] REGION: {}".format(args.region))
