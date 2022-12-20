@@ -448,8 +448,12 @@ def check_clair3_options(args):
             sys.exit(log_error("[ERROR] Cannot find clair3 main entry in {}".format(args.clair3_path)))
 
     if args.clair3_model_path is None:
-        # TODO update to q20
-        args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'clair3_models', 'ont_r104_e81_sup_g5015')
+        if args.platform == 'ont':
+            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'somatic_models', 'clair3_models', 'ont_r104_e81_sup_g5015')
+        else:
+            # clair3 r9 model
+            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'ont', 'r941_prom_sup_g5014')
+
         if os.path.exists(args.clair3_model_path):
             sys.exit(log_error("[ERROR] Cannot find clair3 model path"))
 
@@ -528,8 +532,8 @@ def check_args(args):
         args.min_coverage = param.min_coverage
     if args.chunk_size is None:
         args.chunk_size = 1000000
-    if args.platform != 'ont' and args.platform != 'ilmn':
-        logging(log_error('[ERROR] Invalid platform input, optional: {ont, ilmn}'))
+    if args.platform not in {'ont', 'ont_r9', 'ilmn'}:
+        logging(log_error('[ERROR] Invalid platform input, optional: {ont, ont_r9, ilmn}'))
     if args.skip_steps is not None:
         check_skip_steps_legal(args)
     if args.enable_realignment and args.platform != 'ilmn':
@@ -584,6 +588,9 @@ def print_args(args):
     logging("[INFO] ENABLE INCLUDE ALL CTGS CALLING: {}".format(args.include_all_ctgs))
     logging("[INFO] ENABLE REMOVING INTERMEDIATE FILES: {}".format(args.remove_intermediate_dir))
     logging("")
+
+    if args.platform.statswith('ont'):
+        args.platform = 'ont'
 
     return args
 
@@ -1034,7 +1041,7 @@ def somatic_parser():
         required=True,
         type=str,
         default=None,
-        help="Select the sequencing platform of the input. Possible options: {ont, ilmn}."
+        help="Select the sequencing platform of the input. Possible options: {ont, ont_r9, ilmn}."
     )
 
     optional_params = parser.add_argument_group('Optional parameters')
@@ -1327,6 +1334,12 @@ def somatic_parser():
         help=SUPPRESS
     )
 
+    optional_params.add_argument(
+        "--conda_prefix",
+        type=str,
+        default=None,
+        help=SUPPRESS
+    )
 
     return parser
 
