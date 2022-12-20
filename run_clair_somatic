@@ -7,7 +7,7 @@ import subprocess
 
 from collections import defaultdict, namedtuple
 from argparse import SUPPRESS
-from distutils.version import LooseVersion
+from packaging.version import parse as version_parse
 from time import time
 
 import shared.param as param
@@ -112,7 +112,7 @@ def check_version(tool, pos=None, is_pypy=False):
             return None
         first_line = proc.stdout.decode().split("\n", 1)[0]
         version = first_line.split()[pos]
-        version = LooseVersion(version)
+        version = version_parse(version)
     except Exception:
         return None
 
@@ -135,15 +135,15 @@ def check_python_path():
 def check_tools_version(args):
 
     required_tool_version = {
-        'python': LooseVersion('3.6.0'),
-        'pypy': LooseVersion('3.6'),
-        'samtools': LooseVersion('1.10'),
-        'whatshap': LooseVersion('1.0'),
-        'parallel': LooseVersion('20191122'),
+        'python': version_parse('3.6.0'),
+        'pypy': version_parse('3.6'),
+        'samtools': version_parse('1.10'),
+        'whatshap': version_parse('1.0'),
+        'parallel': version_parse('20191122'),
     }
 
     tool_version = {
-        'python': LooseVersion(sys.version.split()[0]),
+        'python': version_parse(sys.version.split()[0]),
         'pypy': check_version(tool=args.pypy, pos=0, is_pypy=True),
         'samtools': check_version(tool=args.samtools, pos=1),
         'parallel': check_version(tool=args.parallel, pos=2),
@@ -441,7 +441,7 @@ def check_contigs_intersection(args, fai_fn):
     return args
 
 def check_clair3_options(args):
-    conda_prefix = os.environ['CONDA_PREFIX']
+    conda_prefix = args.conda_prefix
     if args.clair3_path is None:
         args.clair3_path = os.path.join(conda_prefix, 'bin')
         if not os.path.exists(args.clair3_path + '/run_clair3.sh'):
