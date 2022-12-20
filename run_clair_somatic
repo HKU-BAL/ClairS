@@ -476,10 +476,15 @@ def check_clair3_options(args):
 
 def check_args(args):
 
-    # try:
-    #     conda_prefix = os.environ['CONDA_PREFIX']
-    # except:
-    #     sys.exit(log_error("[ERROR] Conda prefix not found, please activate conda environment first!"))
+    if args.conda_prefix is None:
+        if 'CONDA_PREFIX' in os.environ:
+            args.conda_prefix = os.environ['CONDA_PREFIX']
+        else:
+            try:
+                python_path = subprocess.run('which python', stdout=subprocess.PIPE, shell=True).stdout.decode().rstrip()
+                args.conda_prefix = os.path.dirname(os.path.dirname(python_path))
+            except:
+                sys.exit(log_error("[ERROR] Conda prefix not found, please activate conda environment first!"))
 
     args.normal_bam_fn = file_path_from(file_name=args.normal_bam_fn, exit_on_not_found=True, allow_none=False)
     normal_bai_fn = file_path_from(file_name=args.normal_bam_fn, suffix=".bai", exit_on_not_found=False, sep='.')
@@ -505,10 +510,10 @@ def check_args(args):
                                                                                       args.tumor_bam_fn + '.crai')))
 
     if args.pileup_model_path is None:
-        args.pileup_model_path = os.path.join(conda_prefix, 'bin', 'somatic_models', args.platform, 'pileup.pkl')
+        args.pileup_model_path = os.path.join(args.conda_prefix, 'bin', 'somatic_models', args.platform, 'pileup.pkl')
 
     if args.full_alignment_model_path is None:
-        args.full_alignment_model_path = os.path.join(conda_prefix, 'bin', 'somatic_models', args.platform, 'full_alignment.pkl')
+        args.full_alignment_model_path = os.path.join(args.conda_prefix, 'bin', 'somatic_models', args.platform, 'full_alignment.pkl')
 
     args.pileup_model_path = file_path_from(file_name=args.pileup_model_path, exit_on_not_found=True, is_directory=False, allow_none=False)
     args.full_alignment_model_path = file_path_from(file_name=args.full_alignment_model_path, exit_on_not_found=True, is_directory=False, allow_none=False)
@@ -530,7 +535,7 @@ def check_args(args):
     if args.enable_realignment and args.platform != 'ilmn':
         args.enable_realignment = False
     if args.phase_tumor is None:
-        args.phase_tumor = True if args.platform == 'ont' else False
+        args.phase_tumor = True if args.platform != 'ilmn' else False
 
     legal_range_from(param_name="threads", x=args.threads, min_num=1, exit_out_of_range=True)
     legal_range_from(param_name="qual", x=args.qual, min_num=0, exit_out_of_range=True)
@@ -550,9 +555,6 @@ def check_args(args):
 
 def print_args(args):
 
-    # set default options
-    conda_prefix = os.environ['CONDA_PREFIX']
-
     logging("")
     logging("[INFO] CALLER VERSION: {}".format(version))
     logging("[INFO] NORMAL BAM FILE PATH: {}".format(args.normal_bam_fn))
@@ -568,7 +570,7 @@ def print_args(args):
     logging("[INFO] VCF FILE PATH: {}".format(args.vcf_fn))
     logging("[INFO] REGION: {}".format(args.region))
     logging("[INFO] CONTIGS: {}".format(args.ctg_name))
-    logging("[INFO] CONDA PREFIX: {}".format(conda_prefix))
+    logging("[INFO] CONDA PREFIX: {}".format(args.conda_prefix))
     logging("[INFO] SAMTOOLS PATH: {}".format(args.samtools))
     logging("[INFO] PYTHON PATH: {}".format(args.python))
     logging("[INFO] PYPY PATH: {}".format(args.pypy))
@@ -597,6 +599,7 @@ def somatic_calling(args):
     normal_bam_fn = clair3_output_path + '/phased_output/normal_{1/.}.bam' if args.phase_normal else args.normal_bam_fn
     tumor_bam_fn = clair3_output_path + '/phased_output/tumor_{1/.}.bam' if args.phase_tumor else args.tumor_bam_fn
     tumor_bam_prefix = clair3_output_path + '/phased_output/tumor_' if args.phase_tumor else args.tumor_bam_fn
+
     try:
         rc = subprocess.check_call('time', shell=True, stdout=sys.stderr)
         time = 'time '
@@ -606,7 +609,7 @@ def somatic_calling(args):
     if args.clair3_path is not None and args.platform == 'ont' and args.phase_tumor:
 
         echo_list.append("[INFO] Call Germline Variants in Normal BAM using Clair3")
-        clair3_normal_command = '( ' + time  + args.clair3_path + '/run_clair3.sh'
+        clair3_normal_command = '( ' + time + args.clair3_path + '/run_clair3.sh'
         clair3_normal_command += ' --bam_fn ' + args.normal_bam_fn
         clair3_normal_command += ' --ref_fn ' + args.ref_fn
         clair3_normal_command += ' --model_path ' + args.clair3_model_path
@@ -845,7 +848,7 @@ def somatic_calling(args):
 
     # STEP 4: MERGE VCF
     echo_list.append("[INFO] Merge Pileup VCF")
-    p_mv_command = 'time ' + args.pypy + ' ' + main_entry + ' sort_vcf'
+    p_mv_command = args.pypy + ' ' + main_entry + ' sort_vcf'
     p_mv_command += ' --ref_fn ' + args.ref_fn
     p_mv_command += ' --contigs_fn ' + os.path.join(args.output_dir, 'tmp', 'CONTIGS')
     p_mv_command += ' --input_dir ' + args.output_dir + '/tmp/vcf_output'
