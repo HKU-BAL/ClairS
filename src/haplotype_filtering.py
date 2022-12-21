@@ -51,7 +51,6 @@ def get_base_list(columns):
 
 def extract_base(POS):
     pos = POS.pos
-    ref_base = POS.reference_bases
     alt_base = POS.alternate_bases[0]
     tumor_bam_fn = args.tumor_bam_fn
     ref_fn = args.ref_fn
@@ -83,7 +82,10 @@ def extract_base(POS):
 
     tumor_samtools_command = samtools_command + tumor_bam_fn
 
-    output = subprocess.run(tumor_samtools_command, shell=True, stdout=subprocess.PIPE,
+    output = subprocess.run(tumor_samtools_command,
+                            shell=True,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
                             universal_newlines=True).stdout.rstrip()
 
     from shared.utils import reference_sequence_from

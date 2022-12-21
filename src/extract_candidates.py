@@ -1,21 +1,15 @@
 import sys
 import shlex
 import os
-import json
 import logging
-import random
-from subprocess import PIPE
-from os.path import isfile
-
+import subprocess
 from argparse import ArgumentParser, SUPPRESS
-from collections import Counter, defaultdict, OrderedDict
+from collections import Counter, defaultdict
 
 import shared.param as param
 from shared.vcf import VcfReader
-from shared.utils import subprocess_popen, file_path_from, IUPAC_base_to_num_dict as BASE2NUM, region_from, \
-    reference_sequence_from, str2bool, vcf_candidates_from
-from shared.interval_tree import bed_tree_from, is_region_in
-from shared.intervaltree.intervaltree import IntervalTree
+from shared.utils import subprocess_popen, file_path_from, region_from, reference_sequence_from, str2bool
+from shared.interval_tree import bed_tree_from
 
 logging.basicConfig(format='%(message)s', level=logging.INFO)
 
@@ -269,7 +263,7 @@ def extract_candidates(args):
                                                              bam_file_path) + \
                        read_name_option + reads_regions_option + mq_option + bq_option + bed_option + flags_option + max_depth_option
     samtools_mpileup_process = subprocess_popen(
-        shlex.split(samtools_command), stdin=stdin)
+        shlex.split(samtools_command), stdin=stdin, stderr=subprocess.PIPE)
 
     if alt_fn:
         output_alt_fn = alt_fn

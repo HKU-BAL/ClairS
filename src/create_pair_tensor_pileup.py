@@ -11,6 +11,7 @@ import shared.param as param
 from shared.utils import subprocess_popen, file_path_from, IUPAC_base_to_num_dict as BASE2NUM, region_from, \
     reference_sequence_from, str2bool, vcf_candidates_from
 from shared.interval_tree import bed_tree_from, is_region_in
+from src.create_tensor import get_chunk_id
 
 logging.basicConfig(format='%(message)s', level=logging.INFO)
 BASES = set(list(BASE2NUM.keys()) + ["-"])
@@ -317,7 +318,8 @@ def create_tensor(args):
         ctg_start, ctg_end = float('inf'), 0
         for row in candidate_file_path_output:
             row = row.rstrip().split('\t')
-            if row[0] != ctg_name: continue
+            if row[0] != ctg_name:
+                continue
             position = int(row[1]) + 1
             end = int(row[2]) + 1
             ctg_start = min(position, ctg_start)
@@ -406,10 +408,10 @@ def create_tensor(args):
     samtools_command = "{} mpileup --reverse-del".format(samtools_execute_command) + \
                        output_read_name_option + output_mq_option + reads_regions_option + mq_option + bq_option + bed_option + flags_option + max_depth_option
     samtools_mpileup_normal_process = subprocess_popen(
-        shlex.split(samtools_command + normal_phasing_option + ' ' + normal_bam_file_path))
+        shlex.split(samtools_command + normal_phasing_option + ' ' + normal_bam_file_path), stderr=PIPE)
 
     samtools_mpileup_tumor_process = subprocess_popen(
-        shlex.split(samtools_command + tumor_phasing_option + ' ' + tumor_bam_file_path))
+        shlex.split(samtools_command + tumor_phasing_option + ' ' + tumor_bam_file_path), stderr=PIPE)
 
 
     if tensor_can_output_path != "PIPE":

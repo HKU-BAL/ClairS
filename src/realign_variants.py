@@ -68,7 +68,7 @@ def extract_base(POS):
                                                                                               min_bq,
                                                                                               ctg_range)
 
-    output = subprocess.run(samtools_command, shell=True, stdout=subprocess.PIPE, universal_newlines=True)
+    output = subprocess.run(samtools_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
     output = output.stdout.rstrip()
 
     columns = output.split('\t')
@@ -84,13 +84,13 @@ def extract_base(POS):
                                                                                                                 ref_fn,
                                                                                                                 samtools)
 
-    samtools_pile_command = "{} mpileup - --reverse-del --min-MQ {} --min-BQ {} --excl-flags 2316 | grep -w {}".format(
-        samtools,
-        min_mq,
-        min_bq,
-        pos)
-    realign_command += " | " + samtools_pile_command
-    realign_output = subprocess.run(realign_command, shell=True, stdout=subprocess.PIPE, universal_newlines=True)
+    samtools_mpileup_command = "{} mpileup - --reverse-del --min-MQ {} --min-BQ {} --excl-flags 2316 | grep -w {}".format(
+                                                                                                                samtools,
+                                                                                                                min_mq,
+                                                                                                                min_bq,
+                                                                                                                pos)
+    realign_command += " | " + samtools_mpileup_command
+    realign_output = subprocess.run(realign_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
 
     realign_output = realign_output.stdout.rstrip()
     columns = realign_output.split('\t')

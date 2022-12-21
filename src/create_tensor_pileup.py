@@ -1,12 +1,9 @@
 import sys
 import shlex
-import os
-import json
 import logging
 import random
 from subprocess import PIPE
-from os.path import isfile
-from copy import deepcopy
+
 from argparse import ArgumentParser, SUPPRESS
 from collections import Counter, defaultdict, OrderedDict
 
@@ -385,7 +382,7 @@ def create_tensor(args):
     samtools_command = "{} mpileup {} --reverse-del".format(samtools_execute_command, bam_file_path) + \
                        output_read_name_option + output_mq_option + reads_regions_option + phasing_option + mq_option + bq_option + bed_option + flags_option + max_depth_option
     samtools_mpileup_process = subprocess_popen(
-        shlex.split(samtools_command), stdin=stdin)
+        shlex.split(samtools_command), stdin=stdin, stderr=PIPE)
 
     is_tumor = "tumor_" in bam_file_path or tensor_sample_mode
     if tensor_can_output_path != "PIPE":

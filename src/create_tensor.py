@@ -55,6 +55,17 @@ def normalize_mq(x):
     x = 0 if x <= 20 else (20 if x <= 40 else 60)
     return int(NORMALIZE_NUM * min(x, MAX_MQ) / MAX_MQ)
 
+def get_chunk_id(candidates_bed_regions):
+    chunk_id, chunk_num, bin_size = "", "", ""
+    try:
+        # path format: ctg_name:${chunk_id}_${index}_${bin_size}
+        suffix = candidates_bed_regions.split('.')[-1]
+        chunk_id, index, bin_size = suffix.split('_')
+        index = str(int(index) + 1)
+    except:
+        return ""
+    return "chunk {}-{}/{}".format(index, bin_size, chunk_id)
+
 
 class Position(object):
     def __init__(self, pos, ref_base=None, alt_base=None, read_name_list=None, base_list=None, raw_base_quality=None,

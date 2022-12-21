@@ -262,7 +262,7 @@ def extract_pair_candidates(args):
                        mq_option + bq_option + bed_option + flags_option + max_depth_option
 
     samtools_mpileup_process = subprocess_popen(
-        shlex.split(samtools_command + ' ' +tumor_bam_file_path), stdin=stdin)
+        shlex.split(samtools_command + ' ' +tumor_bam_file_path), stdin=stdin, stderr=subprocess.PIPE)
 
     if alt_fn:
         output_alt_fn = alt_fn
@@ -317,7 +317,7 @@ def extract_pair_candidates(args):
 
     candidates_set = set(candidates_list)
     normal_samtools_mpileup_process = subprocess_popen(
-        shlex.split(samtools_command + ' ' +args.normal_bam_fn + ' -l ' + bed_path), stdin=stdin)
+        shlex.split(samtools_command + ' ' +args.normal_bam_fn + ' -l ' + bed_path), stdin=stdin, stderr=subprocess.PIPE)
 
     high_normal_af_set = set()
     high_af_gap_set = set()
@@ -405,8 +405,7 @@ def extract_pair_candidates(args):
                                  AF=float(tumor_af))
         vcf_writer.close()
 
-    print("[INFO] {} high_normal_af_count/high_af_gap_set: {}/{}".format(ctg_name, len(high_normal_af_set),
-                                                                         len(high_af_gap_set)))
+    print("[INFO] {} chunk {}/{}: Total candidates found: {}".format(ctg_name, chunk_id, chunk_num, len(candidates_list)))
 
     if candidates_folder is not None and len(candidates_list):
         all_candidates_regions = []
