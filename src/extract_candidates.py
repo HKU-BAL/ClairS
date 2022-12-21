@@ -155,8 +155,6 @@ def extract_candidates(args):
         unified_vcf_reader.read_vcf()
         truths_variant_dict = unified_vcf_reader.variant_dict
 
-    hete_snp_pos_dict = defaultdict()
-    hete_snp_tree = IntervalTree()
     need_phasing_pos_set = set()
     add_read_regions = True
 

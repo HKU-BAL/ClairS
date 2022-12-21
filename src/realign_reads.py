@@ -312,7 +312,6 @@ def samtools_view_generator_from(samtools_view_process, aligned_reads, pileup, c
 
 
 def reads_realignment(args):
-
     POS = args.pos
     args.ctg_start = POS - args.realign_flanking_window
     args.ctg_end = POS + args.realign_flanking_window

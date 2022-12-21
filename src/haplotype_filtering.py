@@ -299,8 +299,34 @@ def extract_base(POS):
     return key, pass_hetero, pass_homo, pass_hetero_both_side, match_count, ins_length, pass_read_start_end, alt_base_read_name_set, (
         nor_del_base, del_base, all_base_dict, base_dict, alt_base_dict, pass_bq, ALL_HAP_LIST, HAP_LIST)
 
+def update_filter_info(args, key, row_str, phase_dict, fail_set_list):
+    ctg_name = key[0] if args.ctg_name is None else args.ctg_name
+    pos = key[1] if args.ctg_name is None else key
+    k = (ctg_name, pos)
+    columns = row_str.split('\t')
 
-def realign_variants(args):
+    phaseable = False
+    if k in phase_dict:
+        all_hp0, all_hp1, all_hp2, hp0, hp1, hp2 = [int(h) for h in phase_dict[k]]
+        phaseable = all_hp1 * all_hp2 > 0 and hp1 * hp2 == 0 and (int(hp1) >= 3 or int(hp2) >= 3)
+
+    if phaseable:
+        columns[7] = "P"
+    for fail_pos_set in fail_set_list:
+        if k in fail_pos_set:
+            columns = row_str.split('\t')
+            columns[5] = '0.000'
+            columns[6] = "LowQual"
+            continue
+
+    row_str = '\t'.join(columns)
+    if args.add_phasing_info:
+        phasing_info = ' '.join([str(item) for item in phase_dict[k]]) if k in phase_dict else "0 0 0 0 0 0"
+        row_str += "\t" + phasing_info
+
+    return row_str
+
+def haplotype_filter(args):
     ctg_name = args.ctg_name
     threads = args.threads
     apply_post_processing = args.apply_post_processing
@@ -319,8 +345,12 @@ def realign_variants(args):
         subprocess.run("ln -sf {} {}".format(fa_input_vcf_fn, fa_output_vcf_fn), shell=True)
         return
 
-    germine_input_vcf_reader = VcfReader(vcf_fn=germline_vcf_fn, ctg_name=ctg_name, show_ref=False, keep_row_str=False,
-                                         filter_tag="PASS", save_header=False,
+    germine_input_vcf_reader = VcfReader(vcf_fn=germline_vcf_fn,
+                                         ctg_name=ctg_name,
+                                         show_ref=False,
+                                         keep_row_str=False,
+                                         filter_tag="PASS",
+                                         save_header=False,
                                          skip_genotype=False)
     germine_input_vcf_reader.read_vcf()
     germline_input_variant_dict = germine_input_vcf_reader.variant_dict
@@ -333,16 +363,24 @@ def realign_variants(args):
         elif sum(germline_input_variant_dict[key].genotype) == 2:
             germline_gt_list.append((key, 2))
 
-    input_vcf_reader = VcfReader(vcf_fn=pileup_vcf_fn, ctg_name=ctg_name, show_ref=False, keep_row_str=True,
+    input_vcf_reader = VcfReader(vcf_fn=pileup_vcf_fn,
+                                 ctg_name=ctg_name,
+                                 show_ref=False,
+                                 keep_row_str=True,
                                  discard_indel=True,
-                                 filter_tag=args.input_filter_tag, save_header=True,
+                                 filter_tag=args.input_filter_tag,
+                                 save_header=True,
                                  keep_af=True)
     input_vcf_reader.read_vcf()
     pileup_variant_dict = input_vcf_reader.variant_dict
 
-    input_vcf_reader = VcfReader(vcf_fn=fa_input_vcf_fn, ctg_name=ctg_name, show_ref=False, keep_row_str=True,
+    input_vcf_reader = VcfReader(vcf_fn=fa_input_vcf_fn,
+                                 ctg_name=ctg_name,
+                                 show_ref=False,
+                                 keep_row_str=True,
                                  discard_indel=True,
-                                 filter_tag=args.input_filter_tag, save_header=True,
+                                 filter_tag=args.input_filter_tag,
+                                 save_header=True,
                                  keep_af=True)
     input_vcf_reader.read_vcf()
     fa_variant_dict = input_vcf_reader.variant_dict
@@ -355,10 +393,16 @@ def realign_variants(args):
             continue
         input_variant_dict[k] = v
 
-    print("Total Input: ", ctg_name, len(pileup_variant_dict), len(fa_variant_dict), len(input_variant_dict))
+    print("Total Input: ", len(pileup_variant_dict), len(fa_variant_dict), len(input_variant_dict))
 
-    p_vcf_writer = VcfWriter(vcf_fn=pileup_output_vcf_fn, ctg_name=ctg_name, show_ref_calls=True)
-    f_vcf_writer = VcfWriter(vcf_fn=fa_output_vcf_fn, ctg_name=ctg_name, show_ref_calls=True)
+    p_vcf_writer = VcfWriter(vcf_fn=pileup_output_vcf_fn,
+                             ctg_name=ctg_name,
+                             ref_fn=args.ref_fn,
+                             show_ref_calls=True)
+    f_vcf_writer = VcfWriter(vcf_fn=fa_output_vcf_fn,
+                             ctg_name=ctg_name,
+                             ref_fn=args.ref_fn,
+                             show_ref_calls=True)
 
     for key, POS in input_variant_dict.items():
         pos = key if args.ctg_name is not None else key[1]
@@ -388,6 +432,8 @@ def realign_variants(args):
     fail_rn_set = set()
 
     ctg_name_list = [ctg_name] if args.ctg_name is not None else set([item[0] for item in input_variant_dict.keys()])
+
+    total_num = 0
     for ctg in ctg_name_list:
         POS_list = list([v for k, v in input_variant_dict.items() if
                          k[0] == ctg]) if args.ctg_name is None else input_variant_dict.values()
@@ -396,10 +442,11 @@ def realign_variants(args):
 
         with concurrent.futures.ProcessPoolExecutor(max_workers=threads) as exec:
             for result in exec.map(extract_base, POS_list):
+                total_num += 1
                 key, pass_hetero, pass_homo, pass_hetero_both_side, match_count, indel_length, pass_read_start_end, alt_base_read_name_set, extra = result
                 ctg_name = key[0] if args.ctg_name is None else args.ctg_name
                 pos = key[1] if args.ctg_name is None else key
-                # rn_dict[(ctg_name, int(pos))] = alt_base_read_name_set
+
                 if match_count > 2:
                     co_exist_fail_pos_set.add((ctg_name, pos))
 
@@ -424,6 +471,8 @@ def realign_variants(args):
 
                 phase_dict[(ctg_name, pos)] = ALL_HAP_LIST + HAP_LIST
 
+            if total_num > 0 and total_num % 1000 == 0:
+                print("[INFO] Total candidates processed: {}".format(total_num))
         max_distance = 100000
         key_list = sorted(rn_dict.keys(), key=lambda x: (x[0], int(x[1])))
 
@@ -440,96 +489,24 @@ def realign_variants(args):
                     break
                 if int(pos) - int(p) > max_distance:
                     continue
-
                 if int(p) - int(pos) > max_distance:
                     break
-
                 tmp_rn = rn_dict[tmp_key]
                 if len(rn.intersection(tmp_rn)) >= len(rn) * 0.5:
                     count += 1
             if count > 0:
                 fail_rn_set.add(k)
 
+    fail_set_list = [co_exist_fail_pos_set, complex_indel_fail_pos_set, fail_hetero_set, fail_homo_set,\
+        fail_hetero_both_side_set, fail_pass_read_start_end_set, fail_bq_set]
     for key in sorted(fa_variant_dict.keys()):
         row_str = fa_variant_dict[key].row_str.rstrip()
-        ctg_name = key[0] if args.ctg_name is None else args.ctg_name
-        pos = key[1] if args.ctg_name is None else key
-
-        if (ctg_name, pos) in co_exist_fail_pos_set:
-            row_str = row_str.replace("PASS", "Low_co_exist")
-            row_str = row_str + ':' + "Low_co_exist"
-
-        if (ctg_name, pos) in complex_indel_fail_pos_set:
-            row_str = row_str.replace("PASS", "Low_complex_indel")
-            row_str = row_str + ':' + "Low_complex_indel"
-
-        if (ctg_name, pos) in fail_hetero_set:
-            row_str = row_str.replace("PASS", "Low_hetero")
-            row_str = row_str + ':' + "Low_hetero"
-
-        if (ctg_name, pos) in fail_homo_set:
-            row_str = row_str.replace("PASS", "Low_homo")
-            row_str = row_str + ':' + "Low_homo"
-
-        if (ctg_name, pos) in fail_hetero_both_side_set:
-            row_str = row_str.replace("PASS", "Low_hetero_both")
-            row_str = row_str + ':' + "Low_hetero_both"
-
-        if (ctg_name, pos) in fail_pass_read_start_end_set:
-            row_str = row_str + ':' + "Low_read_start_end"
-
-        if (ctg_name, pos) in fail_bq_set:
-            row_str = row_str.replace("PASS", "Low_bq")
-            row_str = row_str + ':' + "Low_bq"
-
-        if (ctg_name, pos) in fail_bq_set:
-            row_str = row_str.replace("PASS", "Low_distance")
-            row_str = row_str + ':' + "Low_distance"
-
-        phasing_info = ' '.join([str(item) for item in phase_dict[(ctg_name, pos)]]) if (ctg_name,
-                                                                                         pos) in phase_dict else "0 0 0 0 0 0"
-        row_str += "\t" + phasing_info
+        row_str = update_filter_info(args, key, row_str, phase_dict, fail_set_list)
         f_vcf_writer.vcf_writer.write(row_str + '\n')
 
     for key in sorted(pileup_variant_dict.keys()):
         row_str = pileup_variant_dict[key].row_str.rstrip()
-        ctg_name = key[0] if args.ctg_name is None else args.ctg_name
-        pos = key[1] if args.ctg_name is None else key
-
-        if (ctg_name, pos) in co_exist_fail_pos_set:
-            row_str = row_str.replace("PASS", "Low_co_exist")
-            row_str = row_str + ':' + "Low_co_exist"
-
-        if (ctg_name, pos) in complex_indel_fail_pos_set:
-            row_str = row_str.replace("PASS", "Low_complex_indel")
-            row_str = row_str + ':' + "Low_complex_indel"
-
-        if (ctg_name, pos) in fail_hetero_set:
-            row_str = row_str.replace("PASS", "Low_hetero")
-            row_str = row_str + ':' + "Low_hetero"
-
-        if (ctg_name, pos) in fail_homo_set:
-            row_str = row_str.replace("PASS", "Low_homo")
-            row_str = row_str + ':' + "Low_homo"
-
-        if (ctg_name, pos) in fail_hetero_both_side_set:
-            row_str = row_str.replace("PASS", "Low_hetero_both")
-            row_str = row_str + ':' + "Low_hetero_both"
-
-        if (ctg_name, pos) in fail_pass_read_start_end_set:
-            row_str = row_str + ':' + "Low_read_start_end"
-
-        if (ctg_name, pos) in fail_bq_set:
-            row_str = row_str.replace("PASS", "Low_bq")
-            row_str = row_str + ':' + "Low_bq"
-
-        if (ctg_name, pos) in fail_bq_set:
-            row_str = row_str.replace("PASS", "Low_distance")
-            row_str = row_str + ':' + "Low_distance"
-
-        phasing_info = ' '.join([str(item) for item in phase_dict[(ctg_name, pos)]]) if (ctg_name,
-                                                                                         pos) in phase_dict else "0 0 0 0 0 0"
-        row_str += "\t" + phasing_info
+        row_str = update_filter_info(args, key, row_str, phase_dict, fail_set_list)
         p_vcf_writer.vcf_writer.write(row_str + '\n')
 
     p_vcf_writer.close()
@@ -593,10 +570,13 @@ def main():
     parser.add_argument('--flanking', type=int, default=100,
                         help=SUPPRESS)
 
+    parser.add_argument('--add_phasing_info', type=str2bool, default=False,
+                        help=SUPPRESS)
+
     global args
     args = parser.parse_args()
 
-    realign_variants(args)
+    haplotype_filter(args)
 
 
 if __name__ == "__main__":
