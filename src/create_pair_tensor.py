@@ -731,6 +731,7 @@ def create_pair_tensor(args):
     tumor_bam_pileup_generator = samtools_pileup_generator_from(samtools_mpileup_process=samtools_mpileup_tumor_process,
                                                                 phasing_info_in_bam=phase_tumor)
 
+    tensor_count = 0
     for pos in heapq_merge_generator_from(normal_bam_pileup_generator=normal_bam_pileup_generator,
                                           tumor_bam_pileup_generator=tumor_bam_pileup_generator):
         if pos not in normal_pileup_dict or pos not in tumor_pileup_dict:
@@ -784,6 +785,7 @@ def create_pair_tensor(args):
                 tumor_alt_info,
                 variant_type)
             tensor_can_fp.stdin.write(tensor)
+            tensor_count += 1
 
     samtools_mpileup_normal_process.stdout.close()
     samtools_mpileup_normal_process.wait()
@@ -793,6 +795,9 @@ def create_pair_tensor(args):
         tensor_can_fp.stdin.close()
         tensor_can_fp.wait()
         tensor_can_fpo.close()
+
+    chunk_info = get_chunk_id(candidates_bed_regions)
+    print("[INFO] {} {} {} tensors generated".format(ctg_name, chunk_info, tensor_count))
 
 
 def main():

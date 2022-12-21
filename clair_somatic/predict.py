@@ -341,7 +341,6 @@ def predict(args):
     chunk_num = args.chunk_num
     predict_fn = args.predict_fn
     use_gpu = args.use_gpu
-    logging.info("[INFO] Make prediction")
     variant_call_start_time = time()
     call_fn = args.call_fn
     chkpnt_fn = args.chkpnt_fn
@@ -488,8 +487,8 @@ def predict(args):
             batch_output(output_file, position, normal_alt_info_list, tumor_alt_info_list, prediction)
             total += len(input_tensor)
 
-    logging.info("Total process positions: {}".format(total))
-    logging.info("Total time elapsed: %.2f s" % (time() - variant_call_start_time))
+    run_time = "%.1fs" % (time() - variant_call_start_time)
+    logging.info("[INFO] Total processed positions: {}, time elapsed: {}".format(total, run_time))
 
     if call_fn is not None:
         output_file.close()
@@ -500,7 +499,7 @@ def predict(args):
             for row in vcf_file:
                 if row[0] != '#':
                     return
-            logging.info("[INFO] No vcf output for file {}, remove empty file".format(call_fn))
+            logging.info("[INFO] No variant output for {}, remove empty VCF".format(call_fn.split('/')[-1]))
             os.remove(call_fn)
     elif predict_fn != "PIPE":
         predict_fn_fp.stdin.close()

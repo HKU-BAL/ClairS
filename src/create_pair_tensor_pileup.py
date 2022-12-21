@@ -501,6 +501,7 @@ def create_tensor(args):
     normal_bam_pileup_generator = samtools_pileup_generator_from(samtools_mpileup_process=samtools_mpileup_normal_process,is_tumor=False)
     tumor_bam_pileup_generator = samtools_pileup_generator_from(samtools_mpileup_process=samtools_mpileup_tumor_process)
 
+    tensor_count = 0
     for pos in heapq_merge_generator_from(normal_bam_pileup_generator=normal_bam_pileup_generator, tumor_bam_pileup_generator=tumor_bam_pileup_generator):
         ref_seq = reference_sequence[
                   pos - reference_start - flanking_base_num: pos - reference_start + flanking_base_num + 1].upper()
@@ -537,7 +538,7 @@ def create_tensor(args):
                 tumor_alt_info,
                 variant_type)
             tensor_can_fp.stdin.write(tensor)
-
+            tensor_count += 1
     samtools_mpileup_normal_process.stdout.close()
     samtools_mpileup_normal_process.wait()
     samtools_mpileup_tumor_process.stdout.close()
@@ -547,6 +548,8 @@ def create_tensor(args):
         tensor_can_fp.wait()
         tensor_can_fpo.close()
 
+    chunk_info = get_chunk_id(candidates_bed_regions)
+    print("[INFO] {} {} {} tensors generated".format(ctg_name, chunk_info, tensor_count))
 
 
 def main():
