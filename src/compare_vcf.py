@@ -69,9 +69,6 @@ def compare_vcf(args):
     elif args.strat_bed_fn is not None:
         strat_bed_tree_list = [bed_tree_from(bed_file_path=args.strat_bed_fn, contig_name=ctg_name)]
 
-
-    # print(len(truth_variant_dict), len(input_variant_dict))
-
     low_qual_truth = set()
     if high_confident_only:
         for key in list(truth_variant_dict.keys()):
@@ -334,10 +331,7 @@ def compare_vcf(args):
                     vcf_infos = truth_variant_dict[key]
                 else:
                     continue
-                # ref_base = vcf_infos.reference_bases
-                # alt_base = vcf_infos.alternate_bases[0]
-                # genotype = vcf_infos.genotype_str
-                # qual = float(vcf_infos.qual)
+
                 vcf_writer.write_row(row_str=vcf_infos.row_str)
             vcf_writer.close()
     if output_fn:

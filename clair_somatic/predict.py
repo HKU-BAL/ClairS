@@ -9,7 +9,8 @@ import shlex
 from time import time
 from argparse import ArgumentParser, SUPPRESS
 from threading import Thread
-from subprocess import PIPE, run
+from sys import stderr
+from subprocess import PIPE, run, Popen
 
 from clair_somatic.call_variants import output_vcf_from_probability, OutputConfig
 from shared.utils import IUPAC_base_to_ACGT_base_dict as BASE2ACGT, BASIC_BASES, str2bool, file_path_from, log_error, \

@@ -115,18 +115,45 @@ def extract_base(POS):
 def realign_variants(args):
     ctg_name = args.ctg_name
     threads = args.threads
+    output_dir = args.output_dir
+    enable_realignment = args.enable_realignment
     qual_cut_off = args.qual if args.qual is not None else param.qual_dict['ilmn']
-    p_reader = VcfReader(vcf_fn=args.pileup_vcf_fn, ctg_name=ctg_name, show_ref=True, keep_row_str=True,
-                         filter_tag=None, save_header=True)
+
+    pileup_output_vcf_fn = os.path.join(output_dir, "pileup_filter.vcf")
+    fa_output_vcf_fn = os.path.join(output_dir, "full_alignment_filter.vcf")
+    if not enable_realignment:
+        subprocess.run("ln -sf {} {}".format(args.pileup_vcf_fn, pileup_output_vcf_fn), shell=True)
+        subprocess.run("ln -sf {} {}".format(args.full_alignment_vcf_fn, fa_output_vcf_fn), shell=True)
+        return
+
+    p_reader = VcfReader(vcf_fn=args.pileup_vcf_fn,
+                         ctg_name=ctg_name,
+                         show_ref=True,
+                         keep_row_str=True,
+                         filter_tag=None,
+                         save_header=True)
     p_reader.read_vcf()
     p_input_variant_dict = p_reader.variant_dict
 
-    fa_reader = VcfReader(vcf_fn=args.full_alignment_vcf_fn, ctg_name=ctg_name, show_ref=True, keep_row_str=True,
-                          filter_tag=None, save_header=True)
+    fa_reader = VcfReader(vcf_fn=args.full_alignment_vcf_fn,
+                          ctg_name=ctg_name,
+                          show_ref=True,
+                          keep_row_str=True,
+                          filter_tag=None,
+                          save_header=True)
     fa_reader.read_vcf()
     fa_input_variant_dict = fa_reader.variant_dict
 
-    print(len(p_input_variant_dict), len(fa_input_variant_dict))
+    p_vcf_writer = VcfWriter(vcf_fn=pileup_output_vcf_fn,
+                             ctg_name=ctg_name,
+                             ref_fn=args.ref_fn,
+                             show_ref_calls=True)
+
+    f_vcf_writer = VcfWriter(vcf_fn=fa_output_vcf_fn,
+                             ctg_name=ctg_name,
+                             ref_fn=args.ref_fn,
+                             show_ref_calls=True)
+
     for k, v in fa_input_variant_dict.items():
         if v.filter != "PASS":
             v.extra_infos = False
@@ -135,37 +162,41 @@ def realign_variants(args):
             if k not in p_input_variant_dict:
                 v.extra_infos = False
 
-    output_vcf_fn = args.output_vcf_fn
-    vcf_writer = VcfWriter(vcf_fn=output_vcf_fn, ref_fn=args.ref_fn, ctg_name=ctg_name, show_ref_calls=True)
-
+    total_num = 0
     realign_fail_pos_set = set()
-    realign_info_dict = defaultdict()
     with concurrent.futures.ProcessPoolExecutor(max_workers=threads) as exec:
         for result in exec.map(extract_base, list(fa_input_variant_dict.values())):
             contig, pos, pass_realign_filter = result[:3]
-            if args.output_realign_info:
-                realign_info_dict[(contig, pos)] = result[3]
-
             if pass_realign_filter is False:
                 realign_fail_pos_set.add((contig, pos))
+            total_num += 1
+            if total_num > 0 and total_num % 1000 == 0:
+                print("[INFO] Total candidates processed: {}".format(total_num))
 
-    for k, v in fa_input_variant_dict.items():
+    #write output
+    for k, v in p_input_variant_dict.items():
         pos = k if ctg_name is not None else k[1]
         contig = ctg_name if ctg_name is not None else k[0]
-
-        if k not in p_input_variant_dict or p_input_variant_dict[k].filter != "PASS":
-            continue
         row_str = v.row_str.rstrip()
         if (contig, pos) in realign_fail_pos_set:
             row_str = row_str.replace("PASS", "LowQual")
 
-        if args.output_realign_info:
-            row_str += "\t" + ' '.join([str(item) for item in realign_info_dict[(contig, pos)]])
-        vcf_writer.vcf_writer.write(row_str + '\n')
-    vcf_writer.close()
+        p_vcf_writer.vcf_writer.write(row_str + '\n')
+
+    for k, v in fa_input_variant_dict.items():
+        pos = k if ctg_name is not None else k[1]
+        contig = ctg_name if ctg_name is not None else k[0]
+        row_str = v.row_str.rstrip()
+        if (contig, pos) in realign_fail_pos_set:
+            row_str = row_str.replace("PASS", "LowQual")
+
+        f_vcf_writer.vcf_writer.write(row_str + '\n')
+
+    p_vcf_writer.close()
+    f_vcf_writer.close()
 
     if ctg_name is not None:
-        print("[INFO] {}: {} called variant filtered by realignment".format(ctg_name, len(realign_fail_pos_set)))
+        print("[INFO] {}: {} called variant filtered by short-read realignment".format(ctg_name, len(realign_fail_pos_set)))
     else:
         print("[INFO] {} called variant filtered by realignment".format(len(realign_fail_pos_set)))
 
@@ -188,8 +219,8 @@ def main():
     parser.add_argument('--full_alignment_vcf_fn', type=str, default=None,
                         help="Full-alignment VCF file input")
 
-    parser.add_argument('--output_vcf_fn', type=str, default=None,
-                        help="Output VCF path")
+    parser.add_argument('--output_dir', type=str, default=None,
+                        help="Output vcf directory")
 
     # options for advanced users
     parser.add_argument('--min_mq', type=int, default=param.min_mq,
@@ -211,12 +242,8 @@ def main():
     parser.add_argument('--python', type=str, default="python3",
                         help="Path to the 'python3', default: %(default)s")
 
-    ## Test in specific candidate position. Only for testing
-    parser.add_argument('--output_realign_info', type=str2bool, default=False,
-                        help="")
-
     parser.add_argument('--enable_realignment', type=str2bool, default=True,
-                        help="Enable realignment for illumina calls, default: enable")
+                        help="Enable realignment for illumina calling, default: enable")
 
     parser.add_argument('--qual', type=float, default=None,
                         help="Maximum QUAL to realign a variant")
