@@ -12,9 +12,7 @@ import torch.nn.functional as F
 from tqdm import tqdm
 from subprocess import run
 from argparse import ArgumentParser, SUPPRESS
-from torch.optim.lr_scheduler import StepLR
 from torch.utils.tensorboard import SummaryWriter
-from torch.autograd import Variable
 
 from shared.utils import str2bool
 import shared.param as param
@@ -455,12 +453,8 @@ def train_model(args):
                 for idx, (x, y) in enumerate(zip(y_truth, y_pred)):
                     if x == arg_index and y != arg_index:
                         print(idx, 'FN', x, y, cpu_logit[idx], position_info[idx], normal_info[idx], tumor_info[idx])
-                        a = data_numpy[idx]
-                        tmp = 1
                     if x != arg_index and y == arg_index:
                         print(idx, 'FP', x, y, cpu_logit[idx], position_info[idx], normal_info[idx], tumor_info[idx])
-                        a = data_numpy[idx]
-                        tmp = 1
 
             val_fp += sum([True if x != arg_index and y == arg_index else False for x, y in zip(y_truth, y_pred)])
             val_fn += sum([True if x == arg_index and y != arg_index else False for x, y in zip(y_truth, y_pred)])

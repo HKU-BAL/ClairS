@@ -456,8 +456,8 @@ def check_clair3_options(args):
             # clair3 r9 model
             args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'ont', 'r941_prom_sup_g5014')
 
-        if os.path.exists(args.clair3_model_path):
-            sys.exit(log_error("[ERROR] Cannot find clair3 model path"))
+        if not os.path.exists(args.clair3_model_path):
+            sys.exit(log_error("[ERROR] Cannot find clair3 model path in {}".format(args.clair3_model_path)))
 
     if args.whatshap is None:
         args.whatshap = os.path.join(conda_prefix, 'bin', 'whatshap')

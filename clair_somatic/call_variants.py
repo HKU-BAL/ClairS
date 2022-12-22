@@ -11,12 +11,10 @@ from collections import namedtuple
 
 from shared.vcf import VcfWriter
 from shared.utils import str2bool, subprocess_popen
-from clair_somatic.task.variant_length import VariantLength
 import shared.param as param
 
 logging.basicConfig(format='%(message)s', level=logging.INFO)
-minimum_variant_length_that_need_infer = VariantLength.max
-maximum_variant_length_that_need_infer = 50
+
 ACGT = 'ACGT'
 Phred_Trans = (-10 * log(e, 10))
 
