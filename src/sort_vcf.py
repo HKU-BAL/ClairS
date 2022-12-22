@@ -6,6 +6,7 @@ from argparse import ArgumentParser
 from collections import defaultdict
 
 from shared.utils import log_error, log_warning, file_path_from, subprocess_popen, str2bool
+from shared.vcf import header as vcf_header
 
 major_contigs_order = ["chr" + str(a) for a in list(range(1, 23)) + ["X", "Y"]] + [str(a) for a in
                                                                                    list(range(1, 23)) + ["X", "Y"]]
@@ -21,21 +22,7 @@ def compress_index_vcf(input_vcf):
 
 def output_header(output_fn, reference_file_path, sample_name='SAMPLE'):
     output_file = open(output_fn, "w")
-    from textwrap import dedent
-    output_file.write(dedent("""\
-        ##fileformat=VCFv4.2
-        ##FILTER=<ID=PASS,Description="All filters passed">
-        ##FILTER=<ID=LowQual,Description="Low quality variant">
-        ##FILTER=<ID=RefCall,Description="Reference call">
-        ##INFO=<ID=P,Number=0,Type=Flag,Description="Result from pileup calling">
-        ##INFO=<ID=F,Number=0,Type=Flag,Description="Result from full-alignment calling">
-        ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
-        ##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
-        ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
-        ##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Read depth for each allele">
-        ##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Phred-scaled genotype likelihoods rounded to the closest integer">
-        ##FORMAT=<ID=AF,Number=1,Type=Float,Description="Estimated allele frequency in the range of [0,1]">"""
-                             ) + '\n')
+    output_file.write(vcf_header)
 
     if reference_file_path is not None:
         reference_index_file_path = file_path_from(reference_file_path, suffix=".fai", exit_on_not_found=True, sep='.')
@@ -52,11 +39,6 @@ def output_header(output_fn, reference_file_path, sample_name='SAMPLE'):
 def print_calling_step(output_fn=""):
     merge_output = os.path.join(os.path.dirname(output_fn), 'merge_output.vcf.gz')
     pileup_output = os.path.join(os.path.dirname(output_fn), 'pileup.vcf.gz')
-
-    # print (log_warning("[WARNING] Copying pileup.vcf.gz to {}".format(merge_output)))
-    # subprocess.run('cp {} {}'.format(pileup_output, merge_output), shell=True, stdout=subprocess.PIPE,
-    #                stderr=subprocess.PIPE)
-
 
 
 def sort_vcf_from_stdin(args):
@@ -141,6 +123,8 @@ def sort_vcf_from(args):
     ref_fn = args.ref_fn
     contigs_fn = args.contigs_fn
     compress_vcf = args.compress_vcf
+
+    print("[INFO] Sorting VCFs...")
 
     if not os.path.exists(input_dir):
         exit(log_error("[ERROR] Input directory: {} not exists!").format(input_dir))
@@ -234,6 +218,8 @@ def sort_vcf_from(args):
     if compress_vcf:
         compress_index_vcf(output_fn)
 
+    print("[INFO] Finished VCF sorting!")
+
 
 def main():
     parser = ArgumentParser(description="Sort a VCF file according to contig name and starting position")
@@ -272,6 +258,7 @@ def main():
         else:
             sort_vcf_from_stdin(args)
     else:
+        # default entry
         sort_vcf_from(args)
 
 
