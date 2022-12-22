@@ -6,7 +6,7 @@ from argparse import ArgumentParser
 from collections import defaultdict
 
 from shared.utils import log_error, log_warning, file_path_from, subprocess_popen, str2bool
-from shared.vcf import header as vcf_header
+from shared.vcf import vcf_header
 
 major_contigs_order = ["chr" + str(a) for a in list(range(1, 23)) + ["X", "Y"]] + [str(a) for a in
                                                                                    list(range(1, 23)) + ["X", "Y"]]

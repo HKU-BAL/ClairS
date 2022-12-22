@@ -1,13 +1,37 @@
-import sys
 import shlex
 import os
 
 from textwrap import dedent
-from subprocess import PIPE, run
-from argparse import ArgumentParser
+from subprocess import run
 from collections import defaultdict
-from shared.utils import subprocess_popen, Position as Position, file_path_from
 
+from shared.utils import subprocess_popen, Position as Position, file_path_from
+import shared.param as param
+
+caller_name = param.caller_name
+version = param.version
+
+vcf_header = dedent("""\
+            ##fileformat=VCFv4.2
+            ##source={}
+            ##{}_version={}
+            ##FILTER=<ID=PASS,Description="All filters passed">
+            ##FILTER=<ID=LowQual,Description="Low quality variant">
+            ##FILTER=<ID=RefCall,Description="Reference call">
+            ##FILTER=<ID=Germline,Description="Germline variant call">
+            ##INFO=<ID=P,Number=0,Type=Flag,Description="Variant only in one phased haplotype">
+            ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+            ##FORMAT=<ID=GQ,Number=1,Type=Float,Description="Genotype quality">
+            ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Tumor read depth">
+            ##FORMAT=<ID=AF,Number=1,Type=Float,Description="Estimated allele frequency in tumor sample">
+            ##FORMAT=<ID=NAF,Number=1,Type=Float,Description="Estimated allele frequency in normal sample">
+            ##FORMAT=<ID=NDP,Number=1,Type=Integer,Description="Normal Read Depth">
+            ##FORMAT=<ID=AU,Number=1,Type=Integer,Description="Number of 'A' alleles in tumor BAM">
+            ##FORMAT=<ID=CU,Number=1,Type=Integer,Description="Number of 'C' alleles in tumor BAM">
+            ##FORMAT=<ID=GU,Number=1,Type=Integer,Description="Number of 'G' alleles in tumor BAM">
+            ##FORMAT=<ID=TU,Number=1,Type=Integer,Description="Number of 'T' alleles in tumor BAM">
+            """.format(caller_name, caller_name, version)
+                )
 
 class TruthStdout(object):
     def __init__(self, handle):
@@ -29,6 +53,10 @@ class VcfWriter(object):
         self.vcf_writer = open(self.vcf_fn, 'w')
         self.ref_fn = ref_fn
         self.ctg_name = ctg_name
+        if ctg_name is not None:
+            self.ctg_name_list = ctg_name.split(',') if ',' in ctg_name else [ctg_name]
+        else:
+            self.ctg_name_list = None
         self.sample_name = sample_name
         if write_header:
             self.write_header(ref_fn=ref_fn)
@@ -40,33 +68,14 @@ class VcfWriter(object):
             pass
 
     def write_header(self, ctg_name=None, ref_fn=None):
-        header = dedent("""\
-                    ##fileformat=VCFv4.2
-                    ##FILTER=<ID=PASS,Description="All filters passed">
-                    ##FILTER=<ID=LowQual,Description="Low quality variant">
-                    ##FILTER=<ID=RefCall,Description="Reference call">
-                    ##INFO=<ID=P,Number=0,Type=Flag,Description="Result from pileup calling">
-                    ##INFO=<ID=F,Number=0,Type=Flag,Description="Result from full-alignment calling">
-                    ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
-                    ##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
-                    ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Tumor Read Depth">
-                    ##FORMAT=<ID=AF,Number=1,Type=Float,Description="Estimated allele frequency in tumor sample">
-                    ##FORMAT=<ID=NAF,Number=1,Type=Float,Description="Estimated allele frequency in normal sample">
-                    ##FORMAT=<ID=NDP,Number=1,Type=Integer,Description="Normal Read Depth">
-                    ##FORMAT=<ID=AU,Number=1,Type=Integer,Description="Number of 'A' alleles in Tumor BAM">
-                    ##FORMAT=<ID=CU,Number=1,Type=Integer,Description="Number of 'C' alleles in Tumor BAM">
-                    ##FORMAT=<ID=GU,Number=1,Type=Integer,Description="Number of 'G' alleles in Tumor BAM">
-                    ##FORMAT=<ID=TU,Number=1,Type=Integer,Description="Number of 'T' alleles in Tumor BAM">
-                    """
-               )
-
+        header = vcf_header
         if self.ref_fn is not None:
             reference_index_file_path = file_path_from(self.ref_fn, suffix=".fai", exit_on_not_found=True, sep='.')
             with open(reference_index_file_path, "r") as fai_fp:
                 for row in fai_fp:
                     columns = row.strip().split("\t")
                     contig_name, contig_size = columns[0], columns[1]
-                    if self.ctg_name is not None and contig_name != self.ctg_name:
+                    if self.ctg_name_list is not None and contig_name not in self.ctg_name_list:
                         continue
                     header += "##contig=<ID=%s,length=%s>\n" % (contig_name, contig_size)
 
@@ -84,7 +93,7 @@ class VcfWriter(object):
         if not self.show_ref_calls and (GT == "0/0" or GT == "./."):
             return
         FORMAT = "GT:GQ:DP:AF"
-        FORMAT_V = "%s:%d:%d:%.4f" % (GT, GQ, DP, AF)
+        FORMAT_V = "%s:%.4f:%d:%.4f" % (GT, GQ, DP, AF)
         basic_vcf_format = "%s\t%d\t%s\t%s\t%s\t%.4f\t%s\t%s" % (
             CHROM,
             int(POS),
@@ -187,6 +196,18 @@ class VcfReader(object):
             if is_ctg_region_provided and not (self.ctg_start <= int(position) <= self.ctg_end):
                 continue
 
+            #filter NAF
+            if self.naf_filter is not None:
+                naf_index = columns[-2].split(':').index("NAF")
+                if float(columns[-1].split(':')[naf_index]) >= self.naf_filter:
+                    continue
+            if self.taf_filter is not None:
+                taf_index = columns[-2].split(':').index("AF")
+                naf_index = columns[-2].split(':').index("NAF")
+                if float(columns[-1].split(':')[taf_index]) * self.taf_filter < float(columns[-1].split(':')[naf_index]):
+                    continue
+
+            FILTER = columns[6] if len(columns) >= 7 else None
             if self.filter_tag is not None:
                 filter_list = self.filter_tag.split(',')
                 if sum([1 if filter == FILTER else 0 for filter in filter_list]) == 0:

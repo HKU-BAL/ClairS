@@ -1,5 +1,7 @@
 # parameters
-REPO_NAME = "Clair-Somatic"
+caller_name = "clair-somatic"
+version = "0.1"
+
 from itertools import accumulate
 
 zstd = 'gzip'
@@ -65,7 +67,7 @@ input_shape = [matrix_depth_dict['ilmn'], no_of_positions, channel_size]
 ont_input_shape = [matrix_depth_dict['ont'], no_of_positions, channel_size]
 
 
-# Training hyperparameters
+# Training hyper parameters
 use_alt_base = True
 label_shape = [3]
 label_size = sum(label_shape)
