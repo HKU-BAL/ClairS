@@ -171,7 +171,7 @@ def realign_variants(args):
                 realign_fail_pos_set.add((contig, pos))
             total_num += 1
             if total_num > 0 and total_num % 1000 == 0:
-                print("[INFO] Total candidates processed: {}".format(total_num))
+                print("[INFO] Processing in {}, total processed positions: {}".format(contig, total_num))
 
     #write output
     for k, v in p_input_variant_dict.items():

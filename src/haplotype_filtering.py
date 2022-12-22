@@ -472,7 +472,8 @@ def haplotype_filter(args):
                 phase_dict[(ctg_name, pos)] = ALL_HAP_LIST + HAP_LIST
 
             if total_num > 0 and total_num % 1000 == 0:
-                print("[INFO] Total candidates processed: {}".format(total_num))
+                print("[INFO] Processing in {}, total processed positions: {}".format(ctg_name, total_num))
+
         max_distance = 100000
         key_list = sorted(rn_dict.keys(), key=lambda x: (x[0], int(x[1])))
 
