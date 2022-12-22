@@ -35,7 +35,6 @@ def compare_vcf(args):
     truth_filter_tag = args.truth_filter_tag
     remove_fn_out_of_fp_bed = args.remove_fn_out_of_fp_bed
     fp_bed_tree = bed_tree_from(bed_file_path=bed_fn, contig_name=ctg_name)
-    # fp_bed_tree = {}
     truth_vcf_fn = file_path_from(file_name=truth_vcf_fn, exit_on_not_found=True, allow_none=False)
     input_vcf_fn = file_path_from(file_name=input_vcf_fn, exit_on_not_found=True, allow_none=False)
 
@@ -58,7 +57,7 @@ def compare_vcf(args):
                                  keep_row_str=True,
                                  skip_genotype=skip_genotyping,
                                  filter_tag=input_filter_tag,
-                                 discard_indel=True)#, naf_filter=0.03, taf_filter=0.25)
+                                 discard_indel=True)
     input_vcf_reader.read_vcf()
     input_variant_dict = input_vcf_reader.variant_dict
 
@@ -274,7 +273,6 @@ def compare_vcf(args):
     print (''.join([str(item).ljust(15) for item in ["INS", truth_ins, query_ins, tp_ins, fp_ins, fn_ins, ins_pre, ins_rec, ins_f1]]), file=output_file)
     print (''.join([str(item).ljust(15) for item in ["DEL", query_del, query_del, tp_del, fp_del, fn_del, del_pre, del_rec, del_f1]]), file=output_file)
     print(' '.join([str(item) for item in ["SNV", truth_snv, query_snv, tp_snv, fp_snv, fn_snv, snv_pre, snv_rec, snv_f1]]), file=output_file)
-    # print('\n', file=output_file)
 
 
     if args.roc_fn:

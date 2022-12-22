@@ -549,7 +549,7 @@ def create_tensor(args):
         tensor_can_fpo.close()
 
     chunk_info = get_chunk_id(candidates_bed_regions)
-    print("[INFO] {} {} {} tensors generated".format(ctg_name, chunk_info, tensor_count))
+    print("[INFO] {} {} Tensors generated: {}".format(ctg_name, chunk_info, tensor_count))
 
 
 def main():
