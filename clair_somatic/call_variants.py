@@ -59,11 +59,20 @@ def argmax(l):
     return max(zip(l, range(len(l))))[1]
 
 
-def decode_acgt_count(alt_dict):
-    AU = alt_dict['A'] if 'A' in alt_dict else 0
-    CU = alt_dict['C'] if 'C' in alt_dict else 0
-    GU = alt_dict['G'] if 'G' in alt_dict else 0
-    TU = alt_dict['T'] if 'T' in alt_dict else 0
+def decode_acgt_count(alt_dict, ref_base=None, tumor_coverage=None):
+    acgt_count = [0, 0, 0, 0]
+    for idx, base in enumerate('ACGT'):
+        acgt_count[idx] = alt_dict[base] if base in alt_dict else 0
+
+    if ref_base is not None and tumor_coverage is not None:
+        ref_base = ref_base[0].upper()
+        if ref_base in 'ACGT':
+            #update ref base count
+            # acgt_count[]
+            ref_idx = 'ACGT'.index(ref_base)
+            acgt_count[ref_idx] = tumor_coverage - sum(acgt_count)
+
+    AU, CU, GU, TU = acgt_count
     return AU, CU, GU, TU
 
 
@@ -229,7 +238,7 @@ def output_vcf_from_probability(
 
     information_string = "."
 
-    AU, CU, GU, TU = decode_acgt_count(tumor_alt_type_list[0])
+    AU, CU, GU, TU = decode_acgt_count(tumor_alt_type_list[0], reference_base, tumor_read_depth)
 
     vcf_writer.write_row(CHROM=chromosome,
                          POS=position,

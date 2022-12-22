@@ -366,7 +366,6 @@ def predict(args):
             output = run("mkdir -p {}".format(call_dir), shell=True)
         vcf_writer = VcfWriter(vcf_fn=args.call_fn,
                                ref_fn=args.ref_fn,
-                               ctg_name=args.ctg_name,
                                show_ref_calls=args.show_ref,
                                sample_name=args.sample_name,
                                )
@@ -489,7 +488,7 @@ def predict(args):
             total += len(input_tensor)
 
     run_time = "%.1fs" % (time() - variant_call_start_time)
-    logging.info("[INFO] Total processed positions: {}, time elapsed: {}".format(total, run_time))
+    logging.info("[INFO] {} total processed positions: {}, time elapsed: {}".format(args.ctg_name, total, run_time))
 
     if call_fn is not None:
         output_file.close()
