@@ -3,13 +3,14 @@ import os
 import shlex
 import ctypes
 import re
+import subprocess
 
 from subprocess import PIPE
 from argparse import ArgumentParser, SUPPRESS
 from collections import defaultdict
 
 import shared.param as param
-from shared.utils import subprocess_popen, reference_sequence_from, IUPAC_base_to_ACGT_base_dict as BASE2ACGT
+from shared.utils import subprocess_popen, reference_sequence_from, IUPAC_base_to_ACGT_base_dict as BASE2ACGT, log_error
 from shared.interval_tree import bed_tree_from
 from shared.intervaltree.intervaltree import IntervalTree
 
@@ -22,6 +23,19 @@ expandReferenceRegion = 100000
 
 realigner_mod = os.path.join(*(os.path.split(__file__)[:-1] + ('realign/realigner',)))
 dbg_mod = os.path.join(*(os.path.split(__file__)[:-1] + ('realign/debruijn_graph',)))
+if not os.path.exists(realigner_mod) or not os.path.exists(dbg_mod):
+    # try to find modules in clair3
+    python_path = subprocess.run('which python', stdout=subprocess.PIPE, shell=True).stdout.decode().rstrip()
+    conda_prefix = os.path.dirname(os.path.dirname(python_path))
+    clair3_realign_path = os.path.join(conda_prefix, 'bin', 'preprocess', 'realign')
+    clair3_realigner_mod = os.path.join(clair3_realign_path, 'realigner')
+    clair3_dbg_mod = os.path.join(clair3_realign_path, 'debruijn_graph')
+    if os.path.exists(clair3_realigner_mod) and os.path.exists(clair3_dbg_mod):
+        realigner_mod = clair3_realigner_mod
+        dbg_mod = clair3_dbg_mod
+    else:
+        print(log_error("[ERROR] `realigner` or `debruijn_graph` submodule not found in conda environment, pls install clair3-illumina package!"))
+        sys.exit(1)
 
 realigner = ctypes.cdll.LoadLibrary(realigner_mod)
 dbg = ctypes.cdll.LoadLibrary(dbg_mod)
