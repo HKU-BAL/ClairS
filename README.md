@@ -121,6 +121,13 @@ conda install -c pytorch -c conda-forge pytorch tqdm -y
 git clone https://github.com/HKU-BAL/Clair-Somatic.git
 cd Clair-Somatic
 
+# make sure in conda environment
+# download pre-trained models
+echo ${CONDA_PREFIX}
+mkdir -p ${CONDA_PREFIX}/bin/somatic_models
+wget http://www.bio8.cs.hku.hk/clair_somatic/models/clair_somatic_models.tar.gz
+tar -zxvf clair_somatic_models.tar.gz -C ${CONDA_PREFIX}/bin/somatic_models/
+
 run_clair_somatic --help
 ```
 
