@@ -266,13 +266,12 @@ def compare_vcf(args):
     print ((ctg_name + '-' if ctg_name is not None else "") + input_vcf_fn.split('/')[-1])
     print (len(input_variant_dict), len(truth_variant_dict), pos_out_of_bed)
 
-    print (''.join([item.ljust(15) for item in ["type", 'total.truth', 'total.query', 'tp','fp', 'fn', 'precision', 'recall', "f1-score"]]), file=output_file)
-    print (''.join([str(item).ljust(15) for item in ["Overall", truth_all, query_all, tp_all, fp_all, fn_all, all_pre, all_rec, all_f1]]), file=output_file)
-    print (''.join([str(item).ljust(15) for item in ["SNV", truth_snv, query_snv, tp_snv, fp_snv, fn_snv, snv_pre, snv_rec, snv_f1]]),file=output_file)
-    print (''.join([str(item).ljust(15) for item in ["INDEL", truth_indel, query_indel, tp_indel, fp_indel, fn_indel, indel_pre, indel_rec, indel_f1]]), file=output_file)
-    print (''.join([str(item).ljust(15) for item in ["INS", truth_ins, query_ins, tp_ins, fp_ins, fn_ins, ins_pre, ins_rec, ins_f1]]), file=output_file)
-    print (''.join([str(item).ljust(15) for item in ["DEL", query_del, query_del, tp_del, fp_del, fn_del, del_pre, del_rec, del_f1]]), file=output_file)
-    print(' '.join([str(item) for item in ["SNV", truth_snv, query_snv, tp_snv, fp_snv, fn_snv, snv_pre, snv_rec, snv_f1]]), file=output_file)
+    print (''.join([item.ljust(15) for item in ["Type", 'TP', 'FP', 'FN', 'Precision', 'Recall', "F1-score"]]), file=output_file)
+    print (''.join([str(item).ljust(15) for item in ["SNV", tp_snv, fp_snv, fn_snv, snv_pre, snv_rec, snv_f1]]),file=output_file)
+    if args.benchmark_indel:
+        print (''.join([str(item).ljust(15) for item in ["INDEL", truth_indel, query_indel, tp_indel, fp_indel, fn_indel, indel_pre, indel_rec, indel_f1]]), file=output_file)
+        print (''.join([str(item).ljust(15) for item in ["INS", truth_ins, query_ins, tp_ins, fp_ins, fn_ins, ins_pre, ins_rec, ins_f1]]), file=output_file)
+        print (''.join([str(item).ljust(15) for item in ["DEL", query_del, query_del, tp_del, fp_del, fn_del, del_pre, del_rec, del_f1]]), file=output_file)
 
 
     if args.roc_fn:
@@ -347,10 +346,10 @@ def main():
                         help="High confident Bed region for benchmarking")
 
     parser.add_argument('--input_vcf_fn', type=str, default=None,
-                        help="Input vcf filename prefix")
+                        help="Input vcf filename")
 
     parser.add_argument('--truth_vcf_fn', type=str, default=None,
-                        help="Truth vcf filename suffix")
+                        help="Truth vcf filename")
 
     parser.add_argument('--ref_fn', type=str, default=None,
                         help="Reference fasta file input")
@@ -359,10 +358,10 @@ def main():
                         help="Contigs file with all processing contigs")
 
     parser.add_argument('--ctg_start', type=int, default=None,
-                        help="Contigs file with all processing contigs")
+                        help="The 1-based starting position of the sequence to be processed")
 
     parser.add_argument('--ctg_end', type=int, default=None,
-                        help="Contigs file with all processing contigs")
+                        help="The 1-based ending position of the sequence to be processed,")
 
     parser.add_argument('--contigs_fn', type=str, default=None,
                         help="Contigs file with all processing contigs")
@@ -393,6 +392,12 @@ def main():
                         help=SUPPRESS)
 
     parser.add_argument('--caller', type=str, default=None,
+                        help=SUPPRESS)
+
+    parser.add_argument('--output_best_f1_score', action='store_true',
+                        help=SUPPRESS)
+
+    parser.add_argument('--benchmark_indel', action='store_true',
                         help=SUPPRESS)
 
     parser.add_argument('--strat_bed_fn', type=str, default=None,
