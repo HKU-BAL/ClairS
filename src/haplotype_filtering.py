@@ -305,6 +305,7 @@ def update_filter_info(args, key, row_str, phase_dict, fail_set_list):
     k = (ctg_name, pos)
     columns = row_str.split('\t')
 
+    is_candidate_filtered = 0
     phaseable = False
     if k in phase_dict:
         all_hp0, all_hp1, all_hp2, hp0, hp1, hp2 = [int(h) for h in phase_dict[k]]
@@ -317,6 +318,7 @@ def update_filter_info(args, key, row_str, phase_dict, fail_set_list):
             columns = row_str.split('\t')
             columns[5] = '0.000'
             columns[6] = "LowQual"
+            is_candidate_filtered = 1
             continue
 
     row_str = '\t'.join(columns)
@@ -324,7 +326,7 @@ def update_filter_info(args, key, row_str, phase_dict, fail_set_list):
         phasing_info = ' '.join([str(item) for item in phase_dict[k]]) if k in phase_dict else "0 0 0 0 0 0"
         row_str += "\t" + phasing_info
 
-    return row_str
+    return row_str, is_candidate_filtered
 
 def haplotype_filter(args):
     ctg_name = args.ctg_name
@@ -392,8 +394,6 @@ def haplotype_filter(args):
         if len(pileup_variant_dict) and (k not in pileup_variant_dict or pileup_variant_dict[k].filter != "PASS"):
             continue
         input_variant_dict[k] = v
-
-    print("Total Input: ", len(pileup_variant_dict), len(fa_variant_dict), len(input_variant_dict))
 
     p_vcf_writer = VcfWriter(vcf_fn=pileup_output_vcf_fn,
                              ctg_name=ctg_name,
@@ -500,18 +500,23 @@ def haplotype_filter(args):
 
     fail_set_list = [co_exist_fail_pos_set, complex_indel_fail_pos_set, fail_hetero_set, fail_homo_set,\
         fail_hetero_both_side_set, fail_pass_read_start_end_set, fail_bq_set]
+
+    fail_count = set()
     for key in sorted(fa_variant_dict.keys()):
         row_str = fa_variant_dict[key].row_str.rstrip()
-        row_str = update_filter_info(args, key, row_str, phase_dict, fail_set_list)
+        row_str, is_candidate_filtered = update_filter_info(args, key, row_str, phase_dict, fail_set_list)
+        fail_count += is_candidate_filtered
         f_vcf_writer.vcf_writer.write(row_str + '\n')
 
     for key in sorted(pileup_variant_dict.keys()):
         row_str = pileup_variant_dict[key].row_str.rstrip()
-        row_str = update_filter_info(args, key, row_str, phase_dict, fail_set_list)
+        row_str, is_candidate_filtered = update_filter_info(args, key, row_str, phase_dict, fail_set_list)
         p_vcf_writer.vcf_writer.write(row_str + '\n')
 
     p_vcf_writer.close()
     f_vcf_writer.close()
+
+    print("Total input calls: {}, filtered by haplotype match {}".format(len(fa_variant_dict), fail_count))
 
 
 def main():
