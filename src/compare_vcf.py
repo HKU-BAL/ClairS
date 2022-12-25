@@ -1,7 +1,10 @@
 import os
 import subprocess
 from argparse import ArgumentParser, SUPPRESS
+import concurrent.futures
 
+from collections import defaultdict
+from shared.utils import log_error, log_warning, file_path_from, subprocess_popen, str2bool, str_none
 from shared.vcf import VcfReader, VcfWriter
 from shared.interval_tree import bed_tree_from, is_region_in
 from shared.utils import file_path_from
@@ -15,7 +18,7 @@ def cal_metrics(tp, fp, fn):
     precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
     recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
     f1_score = 2 * precision * recall / (precision + recall) if precision + recall > 0 else 0.0
-    return round(precision, 6), round(recall, 6), round(f1_score, 6)
+    return round(precision, 4), round(recall, 4), round(f1_score, 4)
 
 
 def compare_vcf(args):
@@ -27,7 +30,6 @@ def compare_vcf(args):
     truth_vcf_fn = args.truth_vcf_fn
     input_vcf_fn = args.input_vcf_fn
     bed_fn = args.bed_fn
-    ref_fn = args.ref_fn
     high_confident_only = args.high_confident_only
     ctg_name = args.ctg_name
     skip_genotyping = args.skip_genotyping
@@ -35,6 +37,15 @@ def compare_vcf(args):
     truth_filter_tag = args.truth_filter_tag
     remove_fn_out_of_fp_bed = args.remove_fn_out_of_fp_bed
     fp_bed_tree = bed_tree_from(bed_file_path=bed_fn, contig_name=ctg_name)
+    # fp_bed_tree = {}
+    strat_bed_tree_list = []
+
+    if args.strat_bed_fn is not None and ',' in args.strat_bed_fn:
+        for strat_bed_fn in args.strat_bed_fn.split(','):
+            strat_bed_tree_list.append(bed_tree_from(bed_file_path=strat_bed_fn, contig_name=ctg_name))
+    elif args.strat_bed_fn is not None:
+        strat_bed_tree_list = [bed_tree_from(bed_file_path=args.strat_bed_fn, contig_name=ctg_name)]
+
     truth_vcf_fn = file_path_from(file_name=truth_vcf_fn, exit_on_not_found=True, allow_none=False)
     input_vcf_fn = file_path_from(file_name=input_vcf_fn, exit_on_not_found=True, allow_none=False)
 
@@ -57,16 +68,14 @@ def compare_vcf(args):
                                  keep_row_str=True,
                                  skip_genotype=skip_genotyping,
                                  filter_tag=input_filter_tag,
+                                 keep_af=True,
                                  discard_indel=True)
     input_vcf_reader.read_vcf()
     input_variant_dict = input_vcf_reader.variant_dict
 
-    strat_bed_tree_list = []
-    if args.strat_bed_fn is not None and ',' in args.strat_bed_fn:
-        for strat_bed_fn in args.strat_bed_fn.split(','):
-            strat_bed_tree_list.append(bed_tree_from(bed_file_path=strat_bed_fn, contig_name=ctg_name))
-    elif args.strat_bed_fn is not None:
-        strat_bed_tree_list = [bed_tree_from(bed_file_path=args.strat_bed_fn, contig_name=ctg_name)]
+    germline_count = 0
+    input_out_of_bed = 0
+    truth_out_of_bed = 0
 
     low_qual_truth = set()
     if high_confident_only:
@@ -400,8 +409,15 @@ def main():
     parser.add_argument('--benchmark_indel', action='store_true',
                         help=SUPPRESS)
 
+    parser.add_argument('--min_af', type=float, default=None,
+                        help="Minimum VAF for bechmarking")
+
     parser.add_argument('--strat_bed_fn', type=str, default=None,
                         help="Genome stratifications v2 bed region")
+
+    parser.add_argument('--validate_phase_only', type=str_none, default=None,
+                        help='Output VCF filename, required')
+
 
     args = parser.parse_args()
 
