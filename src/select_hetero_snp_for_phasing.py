@@ -3,17 +3,12 @@ import os
 import sys
 from argparse import ArgumentParser, SUPPRESS
 from collections import defaultdict
-from shared.intervaltree.intervaltree import IntervalTree
 from subprocess import run
 
 from shared.utils import subprocess_popen
 
 def select_hetero_snp_for_phasing(args):
 
-    """
-    Filter heterozygous snp variant for phasing, currently, we only filter snp variant with low quality socore as low
-    quality variant contains more false positive variant that would lead to a larger minimum error correction loss.
-    """
     tumor_vcf_fn = args.tumor_vcf_fn
     normal_vcf_fn = args.normal_vcf_fn
     var_pct_full = args.var_pct_full
@@ -83,7 +78,6 @@ def select_hetero_snp_for_phasing(args):
 
     pass_variant_dict = defaultdict()
     low_qual_count = 0
-    # for pos in intersect_pos_set:
     for pos in variant_dict:
         if pos in normal_low_qual_set or pos in tumor_low_qual_set:
             low_qual_count += 1
@@ -92,7 +86,6 @@ def select_hetero_snp_for_phasing(args):
             pass_variant_dict[pos] = variant_dict[pos][-1]
 
     pro = len(pass_variant_dict) / len(tumor_qual_dict)
-    # print ('[INFO] Total heterozygous SNP positions selected: {}: {} not found:{} not match:{}, low_qual_count:{} normal:{} tumor:{}'.format(contig_name, len(pass_variant_dict), hetero_snp_not_found_in_tumor, hetero_snp_not_match_in_tumor, low_qual_count, len(normal_qual_dict), len(tumor_qual_dict)))
     print ('[INFO] Total HET SNP calls selected: {}: {}, not found:{}, not match:{}, low_qual_count:{}. Total normal:{} Total tumor:{}, pro: {}'.format(contig_name, len(pass_variant_dict), hetero_snp_not_found_in_tumor, hetero_snp_not_match_in_tumor, low_qual_count, len(normal_qual_dict), len(tumor_qual_dict), pro))
 
     if not os.path.exists(output_folder):
@@ -105,74 +98,23 @@ def select_hetero_snp_for_phasing(args):
 
 
 def main():
-    parser = ArgumentParser(description="Select heterozygous snp candidates for WhatsHap phasing")
+    parser = ArgumentParser(description="Select heterozygous snp candidates for phasing")
 
     parser.add_argument('--output_folder', type=str, default=None,
-                        help="Path to directory that stores small bed region for raw alignment. (default: %(default)s)")
+                        help="Output folder with all filtered SNP")
 
     parser.add_argument('--tumor_vcf_fn', type=str, default=None,
-                        help="Path of the input vcf file. (default: %(default)s)")
+                        help="Path of the tumor input vcf file")
 
     parser.add_argument('--normal_vcf_fn', type=str, default=None,
-                        help="Path of the input vcf file. (default: %(default)s)")
+                        help="Path of the normal input vcf file")
 
     parser.add_argument('--var_pct_full', type=float, default=0.00,
-                        help="Default variant call proportion for raw alignment or remove low quality proportion for whatshap phasing. (default: %(default)f)")
-
-    parser.add_argument('--ref_pct_full', type=float, default=None,
-                        help="Default reference call proportion for raw alignment or remove low quality proportion for whatshap phasing. (default: %(default)f)")
+                        help="Default the low quality proportion to be removed in phasing")
 
     parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of sequence to be processed, default: %(default)s")
 
-    parser.add_argument('--phase', action='store_false',
-                        help="Only select hete candidates for phasing, default: True")
-
-    parser.add_argument('--sampleName', type=str, default="",
-                        help="Define the sample name to be shown in the VCF file, optional")
-
-    # options for debug purpose
-    parser.add_argument('--phasing_info_in_bam', action='store_true',
-                        help="DEBUG: Input bam or sam have phasing info in HP tag, default: False")
-
-    parser.add_argument('--split_bed_size', type=int, default=1000,
-                        help="DEBUG: Default split bed size for parallel excution, default: %(default)s")
-
-    parser.add_argument('--calling', type=int, default=0,
-                        help="DEBUG: Path of the output folder, default: %(default)s")
-
-    parser.add_argument('--realign_window_size', type=int, default=None,
-                        help="DEBUG: The window size of read realignment, work with need_realignment")
-
-    parser.add_argument('--split_region_size', type=int, default=40000000,
-                        help="DEBUG: Vcf phasing split_region_size default: %(default)s")
-
-    # options for internal process control
-    ## The number of chucks to be divided into for parallel processing
-    parser.add_argument('--chunk_num', type=int, default=None,
-                        help=SUPPRESS)
-
-    ## The chuck ID to work on
-    parser.add_argument('--chunk_id', type=int, default=None,
-                        help=SUPPRESS)
-
-    ## Output all alternative candidates path
-    parser.add_argument('--all_alt_fn', type=str, default=None,
-                        help=SUPPRESS)
-
-    ## Default chr prefix for contig name
-    parser.add_argument('--chr_prefix', type=str, default='chr',
-                        help=SUPPRESS)
-
-    ## Default subsample depth for subsample bam file, 1000 means no subsampling
-    parser.add_argument('--depth', type=int, default=1000,
-                        help=SUPPRESS)
-
-    ## Path of provided alternative file
-    parser.add_argument('--alt_fn', type=str, default=None,
-                        help=SUPPRESS)
-
-    ## Input the file that contains the quality cut-off for selecting low-quality pileup calls for phasing and full-alignment calling
     parser.add_argument('--min_qual', type=float, default=0,
                         help=SUPPRESS)
 

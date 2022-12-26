@@ -76,41 +76,6 @@ def sort_vcf_from_stdin(args):
                 output.write(contig_dict[contig][pos])
 
 
-def sort_bed_from_stdin(args):
-    """
-    Sort vcf file according to variants start position and contig name.
-    """
-
-    row_count = 0
-    header = []
-    contig_dict = defaultdict(defaultdict)
-    no_vcf_output = True
-    for row in stdin:
-        row_count += 1
-        if row[0] == '#':
-            if row not in header:
-                header.append(row)
-            continue
-        # use the first vcf header
-        columns = row.strip().split()
-        ctg_name, bed_start, bed_end = columns[:3]
-        contig_dict[ctg_name][(int(bed_start), int(bed_end))] = row
-        no_bed_output = False
-    if row_count == 0:
-        print(log_warning("[WARNING] No BED file found, please check the setting"))
-    if no_bed_output:
-        print(log_warning("[WARNING] No BED found, please check the setting"))
-
-    contigs_order = major_contigs_order + list(contig_dict.keys())
-    contigs_order_list = sorted(contig_dict.keys(), key=lambda x: contigs_order.index(x))
-    with open(args.output_fn, 'w') as output:
-        output.write(''.join(header))
-        for contig in contigs_order_list:
-            all_pos = sorted(contig_dict[contig].keys())
-            for pos in all_pos:
-                output.write(contig_dict[contig][pos])
-
-
 def sort_vcf_from(args):
     """
     Sort vcf file from providing vcf filename prefix.
@@ -248,14 +213,8 @@ def main():
     parser.add_argument('--compress_vcf', type=str2bool, default=False,
                         help="Only work for gvcf file, reduce hard disk space")
 
-    parser.add_argument('--bed_format', action='store_true',
-                        help="Only work for gvcf file, reduce hard disk space")
-
     args = parser.parse_args()
     if args.input_dir is None:
-        if args.bed_format:
-            sort_bed_from_stdin(args)
-        else:
             sort_vcf_from_stdin(args)
     else:
         # default entry

@@ -25,7 +25,7 @@ def get_coverage(coverage_log, ctg_name=None):
     return coverage
 
 
-def split_bin(args):
+def split_bam(args):
     normal_bam_fn = args.normal_bam_fn
     tumor_bam_fn = args.tumor_bam_fn
     output_dir = args.output_dir
@@ -120,7 +120,7 @@ def main():
 
     args = parser.parse_args()
 
-    split_bin(args)
+    split_bam(args)
 
 
 if __name__ == "__main__":

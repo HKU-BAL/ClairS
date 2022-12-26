@@ -7,20 +7,7 @@ import argparse
 import shlex
 from subprocess import PIPE
 from os.path import isfile, isdir
-# A->A
-# C->C
-# G->G
-# T or U->T
-# R->A or G
-# Y->C or T
-# S->G or C
-# W->A or T
-# K->G or T
-# M->A or C
-# B->C or G or T
-# D->A or G or T
-# H->A or C or T
-# V->A or C or G
+
 IUPAC_base_to_ACGT_base_dict = dict(zip(
     "ACGTURYSWKMBDHVN",
     ("A", "C", "G", "T", "T", "A", "C", "C", "A", "G", "A", "C", "A", "A", "A", "A")
