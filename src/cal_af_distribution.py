@@ -9,7 +9,7 @@ from collections import defaultdict
 
 from shared.vcf import VcfReader
 import shared.param as param
-
+from shared.utils import str2bool
 
 def get_base_list(columns, args=None):
     if len(columns) < 5:
@@ -156,7 +156,7 @@ def cal_af(args, truth_variant_dict=None, input_variant_dict=None):
     min_bq = param.min_bq
 
     phasing_option = "--output-extra HP " if args.phase_output else " "
-    samtools_command = "{} mpileup --min-MQ {} --min-BQ {} --excl-flags 2316  {} ".format(args.samtools,
+    samtools_command = "{} mpileup --min-MQ {} --min-BQ {} --excl-flags 2316 {} ".format(args.samtools,
                                                                                           min_mq,
                                                                                           min_bq,
                                                                                           phasing_option)
@@ -223,7 +223,7 @@ def main():
     parser.add_argument('--min_bq_cut', type=int, default=0,
                         help="Output VCF filename, required")
 
-    parser.add_argument('--phase_output', type=bool, default=False,
+    parser.add_argument('--phase_output', type=str2bool, default=False,
                         help="Output phasing INFO")
 
     parser.add_argument('--pos', type=int, default=None,

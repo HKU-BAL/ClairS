@@ -24,9 +24,28 @@ def cal_metrics(tp, fp, fn):
     return round(precision, 4), round(recall, 4), round(f1_score, 4)
 
 
+def output_best_cut_off(fp_qual_dict, tp_qual_dict, fn_count, use_int_cut_off=True):
+    results = []
+    if use_int_cut_off:
+        qual_list = set([int(q) for q in list(fp_qual_dict.values()) + list(tp_qual_dict.values())])
+    else:
+        qual_list = [item / 100.0 for item in range(0, 101)]
+
+    for qual in qual_list:
+        fp_snv = sum([1 for k, v in fp_qual_dict.items() if v >= qual])
+        tp_snv = sum([1 for k, v in tp_qual_dict.items() if v >= qual])
+        fn_snv = fn_count + len(tp_qual_dict) - tp_snv
+        snv_pre, snv_rec, snv_f1 = cal_metrics(tp=tp_snv, fp=fp_snv, fn=fn_snv)
+
+        results.append([qual, snv_pre, snv_rec, snv_f1, tp_snv, fp_snv, fn_snv])
+
+    results = sorted(results, key=lambda x: x[3], reverse=True)
+    return results
+
 def compare_vcf(args):
     """
-    How som.py works
+    Follow how som.py works
+    ## https://github.com/Illumina/hap.py/blob/master/doc/sompy.md
     """
     output_fn = args.output_fn
     output_dir = args.output_dir
@@ -38,9 +57,9 @@ def compare_vcf(args):
     skip_genotyping = args.skip_genotyping
     input_filter_tag = args.input_filter_tag
     truth_filter_tag = args.truth_filter_tag
-    remove_fn_out_of_fp_bed = args.remove_fn_out_of_fp_bed
+    discard_fn_out_of_fp_bed = args.discard_fn_out_of_fp_bed
+
     fp_bed_tree = bed_tree_from(bed_file_path=bed_fn, contig_name=ctg_name)
-    # fp_bed_tree = {}
     strat_bed_tree_list = []
 
     if args.strat_bed_fn is not None and ',' in args.strat_bed_fn:
@@ -76,11 +95,91 @@ def compare_vcf(args):
     input_vcf_reader.read_vcf()
     input_variant_dict = input_vcf_reader.variant_dict
 
-    germline_count = 0
     input_out_of_bed = 0
     truth_out_of_bed = 0
-
+    low_bq_count = 0
     low_qual_truth = set()
+    low_af_truth = set()
+    input_out_of_strat_bed, truth_out_of_strat_bed = 0, 0
+
+    discard_low_af = args.min_af is not None
+    no_normal_count, no_tumor_alt_count, low_tumor_count, high_normal_af, low_af_count = 0, 0, 0, 0, 0
+    if discard_low_af:
+        if args.low_af_path is None or not os.path.exists(args.low_af_path):
+            if not (os.path.exists(args.normal_bam_fn) and os.path.exists(args.tumor_bam_fn)):
+                sys.exit("[ERROR] Pls input --normal_bam_fn and --tumor_bam_fn for calculation")
+            result_dict = cal_af(args, truth_variant_dict, input_variant_dict)
+        else:
+            result_dict = defaultdict()
+            fp = open(args.low_af_path).readlines()
+            fp = [item.rstrip().split(' ') for item in fp]
+            for row in fp:
+                ctg, pos, normal_cov, tumor_cov, normal_alt, tumor_alt, *hap_info = row
+                result_dict[ctg, int(pos)] = ctg, pos, normal_cov, tumor_cov, normal_alt, tumor_alt, hap_info
+
+        for k, v in result_dict.items():
+            ctg_name, pos, normal_cov, tumor_cov, normal_alt, tumor_alt = v[:6]
+            key = int(pos) if args.ctg_name is not None else (ctg_name, int(pos))
+            if int(normal_cov) <= args.min_coverage:
+                low_af_truth.add(key)
+                no_normal_count += 1
+            elif int(tumor_alt) == 0 or int(tumor_cov) == 0:
+                low_af_truth.add(key)
+                no_tumor_alt_count += 1
+            elif int(tumor_alt) / float(tumor_cov) <= args.min_af or int(tumor_alt) <= args.min_alt_coverage:
+                low_tumor_count += 1
+                low_af_truth.add(key)
+
+        for k in list(input_variant_dict.keys()):
+            if float(input_variant_dict[k].af) <= args.min_af:
+                del input_variant_dict[k]
+                low_af_count += 1
+
+    confict_phase = 0
+    phasable_count = 0
+    non_phasable_count = 0
+    if args.validate_phase_only is not None:
+        unphase = 0
+        phase_dict = defaultdict()
+        if args.phase_output is not None:
+            for item in open(args.phase_output).readlines():
+                ctg, pos, normal_cov, tumor_cov, normal_alt, tumor_alt, *hap_info = item.rstrip().split(' ')
+                phase_dict[ctg, int(pos)] = (ctg, pos, normal_cov, tumor_cov, normal_alt, tumor_alt, hap_info)
+        else:
+            phase_dict = result_dict
+        for item in phase_dict.values():
+            ctg, pos, normal_cov, tumor_cov, normal_alt, tumor_alt, hap_info = item
+            hp0, hp1, hp2, all_hp0, all_hp1, all_hp2 = [int(i) for i in hap_info]
+            key = int(pos) if args.ctg_name is not None else (ctg, int(pos))
+            if key in input_variant_dict:
+                continue
+
+            # phaseable
+            phaseable = all_hp1 * all_hp2 > 0 and hp1 * hp2 == 0 and (
+                        int(hp1) > args.min_alt_coverage or int(hp2) > args.min_alt_coverage)
+            if int(args.validate_phase_only) == 1 and not phaseable:
+                low_af_truth.add(key)
+                continue
+            if int(args.validate_phase_only) == 2 and phaseable:
+                low_af_truth.add(key)
+                continue
+
+        for k, v in input_variant_dict.items():
+            row = v.row_str.rstrip().split('\t')
+            phaseable = row.split('\t')[6] == 'P'
+            if phaseable:
+                phasable_count += 1
+            else:
+                non_phasable_count += 1
+
+            if int(args.validate_phase_only) == 1 and not phaseable:
+                low_af_truth.add(k)
+            if int(args.validate_phase_only) == 2 and phaseable:
+                low_af_truth.add(k)
+
+        print("[INFO] Fail or non-phasable:", non_phasable_count, 'Low ALT base phase count :', unphase, "Phasable:",
+              phasable_count)
+
     if high_confident_only:
         for key in list(truth_variant_dict.keys()):
             row = truth_variant_dict[key].row_str
@@ -92,13 +191,9 @@ def compare_vcf(args):
     else:
         output_file = None
 
-
-    input_out_of_bed = 0
-    truth_out_of_bed = 0
-    
     for key in list(input_variant_dict.keys()):
-        pos = key if ctg_name is not None else key[1]
-        contig = ctg_name if ctg_name is not None else key[0]
+        pos = key if args.ctg_name is not None else key[1]
+        contig = args.ctg_name if args.ctg_name is not None else key[0]
         pass_bed_region = len(fp_bed_tree) == 0 or is_region_in(tree=fp_bed_tree,
                                                                 contig_name=contig,
                                                                 region_start=pos - 1,
