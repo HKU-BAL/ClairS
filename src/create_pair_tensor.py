@@ -607,7 +607,6 @@ def create_pair_tensor(args):
     flags_option = ' --excl-flags {} '.format(param.SAMTOOLS_VIEW_FILTER_FLAG)
     max_depth_option = ' --max-depth {}'.format(args.max_depth) if args.max_depth is not None else " "
     reads_regions_option = ' -r {}'.format(" ".join(reads_regions)) if add_read_regions else ""
-    # print (add_read_regions, ctg_start, ctg_end, reference_start)
 
     samtools_command = "{} mpileup --reverse-del".format(samtools_execute_command) + \
                        output_read_name_option + output_mq_option + reads_regions_option + mq_option + bq_option + bed_option + flags_option + max_depth_option
@@ -801,16 +800,16 @@ def create_pair_tensor(args):
 
 
 def main():
-    parser = ArgumentParser(description="Generate normal-tumor pair variant candidate tensors")
+    parser = ArgumentParser(description="Generate normal-tumor pair variant candidate tensors for calling")
 
     parser.add_argument('--platform', type=str, default='ont',
-                        help="Sequencing platform of the input. Options: 'ont,ilmn', default: %(default)s")
+                        help="Sequencing platform of the input, default: %(default)s")
 
     parser.add_argument('--normal_bam_fn', type=str, default=None,
-                        help="Sorted BAM file input, required")
+                        help="Sorted normal BAM file input, required")
 
     parser.add_argument('--tumor_bam_fn', type=str, default=None,
-                        help="Sorted BAM file input, required")
+                        help="Sorted tumor BAM file input, required")
 
     parser.add_argument('--ref_fn', type=str, default=None,
                         help="Reference fasta file input, required")
@@ -862,6 +861,12 @@ def main():
     parser.add_argument('--truth_vcf_fn', type=str, default=None,
                         help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file,  default: %(default)s")
 
+    parser.add_argument('--phase_normal', type=str2bool, default=0,
+                        help="Phase normal tensor in calling")
+
+    parser.add_argument('--phase_tumor', type=str2bool, default=None,
+                        help="Phase tumor tensor in calling")
+
     # options for internal process control
     ## Path to the 'zstd' compression
     parser.add_argument('--zstd', type=str, default=param.zstd,
@@ -886,12 +891,6 @@ def main():
     ## Provide the regions to be included in full-alignment based calling
     parser.add_argument('--candidates_bed_regions', type=str, default=None,
                         help=SUPPRESS)
-
-    parser.add_argument('--phase_normal', type=str2bool, default=0,
-                        help="Phase normal tensor in calling")
-
-    parser.add_argument('--phase_tumor', type=str2bool, default=None,
-                        help="Phase tumor tensor in calling")
 
     ## apply tensor sample mode in training
     parser.add_argument('--tensor_sample_mode', type=str2bool, default=0,

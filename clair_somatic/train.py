@@ -137,7 +137,6 @@ def train_model(args):
     add_l2_regulation_loss = param.add_l2_regulation_loss
     l2_regularization_lambda = param.l2_regularization_lambda
     debug_mode = args.debug_mode
-    use_resnet = args.use_resnet
     platform = args.platform
     ctg_name_string = args.ctg_name
     chkpnt_fn = args.chkpnt_fn
@@ -509,7 +508,7 @@ def main():
                         help="Maximum number of training epochs")
 
     parser.add_argument('--smoothing', type=int, default=param.smoothing,
-                        help="Label smoothing Epsilon in training")
+                        help="Label smoothing with epsilon in training")
 
     parser.add_argument('--learning_rate', type=float, default=None,
                         help="Set the initial learning rate, default: %(default)s")

@@ -1,14 +1,14 @@
 import os
-import sys
 
 from collections import defaultdict
-from os.path import isfile, abspath
+from os.path import abspath
 from sys import exit, stderr
 from subprocess import check_output, PIPE, Popen
 import argparse
 import shlex
 from subprocess import PIPE
 from os.path import isfile, isdir
+from textwrap import dedent
 
 IUPAC_base_to_ACGT_base_dict = dict(zip(
     "ACGTURYSWKMBDHVN",
@@ -300,21 +300,24 @@ class AltInfos(object):
 
 def output_header(reference_file_path, output_fn=None, sample_name='SAMPLE'):
 
-    header = ""
-    from textwrap import dedent
-    header += dedent("""\
-        ##fileformat=VCFv4.2
-        ##FILTER=<ID=PASS,Description="All filters passed">
-        ##FILTER=<ID=LowQual,Description="Low quality variant">
-        ##FILTER=<ID=RefCall,Description="Reference call">
-        ##INFO=<ID=U,Number=0,Type=Flag,Description="Result from unified match">
-        ##INFO=<ID=R,Number=0,Type=Flag,Description="Result from rescue candidates">
-        ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
-        ##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
-        ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read Depth">
-        ##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Phred-scaled genotype likelihoods rounded to the closest integer">
-        ##FORMAT=<ID=AF,Number=1,Type=Float,Description="Estimated allele frequency in the range of [0,1]">"""
-                  ) + '\n'
+    header = dedent("""\
+            ##fileformat=VCFv4.2
+            ##FILTER=<ID=PASS,Description="All filters passed">
+            ##FILTER=<ID=LowQual,Description="Low quality variant">
+            ##FILTER=<ID=RefCall,Description="Reference call">
+            ##FILTER=<ID=Germline,Description="Germline variant call">
+            ##INFO=<ID=P,Number=0,Type=Flag,Description="Variant only in one phased haplotype">
+            ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+            ##FORMAT=<ID=GQ,Number=1,Type=Float,Description="Genotype quality">
+            ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Tumor read depth">
+            ##FORMAT=<ID=AF,Number=1,Type=Float,Description="Estimated allele frequency in tumor sample">
+            ##FORMAT=<ID=NAF,Number=1,Type=Float,Description="Estimated allele frequency in normal sample">
+            ##FORMAT=<ID=NDP,Number=1,Type=Integer,Description="Normal Read Depth">
+            ##FORMAT=<ID=AU,Number=1,Type=Integer,Description="Number of 'A' alleles in tumor BAM">
+            ##FORMAT=<ID=CU,Number=1,Type=Integer,Description="Number of 'C' alleles in tumor BAM">
+            ##FORMAT=<ID=GU,Number=1,Type=Integer,Description="Number of 'G' alleles in tumor BAM">
+            ##FORMAT=<ID=TU,Number=1,Type=Integer,Description="Number of 'T' alleles in tumor BAM">
+            """)
 
     if reference_file_path is not None:
         reference_index_file_path = file_path_from(reference_file_path, suffix=".fai", exit_on_not_found=True, sep='.')

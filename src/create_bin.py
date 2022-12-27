@@ -37,7 +37,7 @@ def main():
     parser = ArgumentParser(description="Combine the variant and non-variant tensors and convert them to a binary")
 
     parser.add_argument('--platform', type=str, default="ont",
-                        help="Sequencing platform of the input. Options: 'ont,ilmn', default: %(default)s")
+                        help="Sequencing platform of the input, default: %(default)s")
 
     parser.add_argument('--normal_tensor_fn', type=str, default=None,
                         help="Normal tensor input")

@@ -496,15 +496,3 @@ def get_training_array(args,
 
     table_file.close()
     print("[INFO] Compressed %d/%d tensor" % (total_compressed, total), file=sys.stderr)
-
-    # if 0:
-    #     bin_fn = ""
-    #     import numpy as np
-    #     import tables
-    #     a = tables.open_file(bin_fn)
-    #     label = np.array(a.root.label[:100])
-    #     matrix = np.array(a.root.input_matrix[:100])
-    #     position = np.array(a.root.position[:100])
-    #     normal_info = np.array(a.root.normal_alt_info[:100])
-    #     tumor_info = np.array(a.root.tumor_alt_info[:100])
-    #     a.close()

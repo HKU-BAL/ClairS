@@ -517,7 +517,7 @@ def main():
                         help="Tensor input filename, or stdin if not set")
 
     parser.add_argument('--chkpnt_fn', type=str, default=None,
-                        help="Input a trained model for variant calling, required")
+                        help="Input a trained model for calling, required")
 
     parser.add_argument('--call_fn', type=str, default=None,
                         help="VCF output filename, or stdout if not set")
@@ -556,6 +556,12 @@ def main():
     parser.add_argument('--output_probabilities', action='store_true',
                         help="DEBUG: Output the network probabilities of gt21, genotype, indel_length_1 and indel_length_2")
 
+    parser.add_argument('--show_ref', action='store_true',
+                        help="Output reference calls")
+
+    parser.add_argument('--show_germline', action='store_true',
+                        help="Output germline calls")
+
     # options for internal process control
     ## Use GPU for calling
     parser.add_argument('--use_gpu', type=str2bool, default=False,
@@ -582,14 +588,6 @@ def main():
                         help=SUPPRESS)
 
     parser.add_argument('--phase_tumor', type=str2bool, default=False,
-                        help=SUPPRESS)
-
-    ## Output reference calls
-    parser.add_argument('--show_ref', action='store_true',
-                        help=SUPPRESS)
-
-    ## Output germline calls
-    parser.add_argument('--show_germline', action='store_true',
                         help=SUPPRESS)
 
     parser.add_argument('--flanking', type=int, default=None,
