@@ -62,7 +62,7 @@ docker run -it \
   --threads 4 \
   --platform ont \
   --output ${OUTPUT_DIR} \
-  --region chr17:80000000-80100000
+  --region chr17
 ```
 
 **Run [compare_vcf.py](src/compare.vcf) for benchmarking (optional)**
