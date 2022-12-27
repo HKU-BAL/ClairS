@@ -119,7 +119,6 @@ def extract_candidates(args):
     ctg_end = args.ctg_end
     fasta_file_path = args.ref_fn
     ctg_name = args.ctg_name
-    need_phasing = args.need_phasing
     samtools_execute_command = args.samtools
     output_depth = args.output_depth
     output_alt_info = args.output_alt_info
@@ -155,7 +154,7 @@ def extract_candidates(args):
         unified_vcf_reader.read_vcf()
         truths_variant_dict = unified_vcf_reader.variant_dict
 
-    need_phasing_pos_set = set()
+    candidate_pos_set = set()
     add_read_regions = True
 
     if genotyping_mode:
@@ -218,7 +217,7 @@ def extract_candidates(args):
             ctg_start = chunk_size * chunk_id  # 0-base to 1-base
             ctg_end = ctg_start + chunk_size
 
-    need_phasing_pos_set = set([item for item in need_phasing_pos_set if item >= ctg_start and item <= ctg_end])
+    candidate_pos_set = set([item for item in candidate_pos_set if item >= ctg_start and item <= ctg_end])
     # 1-based regions [start, end] (start and end inclusive)
     ref_regions = []
     reads_regions = []
@@ -268,7 +267,7 @@ def extract_candidates(args):
         alt_fp = open(output_alt_fn, 'w')
 
     is_tumor = alt_fn.split('/')[-2].startswith('tumor') if alt_fn else False
-    has_pileup_candidates = len(need_phasing_pos_set)
+    has_pileup_candidates = len(candidate_pos_set)
     candidates_list = []
     for row in samtools_mpileup_process.stdout:  # chr position N depth seq BQ read_name mapping_quality phasing_info
         columns = row.strip().split('\t')
@@ -330,7 +329,7 @@ def extract_candidates(args):
 
 
 def main():
-    parser = ArgumentParser(description="Generate variant candidate for tensor creation")
+    parser = ArgumentParser(description="Extract candidates for tensor creation in training")
 
     parser.add_argument('--platform', type=str, default='ont',
                         help="Sequencing platform of the input, default: %(default)s")

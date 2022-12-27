@@ -967,7 +967,7 @@ def create_tensor(args):
 
 
 def main():
-    parser = ArgumentParser(description="Generate variant candidate tensors")
+    parser = ArgumentParser(description="Generate variant candidate full-alignment tensors for training")
 
     parser.add_argument('--platform', type=str, default='ont',
                         help="Sequencing platform of the input, default: %(default)s")
@@ -984,7 +984,7 @@ def main():
     parser.add_argument('--vcf_fn', type=str, default=None,
                         help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file,  default: %(default)s")
 
-    parser.add_argument('--snv_min_af', type=float, default=0.1,
+    parser.add_argument('--snv_min_af', type=float, default=param.snv_min_af,
                         help="Minimum snv allele frequency for a site to be considered as a candidate site, default: %(default)f")
 
     parser.add_argument('--ctg_name', type=str, default=None,

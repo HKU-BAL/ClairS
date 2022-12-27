@@ -4,7 +4,7 @@ import subprocess
 import concurrent.futures
 
 from collections import Counter
-from argparse import ArgumentParser
+from argparse import ArgumentParser, SUPPRESS
 from collections import defaultdict
 
 import shared.param as param
@@ -202,7 +202,7 @@ def realign_variants(args):
 
 
 def main():
-    parser = ArgumentParser(description="Reads realignment")
+    parser = ArgumentParser(description="Reads realignment workflow for all input variants")
 
     parser.add_argument('--bam_fn', type=str, default=None,
                         help="Sorted BAM file input, required")
@@ -234,10 +234,7 @@ def main():
                         help="Path to the 'samtools', samtools version >= 1.10 is required. default: %(default)s")
 
     parser.add_argument('--threads', type=int, default=1,
-                        help="Path to the 'samtools', samtools version >= 1.10 is required. default: %(default)s")
-
-    parser.add_argument('--pos', type=int, default=None,
-                        help="Output VCF filename, required")
+                        help="Max threads to use")
 
     parser.add_argument('--python', type=str, default="python3",
                         help="Path to the 'python3', default: %(default)s")
@@ -247,6 +244,9 @@ def main():
 
     parser.add_argument('--qual', type=float, default=None,
                         help="Maximum QUAL to realign a variant")
+
+    parser.add_argument('--pos', type=int, default=None,
+                        help=SUPPRESS)
 
     if len(sys.argv[1:]) == 0:
         parser.print_help()

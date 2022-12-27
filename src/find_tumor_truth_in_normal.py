@@ -1,19 +1,13 @@
 import shlex
 import os
-import sys
-from os.path import isfile, abspath
-from sys import exit, stderr
-from subprocess import check_output, PIPE, Popen
-import argparse
-import shlex
+
+from sys import stderr
+from subprocess import Popen
 from subprocess import PIPE
-import subprocess
+from argparse import ArgumentParser
 from collections import defaultdict
 
-from argparse import ArgumentParser, SUPPRESS
-from collections import Counter, defaultdict
 from shared.interval_tree import bed_tree_from, is_region_in
-import shared.param as param
 
 def subprocess_popen(args, stdin=None, stdout=PIPE, stderr=stderr, bufsize=8388608):
     return Popen(args, stdin=stdin, stdout=stdout, stderr=stderr, bufsize=bufsize, universal_newlines=True)
@@ -51,7 +45,6 @@ split_bed_size = 2000
 
 
 def decode_af(input_dir, file_list, output_depth=False, output_alt=False, bed_tree=None, contig_name=None):
-    af_list = []
     alt_info_dict = defaultdict()
     pos_set = set()
     for f in file_list:
@@ -105,10 +98,9 @@ def find_candidate_match(alt_info_dict, ref_base, alt_base):
     return None, ""
 
 
+def find_tumor_truth_in_normal(args):
 
-def filter_ref(args):
-
-    contig_name =args.ctgName
+    contig_name =args.ctg_name
     #tumor bed fn
     bed_fn = args.bed_fn
     normal_sample = args.normal_sample
@@ -150,72 +142,54 @@ def filter_ref(args):
     print (count_dict.items())
 
 def main():
-    parser = ArgumentParser(description="Generate variant candidate tensors using phased full-alignment")
+    parser = ArgumentParser(description="Find tumor truth variants INFO in normal")
 
     parser.add_argument('--platform', type=str, default='ont',
-                        help="Sequencing platform of the input. Options: 'ont,hifi,ilmn', default: %(default)s")
+                        help="Sequencing platform of the input, default: %(default)s")
 
-    parser.add_argument('--bam_fn', type=str, default="input.bam",  # required=True,
+    parser.add_argument('--bam_fn', type=str, default="input.bam",
                         help="Sorted BAM file input, required")
 
-    parser.add_argument('--ref_fn', type=str, default="ref.fa",  # required=True,
+    parser.add_argument('--ref_fn', type=str, default="ref.fa",
                         help="Reference fasta file input, required")
 
     parser.add_argument('--normal_alt_dir', type=str, default="PIPE",
-                        help="Tensor output, stdout by default, default: %(default)s")
+                        help="Normal alternative directory")
 
     parser.add_argument('--tumor_alt_dir', type=str, default="PIPE",
-                        help="Tensor output, stdout by default, default: %(default)s")
+                        help="Tumor alternative directory")
 
     parser.add_argument('--normal_sample', type=str, default=None,
-                        help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file,  default: %(default)s")
+                        help="Normal sample name")
 
     parser.add_argument('--tumor_sample', type=str, default=None,
-                        help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file,  default: %(default)s")
+                        help="Tumor sample name")
 
     parser.add_argument('--unified_vcf_fn', type=str, default=None,
-                        help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file,  default: %(default)s")
+                        help="Candidate sites VCF file input")
 
     parser.add_argument('--normal_unified_vcf_fn', type=str, default=None,
-                        help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file,  default: %(default)s")
+                        help="Normal candidate sites VCF file input")
 
-    parser.add_argument('--min_af', type=float, default=0.08,
-                        help="Minimum allele frequency for both SNP and Indel for a site to be considered as a condidate site, default: %(default)f")
-
-    parser.add_argument('--ctgName', type=str, default=None,
+    parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of sequence to be processed, required if --bed_fn is not defined")
 
     parser.add_argument('--reference_cans', type=str, default=None,
-                        help="The name of sequence to be processed, required if --bed_fn is not defined")
-
-    parser.add_argument('--ctgStart', type=int, default=None,
-                        help="The 1-based starting position of the sequence to be processed, optional, will process the whole --ctgName if not set")
-
-    parser.add_argument('--ctgEnd', type=int, default=None,
-                        help="The 1-based inclusive ending position of the sequence to be processed, optional, will process the whole --ctgName if not set")
+                        help="The path of all reference files")
 
     parser.add_argument('--bed_fn', type=str, default=None,
-                        help="Call variant only in the provided regions. Will take an intersection if --ctgName and/or (--ctgStart, --ctgEnd) are set")
+                        help="Call variant only in the provided regions. Will take an intersection if --ctg_name and/or (--ctgStart, --ctgEnd) are set")
 
     parser.add_argument('--split_folder', type=str, default=None,
-                        help="Call variant only in the provided regions. Will take an intersection if --ctgName and/or (--ctgStart, --ctgEnd) are set")
-
-    parser.add_argument('--sampleName', type=str, default="SAMPLE",
-                        help="Define the sample name to be shown in the GVCF file")
-
-    parser.add_argument('--samtools', type=str, default="samtools",
-                        help="Path to the 'samtools', samtools version >= 1.10 is required. default: %(default)s")
-
-    parser.add_argument('--output_dir', type=str, default="",
-                        help="Path to the 'samtools', samtools version >= 1.10 is required. default: %(default)s")
+                        help="Call variant only in the provided regions. Will take an intersection if --ctg_name and/or (--ctgStart, --ctgEnd) are set")
 
     parser.add_argument('--add_truths', action='store_true',
-                        help="DEBUG: Skip phasing and use the phasing info provided in the input BAM (HP tag), default: False")
+                        help="Include all truths variants")
 
 
     args = parser.parse_args()
 
-    filter_ref(args)
+    find_tumor_truth_in_normal(args)
 
 
 if __name__ == "__main__":

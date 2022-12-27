@@ -268,7 +268,7 @@ def main():
                         help="Tumor purity")
 
     parser.add_argument('--ctg_name', type=str_none, default=None,
-                        help="The name of sequence to be processed, required if --bed_fn is not defined")
+                        help="The name of sequence to be processed")
 
     parser.add_argument('--mosdepth', type=str, default="mosdepth",
                         help="Path to the 'mosdepth'")
@@ -277,7 +277,7 @@ def main():
                         help="EXPERIMENTAL: Only print the synthetic log, debug only")
 
     parser.add_argument('--cal_output_bam_coverage', type=str2bool, default=0,
-                        help="EXPERIMENTAL: Only print the synthetic log, debug only")
+                        help="EXPERIMENTAL: calculate ouput contaminated BAM using mosdepth")
 
     parser.add_argument('--remove_intermediate_dir', action='store_true',
                         help="Remove intermediate directory. Default: False")

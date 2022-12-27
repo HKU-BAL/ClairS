@@ -41,7 +41,7 @@ def random_sample(population, k, seed=0):
     return random.sample(population, k)
 
 
-def MixBin(args):
+def mix_bin(args):
     tumor_bam_fn = args.tumor_bam_fn
     output_fn = args.output_fn
     input_dir = args.input_dir
@@ -234,7 +234,7 @@ def main():
 
     args = parser.parse_args()
 
-    MixBin(args)
+    mix_bin(args)
 
 
 if __name__ == "__main__":

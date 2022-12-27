@@ -541,34 +541,34 @@ def get_candidates(args):
 
 
 def main():
-    parser = ArgumentParser(description="Generate variant candidate tensors using phased full-alignment")
+    parser = ArgumentParser(description="Get pair cofident candidates for model training")
 
     parser.add_argument('--platform', type=str, default='ont',
                         help="Sequencing platform of the input. default: %(default)s")
 
-    parser.add_argument('--bam_fn', type=str, default="input.bam",  # required=True,
+    parser.add_argument('--bam_fn', type=str, default="input.bam",
                         help="Sorted BAM file input, required")
 
-    parser.add_argument('--ref_fn', type=str, default=None,  # required=True,
+    parser.add_argument('--ref_fn', type=str, default=None,
                         help="Reference fasta file input, required")
 
     parser.add_argument('--normal_vcf_fn', type=str, default=None,
-                        help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file,  default: %(default)s")
+                        help="Normal candidate sites VCF file input")
 
     parser.add_argument('--tumor_vcf_fn', type=str, default=None,
-                        help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file,  default: %(default)s")
+                        help="Tumor candidate sites VCF file input")
 
     parser.add_argument('--ctg_name', type=str, default=None,
-                        help="The name of sequence to be processed, required if --bed_fn is not defined")
+                        help="The name of sequence to be processed")
 
     parser.add_argument('--normal_reference_cans', type=str, default=None,
-                        help="The name of sequence to be processed, required if --bed_fn is not defined")
+                        help="Normal reference cans information")
 
     parser.add_argument('--tumor_reference_cans', type=str, default=None,
-                        help="The name of sequence to be processed, required if --bed_fn is not defined")
+                        help="Tumor reference cans information")
 
     parser.add_argument('--bed_fn', type=str, default=None,
-                        help="Call variant only in the provided regions. Will take an intersection if --ctg_name and/or (--ctg_start, --ctgEnd) are set")
+                        help="Call variant only in the provided regions")
 
     parser.add_argument('--samtools', type=str, default="samtools",
                         help="Path to the 'samtools', samtools version >= 1.10 is required. default: %(default)s")
@@ -582,13 +582,13 @@ def main():
 
     # options for debug purpose
     parser.add_argument('--sample_normal_af', type=float, default=None,
-                        help="DEBUG: Skip phasing and use the phasing info provided in the input BAM (HP tag), default: False")
+                        help="DEBUG: Sample a proportion of normal candidates")
 
     parser.add_argument('--proportion', type=float, default=None,
-                        help="DEBUG: The window size for read phasing")
+                        help="Synthetic proportion of input BAM")
 
     parser.add_argument('--synthetic_coverage', type=int, default=None,
-                        help="DEBUG: Synthetic coverage in training")
+                        help="Synthetic coverage in training")
 
     # options for debug purpose
     parser.add_argument('--add_hetero_pos', type=str2bool, default=0,

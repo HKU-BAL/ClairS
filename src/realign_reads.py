@@ -664,7 +664,7 @@ def main():
                         help="EXPERIMENTAL: Minimum Mapping Quality. Mapping quality lower than the setting will be filtered, default: %(default)d")
 
     parser.add_argument('--realign_flanking_window', type=int, default=100,
-                        help="EXPERIMENTAL: Minimum Mapping Quality. Mapping quality lower than the setting will be filtered, default: %(default)d")
+                        help="EXPERIMENTAL: Maximum flanking window for short-read realignment")
 
     # options for debug purpose
     parser.add_argument('--extend_bed', type=str, default=None,

@@ -553,18 +553,18 @@ def create_tensor(args):
 
 
 def main():
-    parser = ArgumentParser(description="Generate variant candidate tensors using phased full-alignment")
+    parser = ArgumentParser(description="Generate tumor-normal pair pileup tensors for calling")
 
     parser.add_argument('--platform', type=str, default='ont',
-                        help="Sequencing platform of the input. Options: 'ont,ilmn', default: %(default)s")
+                        help="Sequencing platform of the input, default: %(default)s")
 
-    parser.add_argument('--normal_bam_fn', type=str, default="input.bam",
-                        help="Sorted BAM file input, required")
+    parser.add_argument('--normal_bam_fn', type=str, default=None,
+                        help="Sorted normal BAM file input, required")
 
-    parser.add_argument('--tumor_bam_fn', type=str, default="input.bam",
-                        help="Sorted BAM file input, required")
+    parser.add_argument('--tumor_bam_fn', type=str, default=None,
+                        help="Sorted tumor BAM file input, required")
 
-    parser.add_argument('--ref_fn', type=str, default="ref.fa",
+    parser.add_argument('--ref_fn', type=str, default=None,
                         help="Reference fasta file input, required")
 
     parser.add_argument('--tensor_can_fn', type=str, default="PIPE",
@@ -573,11 +573,8 @@ def main():
     parser.add_argument('--vcf_fn', type=str, default=None,
                         help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file,  default: %(default)s")
 
-    parser.add_argument('--snv_min_af', type=float, default=0.1,
+    parser.add_argument('--snv_min_af', type=float, default=param.snv_min_af,
                         help="Minimum snp allele frequency for a site to be considered as a candidate site, default: %(default)f")
-
-    parser.add_argument('--indel_min_af', type=float, default=0.2,
-                        help="Minimum indel allele frequency for a site to be considered as a candidate site, default: %(default)f")
 
     parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of sequence to be processed, required if --bed_fn is not defined")
@@ -590,9 +587,6 @@ def main():
 
     parser.add_argument('--bed_fn', type=str, default=None,
                         help="Call variant only in the provided regions. Will take an intersection if --ctg_name and/or (--ctg_start, --ctg_end) are set")
-
-    parser.add_argument('--sample_name', type=str, default="SAMPLE",
-                        help="Define the sample name to be shown in the GVCF file")
 
     parser.add_argument('--samtools', type=str, default="samtools",
                         help="Path to the 'samtools', samtools version >= 1.10 is required. default: %(default)s")
@@ -628,6 +622,11 @@ def main():
     ## Test in specific candidate position. Only for testing
     parser.add_argument('--test_pos', type=str2bool, default=0,
                         help=SUPPRESS)
+
+    ## Minimum indel allele frequency for a site to be considered as a candidate site
+    parser.add_argument('--indel_min_af', type=float, default=1.0,
+                        help=SUPPRESS)
+
 
     ## The number of chucks to be divided into for parallel processing
     parser.add_argument('--chunk_num', type=int, default=None,

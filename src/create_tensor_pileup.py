@@ -11,7 +11,6 @@ import shared.param as param
 from shared.utils import subprocess_popen, file_path_from, IUPAC_base_to_num_dict as BASE2NUM, region_from, \
     reference_sequence_from, str2bool, vcf_candidates_from
 from shared.interval_tree import bed_tree_from, is_region_in
-from shared.intervaltree.intervaltree import IntervalTree
 
 logging.basicConfig(format='%(message)s', level=logging.INFO)
 BASES = set(list(BASE2NUM.keys()) + ["-"])
@@ -675,7 +674,7 @@ def create_tensor(args):
 
 
 def main():
-    parser = ArgumentParser(description="Generate variant candidate tensors")
+    parser = ArgumentParser(description="Create pileup tesnors for training")
 
     parser.add_argument('--platform', type=str, default='ont',
                         help="Sequencing platform of the input, default: %(default)s")

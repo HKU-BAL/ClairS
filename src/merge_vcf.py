@@ -149,7 +149,7 @@ def merge_vcf(args):
 
 
 def main():
-    parser = ArgumentParser(description="Sort a VCF file according to contig name and starting position")
+    parser = ArgumentParser(description="Merge full-alignment with pileup VCF")
 
     parser.add_argument('--platform', type=str, default='ont',
                         help="Sequencing platform of the input, default: %(default)s")

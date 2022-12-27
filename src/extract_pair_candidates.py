@@ -435,7 +435,7 @@ def extract_pair_candidates(args):
 
 
 def main():
-    parser = ArgumentParser(description="Generate normal-tumor pair variant candidate for tensor creation")
+    parser = ArgumentParser(description="Generate normal-tumor pair variant candidates for tensor creation in calling")
 
     parser.add_argument('--platform', type=str, default='ont',
                         help="Sequencing platform of the input, default: %(default)s")
