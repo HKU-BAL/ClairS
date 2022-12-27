@@ -25,18 +25,18 @@ mkdir -p ${OUTPUT_DIR}
 
 # Download quick demo data
 # GRCh38_no_alt reference
-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/somatic/demo/quick_demo/ont/GRCh38_no_alt_chr17.fa
-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/somatic/demo/quick_demo/ont/GRCh38_no_alt_chr17.fa.fai
+wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair_somatic/quick_demo/ont/GRCh38_no_alt_chr17.fa
+wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair_somatic/quick_demo/ont/GRCh38_no_alt_chr17.fa.fai
 # Normal and tumor BAM
-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/somatic/demo/quick_demo/ont/HCC1395BL_normal_chr17_demo.bam
-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/somatic/demo/quick_demo/ont/HCC1395BL_normal_chr17_demo.bam.bai
-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/somatic/demo/quick_demo/ont/HCC1395_tumor_chr17_demo.bam
-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/somatic/demo/quick_demo/ont/HCC1395_tumor_chr17_demo.bam.bai
+wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair_somatic/quick_demo/ont/HCC1395BL_normal_chr17_demo.bam
+wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair_somatic/quick_demo/ont/HCC1395BL_normal_chr17_demo.bam.bai
+wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair_somatic/quick_demo/ont/HCC1395_tumor_chr17_demo.bam
+wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair_somatic/quick_demo/ont/HCC1395_tumor_chr17_demo.bam.bai
 
 # SEQC2 Truth VCF and BED
-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/somatic/demo/quick_demo/ilmn/SEQC2_high-confidence_sSNV_in_HC_regions_v1.2_chr17.vcf.gz
-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/somatic/demo/quick_demo/ilmn/SEQC2_high-confidence_sSNV_in_HC_regions_v1.2_chr17.vcf.gz.tbi
-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/somatic/demo/quick_demo/ilmn/SEQC2_High-Confidence_Regions_v1.2_chr17.bed
+wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair_somatic/quick_demo/ilmn/SEQC2_high-confidence_sSNV_in_HC_regions_v1.2_chr17.vcf.gz
+wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair_somatic/quick_demo/ilmn/SEQC2_high-confidence_sSNV_in_HC_regions_v1.2_chr17.vcf.gz.tbi
+wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair_somatic/quick_demo/ilmn/SEQC2_High-Confidence_Regions_v1.2_chr17.bed
 
 REF="GRCh38_no_alt_chr17.fa"
 NORMAL_BAM="HCC1395BL_normal_chr17_demo.bam"
@@ -54,7 +54,7 @@ OUTPUT_VCF_FILE_PATH="output.vcf.gz"
 docker run -it \
   -v ${INPUT_DIR}:${INPUT_DIR} \
   -v ${OUTPUT_DIR}:${OUTPUT_DIR} \
-  hkubal/somatic:latest \
+  hkubal/clair-somatic:latest \
   /opt/bin/run_clair_somatic.sh \
   --tumor_bam_fn ${INPUT_DIR}/${TUMOR_BAM} \
   --normal_bam_fn ${INPUT_DIR}/${NORMAL_BAM} \
@@ -71,7 +71,7 @@ docker run -it \
 docker run -it \
   -v ${INPUT_DIR}:${INPUT_DIR} \
   -v ${OUTPUT_DIR}:${OUTPUT_DIR} \
-  hkubal/somatic:latest \
+  hkubal/clair-somatic:latest \
   python3 /opt/bin/src/compare_vcf.py \
      --truth_vcf_fn ${INPUT_DIR}/${BASELINE_VCF_FILE_PATH} \
 	 --input_vcf_fn	${OUTPUT_DIR}/${OUTPUT_VCF_FILE_PATH} \
@@ -108,7 +108,7 @@ ${OUTPUT_DIR}/${OUTPUT_VCF_FILE_PATH} \
 
 ```bash
 cd ${HOME}
-wget "http://www.bio8.cs.hku.hk/somatic/demo/ont_quick_demo.sh" # update to github using raw
+wget "https://raw.githubusercontent.com/HKU-BAL/Clair-Somatic/main/demo/ont_quick_demo.sh"
 chmod +x ont_quick_demo.sh
 ./ont_quick_demo.sh
 ```
