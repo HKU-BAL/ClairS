@@ -74,7 +74,7 @@ docker run -it \
   hkubal/clair-somatic:latest \
   python3 /opt/bin/src/compare_vcf.py \
      --truth_vcf_fn ${INPUT_DIR}/${BASELINE_VCF_FILE_PATH} \
-	 --input_vcf_fn	${OUTPUT_DIR}/${OUTPUT_VCF_FILE_PATH} \
+     --input_vcf_fn ${OUTPUT_DIR}/${OUTPUT_VCF_FILE_PATH} \
      --bed_fn ${INPUT_DIR}/${BASELINE_BED_FILE_PATH} \
      --output_dir ${OUTPUT_DIR}/benchmark \
      --input_filter_tag 'PASS' \
@@ -83,9 +83,9 @@ docker run -it \
 
 **Expected output:**
 
-|  Type   |  TP  |  FP  |  FN  | Precision | Recall | F1-score |
-| :-----: | :--: | :--: | :--: | :-------: | :----: | :------: |
-| **SNV** |      |      |      |           |        |          |
+|  Type   | Precision | Recall | F1-score |  TP  |  FP  |  FN  |
+| :-----: | :-------: | :----: | :------: | :--: | :--: | :--: |
+| **SNV** |    1.0    | 0.931  |  0.9643  |  27  |  0   |  2   |
 
  **Or run [som.py]() for benchmarking (optional)**
 
@@ -95,13 +95,13 @@ docker run \
 -v "${INPUT_DIR}":"${INPUT_DIR}" \
 -v "${OUTPUT_DIR}":"${OUTPUT_DIR}" \
 jmcdani20/hap.py:v0.3.12 /opt/hap.py/bin/som.py \
-${INPUT_DIR}/${BASELINE_VCF_FILE_PATH} \
-${OUTPUT_DIR}/${OUTPUT_VCF_FILE_PATH} \
--T ${INPUT_DIR}/${BASELINE_BED_FILE_PATH} \
--f ${INPUT_DIR}/${BASELINE_BED_FILE_PATH} \
--r ${INPUT_DIR}/${REF} \
--o "${OUTPUT_DIR}/som" \
--l chr17:80000000-80100000
+    ${INPUT_DIR}/${BASELINE_VCF_FILE_PATH} \
+    ${OUTPUT_DIR}/${OUTPUT_VCF_FILE_PATH} \
+    -T ${INPUT_DIR}/${BASELINE_BED_FILE_PATH} \
+    -f ${INPUT_DIR}/${BASELINE_BED_FILE_PATH} \
+    -r ${INPUT_DIR}/${REF} \
+    -o "${OUTPUT_DIR}/som" \
+    -l chr17
 ```
 
 **Run all commands above:**
