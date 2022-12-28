@@ -621,7 +621,7 @@ def somatic_calling(args):
     tumor_bam_prefix = clair3_output_path + '/phased_output/tumor_' if args.phase_tumor else args.tumor_bam_fn
 
     try:
-        rc = subprocess.check_call('time', shell=True, stdout=sys.stderr)
+        rc = subprocess.check_call('time', shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         time = 'time '
     except subprocess.CalledProcessError as e:
         time = ''
