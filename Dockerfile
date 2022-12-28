@@ -39,5 +39,6 @@ RUN /bin/bash -c "source activate clair_somatic" && cd /opt/bin/src/realign && \
     mkdir -p /opt/conda/envs/clair_somatic/bin/somatic_models && \
     tar -zxvf /opt/models/clair_somatic_models.tar.gz -C /opt/conda/envs/clair_somatic/bin/somatic_models && \
     rm /opt/models/clair_somatic_models.tar.gz && \
+    echo 'will cite' | parallel --citation || true \
     echo "source activate clair_somatic" > ~/.bashrc
 
