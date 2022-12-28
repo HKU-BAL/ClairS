@@ -501,7 +501,7 @@ def haplotype_filter(args):
     fail_set_list = [co_exist_fail_pos_set, complex_indel_fail_pos_set, fail_hetero_set, fail_homo_set,\
         fail_hetero_both_side_set, fail_pass_read_start_end_set, fail_bq_set]
 
-    fail_count = set()
+    fail_count = 0
     for key in sorted(fa_variant_dict.keys()):
         row_str = fa_variant_dict[key].row_str.rstrip()
         row_str, is_candidate_filtered = update_filter_info(args, key, row_str, phase_dict, fail_set_list)
