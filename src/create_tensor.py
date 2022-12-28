@@ -545,18 +545,6 @@ def generate_tensor(args,
 
         variant_type = candidates_type_dict[center_pos] if center_pos in candidates_type_dict else 'unknown'
 
-        if 0:
-            import numpy as np
-            tmp_list = [item.split(' ') for item in tensor_string_list]
-            a = [np.array(tmp, dtype=int).reshape((-1, 25, 7)) for tmp in tmp_list]
-            # check row match seem pretty good
-            channel_1 = [b[:, :, 1] for b in a]  # bq 3
-            channel_set_list = [set([' '.join([str(i) for i in item]) for item in case]) for case in channel_1]
-            for x in range(len(channel_set_list)):
-                for y in range(x + 1, len(channel_set_list)):
-                    print(x, y, len(channel_set_list[x]), len(channel_set_list[y]),
-                          len(channel_set_list[x].intersection(channel_set_list[y])))
-
         return '\n'.join(["%s\t%d\t%s\t%s\t%s\t%s\t%s" % (
             ctg_name,
             center_pos,
@@ -1027,7 +1015,7 @@ def main():
 
     # options for internal process control
     ## Minimum indel allele frequency for a site to be considered as a candidate site
-    parser.add_argument('--indel_min_af', type=float, default=0.2,
+    parser.add_argument('--indel_min_af', type=float, default=1.0,
                         help=SUPPRESS)
 
     ## Path to the 'zstd' compression

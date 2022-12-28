@@ -873,7 +873,7 @@ def main():
                         help=SUPPRESS)
 
     ## Minimum indel allele frequency for a site to be considered as a candidate site
-    parser.add_argument('--indel_min_af', type=float, default=0.2,
+    parser.add_argument('--indel_min_af', type=float, default=1.0,
                         help=SUPPRESS)
 
     ## Test in specific candidate position. Only for testing
