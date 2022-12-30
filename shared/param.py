@@ -13,7 +13,7 @@ clair3_option = {
     'longphase_for_phasing': True
 }
 
-min_mq = 20
+min_mq = ont_min_bq = 20
 min_bq = 0
 min_coverage = 4
 split_bed_size = 10000
@@ -25,7 +25,7 @@ min_rescale_cov = 50
 min_qual = 0.8
 SAMTOOLS_VIEW_FILTER_FLAG = 2316
 extend_bp = 100
-
+alternative_base_num = min_tumor_support_read_num = 3
 max_depth = tensor_max_depth + center_padding_depth
 normal_tumor_ratio = 1
 normal_pro = normal_tumor_ratio / (1 + normal_tumor_ratio)
@@ -35,7 +35,8 @@ ont_tensor_max_depth = 128
 ont_max_depth = ont_tensor_max_depth + center_padding_depth
 ont_normal_tumor_ratio = 0.7
 normal_pro = ont_normal_tumor_ratio / (1 + ont_normal_tumor_ratio)
-min_bq_dict = {'ont': min_mq, 'ilmn': 0}
+min_bq_dict = {'ont': ont_min_bq, 'ilmn': min_bq}
+min_thred_qual = {'ont': 8, 'ilmn': 2}
 ont_max_normal_depth = int(ont_tensor_max_depth * normal_pro)
 ont_max_tumor_depth = ont_tensor_max_depth - ont_max_normal_depth
 
