@@ -9,7 +9,6 @@ from random import random
 from collections import defaultdict
 from itertools import product
 
-from clair_somatic.task.main import *
 from shared.interval_tree import bed_tree_from, is_region_in
 from shared.utils import subprocess_popen, IUPAC_base_to_num_dict as BASE2NUM
 
