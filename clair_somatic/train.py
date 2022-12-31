@@ -174,6 +174,8 @@ def train_model(args):
 
     else:
         model = model_path.ResNet(platform=platform).to(device)
+        input = torch.ones(size=(100, param.channel_size, param.matrix_depth_dict[platform], param.no_of_positions)).to(device)
+        tensor_shape = param.ont_input_shape if platform == 'ont' else param.input_shape
 
     if chkpnt_fn is not None:
         model = torch.load(chkpnt_fn)
@@ -273,10 +275,6 @@ def train_model(args):
                     if not args.pileup:
                         current_tensor = current_tensor[:, :, :, :param.channel_size]
 
-                    if param.no_indel:
-                        current_tensor = np.concatenate(
-                            [current_tensor[:, :, :4], current_tensor[:, :, 9:13], current_tensor[:, :, 34:38],
-                             current_tensor[:, :, 43:47]], axis=-1)
 
                     input_matrix[chunk_idx * chunk_size:(chunk_idx + 1) * chunk_size] = current_tensor
 
