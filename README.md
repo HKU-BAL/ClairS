@@ -112,11 +112,9 @@ chmod +x ./Miniconda3-latest-Linux-x86_64.sh
 
 ```bash
 # create and activate an environment named clair_somatic
-conda create -n clair_somatic -c bioconda clair3-illumina python=3.9.0 -y
-source activate clair_somatic
-
 # install pypy and packages in the environemnt
-conda install -c pytorch -c conda-forge pytorch tqdm -y
+conda create -n clair-somatic -c bioconda -c pytorch -c conda-forge pytorch tqdm clair3-illumina python=3.9.0 -y
+source activate clair_somatic
 
 git clone https://github.com/HKU-BAL/Clair-Somatic.git
 cd Clair-Somatic
@@ -128,7 +126,7 @@ mkdir -p ${CONDA_PREFIX}/bin/somatic_models
 wget http://www.bio8.cs.hku.hk/clair_somatic/models/clair_somatic_models.tar.gz
 tar -zxvf clair_somatic_models.tar.gz -C ${CONDA_PREFIX}/bin/somatic_models/
 
-run_clair_somatic --help
+./run_clair_somatic --help
 ```
 
 ### Option 4. Docker Dockerfile
