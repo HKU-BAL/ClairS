@@ -23,11 +23,6 @@ no_of_positions = param.no_of_positions
 flanking_base_num = param.flankingBaseNum
 channel_size = param.channel_size
 BASE2NUMBER = dict(zip("ACGTURYSWKMBDHVN-", (0, 1, 2, 3, 3, 0, 1, 1, 0, 2, 0, 1, 0, 0, 0, 0, 4)))
-NORMALIZE_NUM = param.NORMALIZE_NUM
-ILMN_MAX_BQ = 40.0
-ONT_MAX_BQ = 60.0
-MAX_MQ = 60.0
-MAX_AF = 1.0
 HAP_TYPE = dict(zip((1, 0, 2), (30, 60, 90)))  # hap1 UNKNOWN H2
 
 

@@ -1,6 +1,5 @@
 import sys
 import shlex
-import json
 import logging
 import random
 
@@ -13,7 +12,6 @@ import shared.param as param
 from shared.utils import subprocess_popen, file_path_from, IUPAC_base_to_num_dict as BASE2NUM, region_from, \
     reference_sequence_from, str2bool, vcf_candidates_from
 from shared.interval_tree import bed_tree_from, is_region_in
-from shared.intervaltree.intervaltree import IntervalTree
 
 logging.basicConfig(format='%(message)s', level=logging.INFO)
 BASES = set(list(BASE2NUM.keys()) + ["-"])
@@ -247,8 +245,7 @@ def decode_pileup_bases(pos, pileup_bases, reference_base, minimum_snv_af_for_ca
             pileup_dict['D'] += count
 
     minimum_snv_af_for_candidate = minimum_snv_af_for_candidate if minimum_snv_af_for_candidate > 0 else param.min_af
-    minimum_indel_af_for_candidate = minimum_indel_af_for_candidate if minimum_indel_af_for_candidate > 0 else \
-        param.min_af_dict[platform]
+    minimum_indel_af_for_candidate = minimum_indel_af_for_candidate if minimum_indel_af_for_candidate > 0 else param.min_af
 
     denominator = depth if depth > 0 else 1
     pileup_list = sorted(list(pileup_dict.items()), key=lambda x: x[1], reverse=True)

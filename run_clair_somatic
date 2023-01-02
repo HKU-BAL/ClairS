@@ -529,7 +529,7 @@ def check_args(args):
     if args.indel_min_af is None:
         args.indel_min_af = 1.0
     if args.qual is None:
-        args.qual = param.min_qual
+        args.qual = param.min_thred_qual[args.platform] if args.platform in param.min_thred_qual else 0
     if args.min_coverage is None:
         args.min_coverage = param.min_coverage
     if args.chunk_size is None:

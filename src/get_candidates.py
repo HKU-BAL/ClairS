@@ -604,6 +604,9 @@ def main():
     parser.add_argument('--output_bed_fn', type=str, default=None,
                         help=SUPPRESS)
 
+    parser.add_argument('--split_folder', type=str, default=None,
+                        help=SUPPRESS)
+
     ## Maximum non-variant ratio against variant in the training data
     parser.add_argument('--maximum_non_variant_ratio', type=float, default=None,
                         help=SUPPRESS)
