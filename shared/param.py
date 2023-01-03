@@ -48,7 +48,7 @@ phase_normal = {'ont': False, 'ilmn': False}
 phase_tumor = {'ont': True, 'ilmn': False}
 qual_dict = {'ont': min_qual, 'ilmn': min_qual}
 af_dict = {'ont': 0.5, 'ilmn': None}
-alternative_base_num = min_tumor_support_read_num = 3
+
 
 pileup_channel = ['A', 'C', 'G', 'T', 'I', 'I1', 'D', 'D1', '*', 'a', 'c', 'g', 't', 'i', 'i1', 'd', 'd1', '#']
 pileup_channel += [
@@ -74,6 +74,7 @@ label_shape = [3]
 label_size = sum(label_shape)
 apply_focal_loss = True
 discard_germline = False
+add_af_in_label = False
 add_l2_regulation_loss = True
 use_tf = False
 smoothing = None
@@ -101,6 +102,7 @@ grad_norm_clip = 1.0
 use_beta_subsampling = True
 use_exp_subsampling = False
 
+## discretized Beta cumulative distribution using numpy
 beta_acc_per = [
     0.00000, 0.00288, 0.00842, 0.01639, 0.02658, 0.03880, 0.05285, 0.06856, 0.08576, 0.10427,
     0.12396, 0.14466, 0.16625, 0.18860, 0.21157, 0.23506, 0.25896, 0.28317, 0.30758, 0.33212,
