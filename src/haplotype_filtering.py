@@ -164,22 +164,18 @@ def extract_base(POS):
     if len(all_read_start_end_set.intersection(alt_base_read_name_set)) >= 0.3 * len(alt_base_read_name_set):
         pass_read_start_end = False
 
-    all_hap_counter = Counter([hap_dict[key] for key in pos_dict[pos].keys()])
     alt_hap_counter = Counter([hap_dict[key] for key in alt_base_read_name_set])
 
-    all_hp0, all_hp1, all_hp2 = all_hap_counter[0], all_hap_counter[1], all_hap_counter[2]
     hp0, hp1, hp2 = alt_hap_counter[0], alt_hap_counter[1], alt_hap_counter[2]
-
     MAX = max(hp1, hp2)
     MIN = min(hp1, hp2)
     af = float(POS.af)
-    if af < 0.1 and float(POS.qual) < 0.9:
+    if af < LOW_AF and float(POS.qual) < HIGH_QUAL:
         if hp1 * hp2 > 0 and MAX / MIN <= 10:
             pass_hetero_both_side = False
 
-    is_phasable = hp1 * hp2 == 0 or (MAX / MIN >= 5 and (hp1 >= 3 or hp2 >= 3))
+    is_phasable = hp1 * hp2 == 0 or (MAX / MIN >= 5 and (hp1 > args.min_alt_coverage or hp2 > args.min_alt_coverage))
     hap_index = 0 if is_phasable else (1 if hp1 > hp2 else 2)
-    # need to consider hap_0 hap_1 and hap_2
 
     # position with high overlap with current pos
     match_count = 0
@@ -216,12 +212,14 @@ def extract_base(POS):
                 alt_list.append(base)
         alt_base_counter = sorted(Counter(alt_list).items(), key=lambda x: x[1], reverse=True)
 
-        if len(alt_list) == 0 or (alt_base_counter[0][1] >= len(alt_base_read_name_set) * 1.2) or (
-                alt_base_counter[0][1] <= len(alt_base_read_name_set) * 0.8):
+        upper_bound = 1 + eps
+        lower_bound = 1 - eps
+        if len(alt_list) == 0 or (alt_base_counter[0][1] >= len(alt_base_read_name_set) * upper_bound) or (
+                alt_base_counter[0][1] <= len(alt_base_read_name_set) * lower_bound):
             continue
 
         # cal all alt count in current position
-        if pos_counter_dict[p][alt_base_counter[0][0]] >= alt_base_counter[0][1] * 1.3:
+        if pos_counter_dict[p][alt_base_counter[0][0]] >= alt_base_counter[0][1] * upper_bound:
             continue
         match_count += 1
 
@@ -240,7 +238,7 @@ def extract_base(POS):
 
         # in the same phased haplotype
         phased_overlap_count = set([key for key in overlap_count if hap_dict[key] == hap_index])
-        if len(phased_overlap_count) == 0 or len(phased_overlap_count) / float(len(overlap_count)) < 0.5:
+        if len(phased_overlap_count) == 0 or len(phased_overlap_count) * 2 < float(len(overlap_count)):
             continue
 
         inter_set = set([key for key in alt_base_read_name_set if hap_dict[key] == hap_index]).intersection(
@@ -281,7 +279,7 @@ def extract_base(POS):
 
         is_homo_alt_phasable = phasble([all_hp0, all_hp1, all_hp2], [hp0, hp1, hp2])
 
-        if af < 0.75 or is_homo_alt_phasable:
+        if af < min_hom_germline_af or is_homo_alt_phasable:
             continue
 
         inter_set = set(list(read_alt_dict.keys())).intersection(alt_base_read_name_set)
@@ -296,7 +294,7 @@ def extract_base(POS):
         elif len(rb) > 1 and len(ab) == 1:
             overlap_count = set(
                 [key for key, value in read_alt_dict.items() if '-' in ''.join(value) and key in inter_set])
-        if len(overlap_count) == 0 or len(overlap_count) / len(inter_set) < 0.2:
+        if len(overlap_count) == 0 or len(overlap_count) / len(inter_set) < eps:
             pass_homo = False
             break
 
@@ -314,15 +312,20 @@ def update_filter_info(args, key, row_str, phase_dict, fail_set_list):
     phaseable = False
     if k in phase_dict:
         all_hp0, all_hp1, all_hp2, hp0, hp1, hp2 = [int(h) for h in phase_dict[k]]
-        phaseable = all_hp1 * all_hp2 > 0 and hp1 * hp2 == 0 and (int(hp1) >= 3 or int(hp2) >= 3)
+        phaseable = all_hp1 * all_hp2 > 0 and hp1 * hp2 == 0 and (int(hp1) > args.min_alt_coverage or int(hp2) > args.min_alt_coverage)
 
     if phaseable:
         columns[7] = "P"
-    for fail_pos_set in fail_set_list:
+    for idx, fail_pos_set in enumerate(fail_set_list):
         if k in fail_pos_set:
             columns = row_str.split('\t')
             columns[5] = '0.000'
-            columns[6] = "LowQual"
+            if args.debug:
+                columns[6] = columns[6].replace('PASS', 'LowQual')
+                columns[6] += ' ' + str(idx)
+            else:
+                columns[6] = "LowQual"
+
             is_candidate_filtered = 1
             continue
 
@@ -575,6 +578,12 @@ def main():
     parser.add_argument('--min_bq', type=int, default=param.min_bq,
                         help="EXPERIMENTAL: If set, bases with base quality with <$min_bq are filtered, default: %(default)d")
 
+    parser.add_argument('--min_alt_coverage', type=int, default=2,
+                        help="Minimum alt base count for a variant to be included into bechmarking")
+
+    parser.add_argument('--max_overlap_distance', type=int, default=100000,
+                        help="Maximum overlapped distance to consider somatic read overlapping")
+
     ## test using one position
     parser.add_argument('--test_pos', type=int, default=None,
                         help=SUPPRESS)
@@ -584,6 +593,9 @@ def main():
                         help=SUPPRESS)
 
     parser.add_argument('--add_phasing_info', type=str2bool, default=False,
+                        help=SUPPRESS)
+
+    parser.add_argument('--debug', action='store_true',
                         help=SUPPRESS)
 
     global args
