@@ -12,6 +12,10 @@ from shared.utils import str2bool, str_none
 
 file_directory = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
+HIGH_QUAL = 0.9
+LOW_AF = 0.1
+min_hom_germline_af = 0.75
+eps = 0.2
 
 def get_base_list(columns):
     pileup_bases = columns[4]
@@ -100,6 +104,8 @@ def extract_base(POS):
     pos_counter_dict = defaultdict(defaultdict)
     hap_dict = defaultdict(int)
     all_read_start_end_set = set()
+    ALL_HAP_LIST = [0, 0, 0]
+    HAP_LIST = [0, 0, 0]
 
     homo_germline_pos_set = set([item[0] for item in homo_germline_set])
     hetero_germline_pos_set = set([item[0] for item in hetero_germline_set])
@@ -119,24 +125,23 @@ def extract_base(POS):
 
         base_counter, base_list, read_start_end_set = get_base_list(columns)
 
-        # check union
-        if len(read_start_end_set) >= len(base_list) * 0.2:
+        # make union of all read start and end
+        if len(read_start_end_set) >= len(base_list) * eps:
             all_read_start_end_set = all_read_start_end_set.union(
                 set([read_name_list[r_idx] for r_idx in read_start_end_set]))
 
         pos_dict[p] = dict(zip(read_name_list, base_list))
         ref_base = reference_sequence[p - pos + flanking]
 
+        # discard low BQ variants
+        average_min_bq = param.ont_min_bq
         if p == pos:
             bq_list = [ord(qual) - 33 for qual in columns[5]]
             alt_base_bq_set = [bq for key, value, bq in zip(read_name_list, base_list, bq_list) if
                                ''.join(value) == alt_base]
-            # put into extract candidate
-            if len(alt_base_bq_set) > 0 and sum(alt_base_bq_set) / len(alt_base_bq_set) <= 20 and float(POS.qual) < 0.9:
-                pass_bq = False
 
-            ALL_HAP_LIST = [0, 0, 0]
-            HAP_LIST = [0, 0, 0]
+            if len(alt_base_bq_set) > 0 and sum(alt_base_bq_set) / len(alt_base_bq_set) <= average_min_bq and float(POS.qual) < HIGH_QUAL:
+                pass_bq = False
 
             for rn in read_name_list:
                 ALL_HAP_LIST[hap_dict[rn]] += 1
@@ -337,6 +342,7 @@ def haplotype_filter(args):
     germline_vcf_fn = args.germline_vcf_fn
     flanking = args.flanking
     output_dir = args.output_dir
+    max_co_exist_read_num = args.min_alt_coverage
     if not os.path.exists(output_dir):
         subprocess.run("mkdir -p {}".format(output_dir), shell=True)
 
@@ -447,12 +453,13 @@ def haplotype_filter(args):
                 ctg_name = key[0] if args.ctg_name is None else args.ctg_name
                 pos = key[1] if args.ctg_name is None else key
 
-                if match_count > 2:
+                if match_count > max_co_exist_read_num:
                     co_exist_fail_pos_set.add((ctg_name, pos))
 
                 nor_del_base, del_base, all_base_dict, base_dict, alt_base_dict, pass_bq, ALL_HAP_LIST, HAP_LIST = extra
 
-                if indel_length > 300 and float(input_variant_dict[key].qual) < 0.9:
+                depth = sum(ALL_HAP_LIST) if sum(ALL_HAP_LIST) > 0 else 1
+                if indel_length / depth > 6 and float(input_variant_dict[key].qual) < HIGH_QUAL:
                     complex_indel_fail_pos_set.add((ctg_name, pos))
 
                 if pass_hetero is False:
@@ -474,7 +481,7 @@ def haplotype_filter(args):
             if total_num > 0 and total_num % 1000 == 0:
                 print("[INFO] Processing in {}, total processed positions: {}".format(ctg_name, total_num))
 
-        max_distance = 100000
+        max_overlap_distance = args.max_overlap_distance
         key_list = sorted(rn_dict.keys(), key=lambda x: (x[0], int(x[1])))
 
         for idx, k in enumerate(key_list):
@@ -488,12 +495,12 @@ def haplotype_filter(args):
                 c, p = tmp_key
                 if c != ctg:
                     break
-                if int(pos) - int(p) > max_distance:
+                if int(pos) - int(p) > max_overlap_distance:
                     continue
-                if int(p) - int(pos) > max_distance:
+                if int(p) - int(pos) > max_overlap_distance:
                     break
                 tmp_rn = rn_dict[tmp_key]
-                if len(rn.intersection(tmp_rn)) >= len(rn) * 0.5:
+                if len(rn.intersection(tmp_rn)) * 2 >= len(rn):
                     count += 1
             if count > 0:
                 fail_rn_set.add(k)
