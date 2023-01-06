@@ -27,7 +27,7 @@ major_contigs_order = ["chr" + str(a) for a in list(range(1, 23))] + [str(a) for
 
 
 file_directory = os.path.dirname(os.path.realpath(__file__))
-main_entry = os.path.join(file_directory, "clair-somatic.py")
+main_entry = os.path.join(file_directory, "clairs.py")
 MAX_STEP = 20
 
 OutputPath = namedtuple('OutputPath', [
@@ -1011,7 +1011,7 @@ def somatic_calling(args):
 def somatic_parser():
 
     parser = argparse.ArgumentParser(
-        description="Run clair-somatic for somatic variant calling. Example run: run_clair_somatic -T TUMOR_BAM -N NORMAL_BAM -R REF -o OUTPUT_DIR -t THREADS -p PLATFORM")
+        description="Run ClairS for somatic variant calling. Example run: run_clair_somatic -T TUMOR_BAM -N NORMAL_BAM -R REF -o OUTPUT_DIR -t THREADS -p PLATFORM")
 
     # print version
     parser.add_argument('-v', '--version', action='version',
@@ -1373,7 +1373,7 @@ def somatic_parser():
 
 def main():
     """
-    Main interface for clair-somatic.
+    Main interface for ClairS.
     """
 
     global args
