@@ -8,11 +8,11 @@ logging.basicConfig(format='%(message)s', level=logging.INFO)
 def Run(args):
 
     if args.normal_tensor_fn is None:
-        import clair_somatic.utils_pair as utils
+        import clairs.utils_pair as utils
     elif args.pileup:
-        import clair_somatic.utils_pileup as utils
+        import clairs.utils_pileup as utils
     else:
-        import clair_somatic.utils as utils
+        import clairs.utils as utils
     utils.setup_environment()
     logging.info("Loading the dataset ...")
     
