@@ -12,7 +12,7 @@ from threading import Thread
 from sys import stderr
 from subprocess import PIPE, run, Popen
 
-from clair_somatic.call_variants import output_vcf_from_probability, OutputConfig
+from clairs.call_variants import output_vcf_from_probability, OutputConfig
 from shared.utils import IUPAC_base_to_ACGT_base_dict as BASE2ACGT, BASIC_BASES, str2bool, file_path_from, log_error, \
     log_warning, subprocess_popen, TensorStdout
 import shared.param as param
@@ -385,7 +385,7 @@ def predict(args):
     test_pos = None
 
     if param.use_tf:
-        import clair_somatic.model_tf as model_path
+        import clairs.model_tf as model_path
         model = model_path.Clair3_P()
         model.load_weights(args.chkpnt_fn)
 
