@@ -39,7 +39,7 @@ class BasicBlock(nn.Module):
         return nn.ReLU(inplace=True)(self.residual_function(x) + self.shortcut(x))
 
 
-class bigru(nn.Module):
+class BiGRU(nn.Module):
     def __init__(
             self,
             num_classes=3,
@@ -61,10 +61,10 @@ class bigru(nn.Module):
         self.input_shape = [param.no_of_positions, self.lstm_hidden_size2 * 2]
 
         self.dim = channel_size
-        self.lstm = nn.LSTM(input_size=self.dim, hidden_size=self.lstm_hidden_size, batch_first=batch_first,
+        self.lstm = nn.GRU(input_size=self.dim, hidden_size=self.lstm_hidden_size, batch_first=batch_first,
                            num_layers=1, bidirectional=True)
 
-        self.lstm_2 = nn.LSTM(input_size=self.lstm_hidden_size * 2, hidden_size=self.lstm_hidden_size2,
+        self.lstm_2 = nn.GRU(input_size=self.lstm_hidden_size * 2, hidden_size=self.lstm_hidden_size2,
                              batch_first=batch_first,
                              num_layers=1, bidirectional=True)
 

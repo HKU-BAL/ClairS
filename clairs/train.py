@@ -166,7 +166,7 @@ def train_model(args):
         tumor_channel_size = param.tumor_channel_size if phase_tumor else channel_size
         pileup_tensor_shape = [param.no_of_positions, channel_size + tumor_channel_size]  # normal and tumor
         tensor_shape = pileup_tensor_shape
-        model = model_path.bigru(apply_softmax=apply_softmax,
+        model = model_path.BiGRU(apply_softmax=apply_softmax,
                                  num_classes=2 if discard_germline else 3,
                                  channel_size=tensor_shape[1]).to(device)
 
