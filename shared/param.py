@@ -1,5 +1,5 @@
 # parameters
-caller_name = "clair-somatic"
+caller_name = "clairs"
 version = "0.1"
 
 from itertools import accumulate

@@ -12,7 +12,7 @@ from shared.vcf import VcfReader, VcfWriter
 from shared.utils import str2bool
 
 file_directory = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-main_entry = os.path.join(file_directory, "clair-somatic.py")
+main_entry = os.path.join(file_directory, "{}.py".format(param.caller_name))
 
 
 def get_base_list(columns):

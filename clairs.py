@@ -31,7 +31,7 @@ deep_learning_folder = [
     "predict_tf"
 ]
 
-REPO_NAME = "clair-somatic"
+REPO_NAME = "clairs"
 data_preprocess_folder = [
     "get_candidates",
     "create_tensor",
@@ -111,7 +111,7 @@ def print_help_messages():
     from textwrap import dedent
     print(dedent("""\
         {0} submodule invocator:
-            Usage: python clair-somatic.py [submodule] [options of the submodule]
+            Usage: python clairs.py [submodule] [options of the submodule]
         Available data preparation submodules:\n{1}
         Available clair submodules:\n{2}
         """.format(
