@@ -27,11 +27,10 @@ BASELINE_VCF_FILE_PATH="SEQC2_high-confidence_sSNV_in_HC_regions_v1.2_chr17.vcf.
 BASELINE_BED_FILE_PATH="SEQC2_High-Confidence_Regions_v1.2_chr17.bed"
 OUTPUT_VCF_FILE_PATH="output.vcf.gz"
 
-# Run clair-somatic using one command
 docker run -it \
   -v ${INPUT_DIR}:${INPUT_DIR} \
   -v ${OUTPUT_DIR}:${OUTPUT_DIR} \
-  hkubal/clair-somatic:latest \
+  hkubal/clairs:latest \
   /opt/bin/run_clairs \
   --tumor_bam_fn ${INPUT_DIR}/${TUMOR_BAM} \
   --normal_bam_fn ${INPUT_DIR}/${NORMAL_BAM} \
@@ -44,8 +43,8 @@ docker run -it \
 docker run -it \
   -v ${INPUT_DIR}:${INPUT_DIR} \
   -v ${OUTPUT_DIR}:${OUTPUT_DIR} \
-  hkubal/clair-somatic:latest \
-  python3 /opt/bin/clair-somatic.py compare_vcf \
+  hkubal/clairs:latest \
+  python3 /opt/bin/clairs.py compare_vcf \
      --truth_vcf_fn ${INPUT_DIR}/${BASELINE_VCF_FILE_PATH} \
      --input_vcf_fn ${OUTPUT_DIR}/${OUTPUT_VCF_FILE_PATH} \
      --bed_fn ${INPUT_DIR}/${BASELINE_BED_FILE_PATH} \
