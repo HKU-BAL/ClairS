@@ -1,5 +1,5 @@
 
-# Clair-Somatic
+# ClairS
 
 [![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 
@@ -11,7 +11,7 @@ Email: rbluo@cs.hku.hk, zxzheng@cs.hku.hk
 
 ## Introduction
 
-Clair-Somatic is a deep learning-based long-read somatic variant caller.  Clair-Somatic identifies somatic SNVs (single nucleotide variants) from aligned tumor and matched normal DNA reads efficiently and sensitively. Clair-Somatic was trained in ~20M synthetic germline datasets with various coverages and allele frequencies.
+ClairS is a deep learning-based long-read somatic variant caller.  ClairS identifies somatic SNVs (single nucleotide variants) from aligned tumor and matched normal DNA reads efficiently and sensitively. ClairS was trained in ~20M synthetic germline datasets with various coverages and allele frequencies.
 
 ------
 
@@ -35,10 +35,10 @@ Clair-Somatic is a deep learning-based long-read somatic variant caller.  Clair-
 
 ### General Usage
 
-After following [installation](#installation), you can run Clair-Somatic with one command:
+After following [installation](#installation), you can run ClairS with one command:
 
 ```bash
-run_clair_somatic -T tumor.bam -N normal.bam  -R ref.fa -o output -t 8 -p ont
+run_clairs -T tumor.bam -N normal.bam  -R ref.fa -o output -t 8 -p ont
 ## Final output file: output/output.vcf.gz
 ```
 
@@ -48,7 +48,7 @@ Check [Usage](#Usage) for more options.
 
 ### Option 1.  Docker pre-built image
 
-A pre-built docker image is available [here](https://hub.docker.com/r/hkubal/clair-somatic). 
+A pre-built docker image is available [here](https://hub.docker.com/r/hkubal/clairs). 
 
 **Caution**: Absolute path is needed for both `INPUT_DIR` and `OUTPUT_DIR`. 
 
@@ -56,8 +56,8 @@ A pre-built docker image is available [here](https://hub.docker.com/r/hkubal/cla
 docker run -it \
   -v ${INPUT_DIR}:${INPUT_DIR} \
   -v ${OUTPUT_DIR}:${OUTPUT_DIR} \
-  hkubal/clair-somatic:latest \
-  /opt/bin/run_clair_somatic \
+  hkubal/clairs:latest \
+  /opt/bin/run_clairs \
   --tumor_bam_fn ${INPUT_DIR}/tumor.bam \      ## change your tumor bam file name here
   --normal_bam_fn ${INPUT_DIR}/normal.bam \    ## change your normal bam file name here
   --ref_fn ${INPUT_DIR}/ref.fa \               ## change your reference file name here
@@ -78,14 +78,14 @@ conda create -n singularity-env -c conda-forge singularity -y
 conda activate singularity-env
 
 # singularity pull docker pre-built image
-singularity pull docker://hkubal/clair-somatic
+singularity pull docker://hkubal/clairs
 
 # run the sandbox like this afterward
-singularity exec clair-somatic.sif \
+singularity exec clairs.sif \
   -v ${INPUT_DIR}:${INPUT_DIR} \
   -v ${OUTPUT_DIR}:${OUTPUT_DIR} \
-  hkubal/clair-somatic:latest \
-  /opt/bin/run_clair_somatic \
+  hkubal/clairs:latest \
+  /opt/bin/run_clairs \
   --tumor_bam_fn ${INPUT_DIR}/tumor.bam \      ## change your tumor bam file name here
   --normal_bam_fn ${INPUT_DIR}/normal.bam \    ## change your normal bam file name here
   --ref_fn ${INPUT_DIR}/ref.fa \               ## change your reference file name here
@@ -108,25 +108,25 @@ chmod +x ./Miniconda3-latest-Linux-x86_64.sh
 ./Miniconda3-latest-Linux-x86_64.sh
 ```
 
-**Install Clair-Somatic using anaconda step by step:**
+**Install ClairS using anaconda step by step:**
 
 ```bash
-# create and activate an environment named clair_somatic
+# create and activate an environment named clairs
 # install pypy and packages in the environemnt
-conda create -n clair-somatic -c bioconda -c pytorch -c conda-forge pytorch tqdm clair3-illumina python=3.9.0 -y
-source activate clair_somatic
+conda create -n clairs -c bioconda -c pytorch -c conda-forge pytorch tqdm clair3-illumina python=3.9.0 -y
+source activate clairs
 
-git clone https://github.com/HKU-BAL/Clair-Somatic.git
-cd Clair-Somatic
+git clone https://github.com/HKU-BAL/ClairS.git
+cd ClairS
 
 # make sure in conda environment
 # download pre-trained models
 echo ${CONDA_PREFIX}
 mkdir -p ${CONDA_PREFIX}/bin/somatic_models
-wget http://www.bio8.cs.hku.hk/clair_somatic/models/clair_somatic_models.tar.gz
-tar -zxvf clair_somatic_models.tar.gz -C ${CONDA_PREFIX}/bin/somatic_models/
+wget http://www.bio8.cs.hku.hk/clairs/models/clairs_models.tar.gz
+tar -zxvf clairs_models.tar.gz -C ${CONDA_PREFIX}/bin/somatic_models/
 
-./run_clair_somatic --help
+./run_clairs --help
 ```
 
 ### Option 4. Docker Dockerfile
@@ -134,15 +134,15 @@ tar -zxvf clair_somatic_models.tar.gz -C ${CONDA_PREFIX}/bin/somatic_models/
 This is the same as option 1 except that you are building a docker image yourself. Please refer to option 1 for usage. 
 
 ```bash
-git clone https://github.com/HKU-BAL/Clair-Somatic.git
-cd Clair-Somatic
+git clone https://github.com/HKU-BAL/ClairS.git
+cd ClairS
 
-# build a docker image named hkubal/clair-somatic:latest
+# build a docker image named hkubal/clairs:latest
 # might require docker authentication to build docker image
-docker build -f ./Dockerfile -t hkubal/clair-somatic:latest .
+docker build -f ./Dockerfile -t hkubal/clairs:latest .
 
 # run the docker image like option 1
-docker run -it hkubal/clair-somatic:latest /opt/bin/run_clair_somatic --help
+docker run -it hkubal/clairs:latest /opt/bin/run_clairs --help
 ```
 
 ## Usage
@@ -150,7 +150,7 @@ docker run -it hkubal/clair-somatic:latest /opt/bin/run_clair_somatic --help
 ### General Usage
 
 ```bash
-run_clair_somatic \
+run_clairs \
   --tumor_bam_fn ${INPUT_DIR}/tumor.bam \    ## change your tumor bam file name here
   --normal_bam_fn ${INPUT_DIR}/normal.bam \  ## change your bam file name here
   --ref_fn ${INPUT_DIR}/ref.fa \       		 ## change your reference file name here
@@ -217,19 +217,19 @@ run_clair_somatic \
 #### Call mutations in one or mutiple chromosomes using `-C/--ctg_name` parameter
 
 ```bash
-run_clair_somatic -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont -C chr21,chr22
+run_clairs -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont -C chr21,chr22
 ```
 
 #### Call mutations in one specific region using `-r/--region` parameter
 
 ```bash
-run_clair_somatic -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont -r chr20:1000000-2000000
+run_clairs -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont -r chr20:1000000-2000000
 ```
 
 #### Call mutations at known variant sites using `-V/--vcf_fn` parameter
 
 ```bash
-run_clair_somatic -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont -V input.vcf
+run_clairs -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont -V input.vcf
 ```
 
 #### Call mutations at multiple specific sites or bed regions using `-B/--bed_fn` parameter
@@ -245,12 +245,12 @@ echo -e "${CTG2}\t${START_POS_2}\t${END_POS_2}" >> input.bed
 Then run the command like:
 
 ```bash
-run_clair_somatic -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont -B input.bed
+run_clairs -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont -B input.bed
 ```
 
 ## Pre-trained Models
 
-Clair-Somatic trained both pileup and full-alignment models using GIAB samples, and carry on benchmarking on HCC1395-HCC1395BL pair dataset. All models were trained with chr20 excluded (including only chr1-19, 21, 22). 
+ClairS trained both pileup and full-alignment models using GIAB samples, and carry on benchmarking on HCC1395-HCC1395BL pair dataset. All models were trained with chr20 excluded (including only chr1-19, 21, 22). 
 
 | Platform | Chemistry /Instruments | Option (`-p/--platform`) |   Reference   | Aligner  | Training samples |
 | :------: | ---------------------- | ------------------------ | :-----------: | :------: | :--------------: |

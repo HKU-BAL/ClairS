@@ -23,22 +23,22 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86
     conda config --add channels defaults && \
     conda config --add channels bioconda && \
     conda config --add channels conda-forge && \
-    conda create -n clair_somatic -c pytorch -c conda-forge -c bioconda clair3 pytorch tqdm torchinfo -y && \
+    conda create -n clairs -c pytorch -c conda-forge -c bioconda clair3 pytorch tqdm torchinfo -y && \
     rm -rf /opt/conda/pkgs/* && \
     rm -rf /root/.cache/pip
 
-ENV PATH /opt/conda/envs/clair_somatic/bin:$PATH
-ENV CONDA_DEFAULT_ENV clair_somatic
+ENV PATH /opt/conda/envs/clairs/bin:$PATH
+ENV CONDA_DEFAULT_ENV clairs
 
 COPY . .
 
-RUN /bin/bash -c "source activate clair_somatic" && cd /opt/bin/src/realign && \
+RUN /bin/bash -c "source activate clairs" && cd /opt/bin/src/realign && \
     g++ -std=c++14 -O1 -shared -fPIC -o realigner ssw_cpp.cpp ssw.c realigner.cpp && \
     g++ -std=c++11 -shared -fPIC -o debruijn_graph -O3 debruijn_graph.cpp && \
-    wget http://www.bio8.cs.hku.hk/clair_somatic/models/clair_somatic_models.tar.gz	 -P /opt/models && \
-    mkdir -p /opt/conda/envs/clair_somatic/bin/somatic_models && \
-    tar -zxvf /opt/models/clair_somatic_models.tar.gz -C /opt/conda/envs/clair_somatic/bin/somatic_models && \
-    rm /opt/models/clair_somatic_models.tar.gz && \
+    wget http://www.bio8.cs.hku.hk/clairs/models/clairs_models.tar.gz	 -P /opt/models && \
+    mkdir -p /opt/conda/envs/clairs/bin/somatic_models && \
+    tar -zxvf /opt/models/clairs_models.tar.gz -C /opt/conda/envs/clairs/bin/somatic_models && \
+    rm /opt/models/clairs_models.tar.gz && \
     echo 'will cite' | parallel --citation || true \
-    echo "source activate clair_somatic" > ~/.bashrc
+    echo "source activate clairs" > ~/.bashrc
 
