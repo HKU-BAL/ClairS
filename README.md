@@ -38,7 +38,7 @@ ClairS is a deep learning-based long-read somatic variant caller.  ClairS identi
 After following [installation](#installation), you can run ClairS with one command:
 
 ```bash
-run_clairs -T tumor.bam -N normal.bam  -R ref.fa -o output -t 8 -p ont
+./run_clairs -T tumor.bam -N normal.bam  -R ref.fa -o output -t 8 -p ont
 ## Final output file: output/output.vcf.gz
 ```
 
@@ -217,19 +217,19 @@ run_clairs \
 #### Call mutations in one or mutiple chromosomes using `-C/--ctg_name` parameter
 
 ```bash
-run_clairs -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont -C chr21,chr22
+./run_clairs -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont -C chr21,chr22
 ```
 
 #### Call mutations in one specific region using `-r/--region` parameter
 
 ```bash
-run_clairs -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont -r chr20:1000000-2000000
+./run_clairs -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont -r chr20:1000000-2000000
 ```
 
 #### Call mutations at known variant sites using `-V/--vcf_fn` parameter
 
 ```bash
-run_clairs -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont -V input.vcf
+./run_clairs -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont -V input.vcf
 ```
 
 #### Call mutations at multiple specific sites or bed regions using `-B/--bed_fn` parameter
@@ -245,7 +245,7 @@ echo -e "${CTG2}\t${START_POS_2}\t${END_POS_2}" >> input.bed
 Then run the command like:
 
 ```bash
-run_clairs -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont -B input.bed
+./run_clairs -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont -B input.bed
 ```
 
 ## Pre-trained Models

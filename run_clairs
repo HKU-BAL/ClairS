@@ -452,9 +452,9 @@ def check_clair3_options(args):
     if args.clair3_model_path is None:
         if args.platform == 'ont':
             args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'somatic_models', 'clair3_models', 'ont_r104_e81_sup_g5015')
-        else:
-            # clair3 r9 model
-            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'ont', 'r941_prom_sup_g5014')
+        elif args.platform == 'ont_r9':
+            # clair3 r9 model in bioconda bin
+            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'r941_prom_sup_g5014')
 
         if not os.path.exists(args.clair3_model_path):
             sys.exit(log_error("[ERROR] Cannot find clair3 model path in {}".format(args.clair3_model_path)))
@@ -780,7 +780,7 @@ def somatic_calling(args):
         tabix_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
         commands_list.append(pt_command + ' && ' + tabix_command)
 
-        echo_list.append("[INFO] STEP ?: Haplotag Tumor BAM")
+        echo_list.append("[INFO] Haplotag Tumor BAM")
         ht_command = '( ' + time + args.parallel
         ht_command += ' --joblog ' + args.output_dir + '/logs/parallel_5_haplotag_tumor.log'
         ht_command += ' -j ' + str(args.threads)
