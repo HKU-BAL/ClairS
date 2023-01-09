@@ -19,7 +19,7 @@ vcf_header = dedent("""\
             ##FILTER=<ID=LowQual,Description="Low quality variant">
             ##FILTER=<ID=RefCall,Description="Reference call">
             ##FILTER=<ID=Germline,Description="Germline variant call">
-            ##INFO=<ID=P,Number=0,Type=Flag,Description="Variant only in one phased haplotype">
+            ##INFO=<ID=H,Number=0,Type=Flag,Description="Variant only in one phased haplotype">
             ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
             ##FORMAT=<ID=GQ,Number=1,Type=Float,Description="Genotype quality">
             ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Tumor read depth">
@@ -198,13 +198,13 @@ class VcfReader(object):
 
             #filter NAF
             if self.naf_filter is not None:
-                naf_index = columns[-2].split(':').index("NAF")
-                if float(columns[-1].split(':')[naf_index]) >= self.naf_filter:
+                naf_index = columns[8].split(':').index("NAF")
+                if float(columns[9].split(':')[naf_index]) >= self.naf_filter:
                     continue
             if self.taf_filter is not None:
-                taf_index = columns[-2].split(':').index("AF")
-                naf_index = columns[-2].split(':').index("NAF")
-                if float(columns[-1].split(':')[taf_index]) * self.taf_filter < float(columns[-1].split(':')[naf_index]):
+                taf_index = columns[8].split(':').index("AF")
+                naf_index = columns[8].split(':').index("NAF")
+                if float(columns[9].split(':')[taf_index]) * self.taf_filter < float(columns[9].split(':')[naf_index]):
                     continue
 
             FILTER = columns[6] if len(columns) >= 7 else None

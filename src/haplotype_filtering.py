@@ -315,7 +315,7 @@ def update_filter_info(args, key, row_str, phase_dict, fail_set_list):
         phaseable = all_hp1 * all_hp2 > 0 and hp1 * hp2 == 0 and (int(hp1) > args.min_alt_coverage or int(hp2) > args.min_alt_coverage)
 
     if phaseable:
-        columns[7] = "P"
+        columns[7] = "H"
     for idx, fail_pos_set in enumerate(fail_set_list):
         if k in fail_pos_set:
             columns = row_str.split('\t')

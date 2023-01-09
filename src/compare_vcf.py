@@ -166,7 +166,7 @@ def compare_vcf(args):
 
         for k, v in input_variant_dict.items():
             row = v.row_str.rstrip().split('\t')
-            phaseable = row.split('\t')[6] == 'P'
+            phaseable = row.split('\t')[6] == 'H'
             if phaseable:
                 phasable_count += 1
             else:
