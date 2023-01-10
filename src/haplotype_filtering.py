@@ -8,7 +8,7 @@ from collections import defaultdict
 
 import shared.param as param
 from shared.vcf import VcfReader, VcfWriter
-from shared.utils import str2bool, str_none
+from shared.utils import str2bool, str_none, reference_sequence_from
 
 file_directory = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
@@ -92,7 +92,6 @@ def extract_base(POS):
                             stderr=subprocess.PIPE,
                             universal_newlines=True).stdout.rstrip()
 
-    from shared.utils import reference_sequence_from
     reference_sequence = reference_sequence_from(
         samtools_execute_command=samtools,
         fasta_file_path=ref_fn,
@@ -175,7 +174,7 @@ def extract_base(POS):
             pass_hetero_both_side = False
 
     is_phasable = hp1 * hp2 == 0 or (MAX / MIN >= 5 and (hp1 > args.min_alt_coverage or hp2 > args.min_alt_coverage))
-    hap_index = 0 if is_phasable else (1 if hp1 > hp2 else 2)
+    hap_index = 0 if not is_phasable else (1 if hp1 > hp2 else 2)
 
     # position with high overlap with current pos
     match_count = 0
@@ -223,29 +222,31 @@ def extract_base(POS):
             continue
         match_count += 1
 
-    for key, rb, ab in hetero_germline_set:
-        read_alt_dict = pos_dict[p]
-        # snp
-        if len(rb) == 1 and len(ab) == 1:
-            overlap_count = set([key for key, value in read_alt_dict.items() if ''.join(value) == ab])
-        # ins
-        elif len(rb) == 1 and len(ab) > 1:
-            overlap_count = set(
-                [key for key, value in read_alt_dict.items() if ab[:2] in value[1][1:] and len(value[1]) > 1])
-        # del
-        elif len(rb) > 1 and len(ab) == 1:
-            overlap_count = set([key for key, value in read_alt_dict.items() if '-' in ''.join(value)])
+    if hap_index > 0:
+        for p, rb, ab in hetero_germline_set:
+            read_alt_dict = pos_dict[p]
+            # snp
+            if len(rb) == 1 and len(ab) == 1:
+                overlap_count = set([key for key, value in read_alt_dict.items() if ''.join(value) == ab])
+            # ins
+            elif len(rb) == 1 and len(ab) > 1:
+                overlap_count = set(
+                    [key for key, value in read_alt_dict.items() if ab[:2] in value[1][1:] and len(value[1]) > 1])
+            # del
+            elif len(rb) > 1 and len(ab) == 1:
+                overlap_count = set([key for key, value in read_alt_dict.items() if '-' in ''.join(value)])
 
-        # in the same phased haplotype
-        phased_overlap_count = set([key for key in overlap_count if hap_dict[key] == hap_index])
-        if len(phased_overlap_count) == 0 or len(phased_overlap_count) * 2 < float(len(overlap_count)):
-            continue
+            # in the same phased haplotype
+            phased_overlap_set = set([key for key in overlap_count if hap_dict[key] == hap_index])
+            if len(phased_overlap_set) == 0 or len(phased_overlap_set) * 2 < float(len(overlap_count)):
+                continue
 
-        inter_set = set([key for key in alt_base_read_name_set if hap_dict[key] == hap_index]).intersection(
-            phased_overlap_count)
-        if len(inter_set) == 0:
-            pass_hetero = False
-            break
+            inter_set = set([key for key in alt_base_read_name_set if hap_dict[key] == hap_index]).intersection(
+                phased_overlap_set)
+            # in the same phased haplotype while no overlapping
+            if len(inter_set) == 0:
+                pass_hetero = False
+                break
 
     for p, rb, ab in homo_germline_set:
         read_alt_dict = pos_dict[p]
@@ -318,7 +319,6 @@ def update_filter_info(args, key, row_str, phase_dict, fail_set_list):
         columns[7] = "H"
     for idx, fail_pos_set in enumerate(fail_set_list):
         if k in fail_pos_set:
-            columns = row_str.split('\t')
             columns[5] = '0.000'
             if args.debug:
                 columns[6] = columns[6].replace('PASS', 'LowQual')
