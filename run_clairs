@@ -137,7 +137,7 @@ def check_python_path():
 def check_tools_version(args):
 
     required_tool_version = {
-        'python': version_parse('3.6.0'),
+        'python': version_parse('3.9.0'),
         'pypy': version_parse('3.6'),
         'samtools': version_parse('1.10'),
         'whatshap': version_parse('1.0'),
@@ -315,7 +315,7 @@ def check_contigs_intersection(args, fai_fn):
     contig_set = set(args.ctg_name.split(',')) if is_ctg_name_list_provided else set()
 
     if not args.include_all_ctgs:
-        logging("[INFO] --include_all_ctgs not enabled, use chr{1..22,X,Y} and {1..22,X,Y} by default")
+        logging("[INFO] --include_all_ctgs not enabled, use chr{1..22} and {1..22} by default")
     else:
         logging("[INFO] --include_all_ctgs enabled")
 
@@ -456,8 +456,8 @@ def check_clair3_options(args):
             # clair3 r9 model in bioconda bin
             args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'r941_prom_sup_g5014')
 
-        if not os.path.exists(args.clair3_model_path):
-            sys.exit(log_error("[ERROR] Cannot find clair3 model path in {}".format(args.clair3_model_path)))
+    if not os.path.exists(args.clair3_model_path):
+        sys.exit(log_error("[ERROR] Cannot find clair3 model path in {}".format(args.clair3_model_path)))
 
     if args.whatshap is None:
         args.whatshap = os.path.join(conda_prefix, 'bin', 'whatshap')
@@ -546,7 +546,7 @@ def check_args(args):
     if args.phase_tumor is None:
         if args.vcf_fn is not None:
             logging(log_warning(
-                "[WARNING] By default, disable phasing if `--vcf_fn` provided, add `--phase_tumor True` if still need to enable phasing!"))
+                "[WARNING] We will disable Clair3 HET SNPs_phasing if `--vcf_fn` provided, add `--phase_tumor True` if still need to enable phasing!"))
         else:
             args.phase_tumor = True if args.platform != 'ilmn' else False
 
@@ -558,7 +558,8 @@ def check_args(args):
     legal_range_from(param_name="qual", x=args.qual, min_num=0, exit_out_of_range=True)
     legal_range_from(param_name="min_coverage", x=args.min_coverage, min_num=0, exit_out_of_range=True)
     legal_range_from(param_name="snv_min_af", x=args.snv_min_af, min_num=0, max_num=1, exit_out_of_range=True)
-    legal_range_from(param_name="indel_min_af", x=args.indel_min_af, min_num=0, max_num=1, exit_out_of_range=True) #update
+    legal_range_from(param_name="indel_min_af", x=args.indel_min_af, min_num=0, max_num=1, exit_out_of_range=True)
+    legal_range_from(param_name="chunk_size", x=args.chunk_size, min_num=0, exit_out_of_range=True)
 
     args.output_path = create_output_folder(args)
     check_tools_version(args=args)
@@ -782,7 +783,7 @@ def somatic_calling(args):
 
         echo_list.append("[INFO] Haplotag Tumor BAM")
         ht_command = '( ' + time + args.parallel
-        ht_command += ' --joblog ' + args.output_dir + '/logs/parallel_5_haplotag_tumor.log'
+        ht_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_5_haplotag_tumor.log'
         ht_command += ' -j ' + str(args.threads)
         ht_command += ' ' + args.whatshap + ' haplotag'
         ht_command += ' --output ' + clair3_output_path + '/phased_output/tumor_{1}.bam'
@@ -792,7 +793,7 @@ def somatic_calling(args):
         ht_command += ' ' + clair3_output_path + '/phased_output/tumor_phased_{1}.vcf.gz'
         ht_command += ' ' + args.tumor_bam_fn
         ht_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-        ht_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/5_tumor_haplotag.log'
+        ht_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/5_tumor_haplotag.log'
 
         index_command = args.parallel + ' -j ' + str(args.threads)
         index_command += ' ' + args.samtools + ' index '
@@ -803,7 +804,7 @@ def somatic_calling(args):
 
     # Pileup calling
     #STEP 1: EXTRACT CANDIDATES
-    echo_list.append("[INFO] STEP {}: Extract Candidates form Tumor and Normal BAMs".format(step))
+    echo_list.append("[INFO] STEP {}: Extract Candidates for Tumor and Normal BAMs".format(step))
     step += 1
     ec_command = '( ' + time + args.parallel
     ec_command += ' --joblog ' + args.output_dir + '/logs/parallel_1_extract_tumor_candidates.log'
@@ -945,7 +946,7 @@ def somatic_calling(args):
 
     #graph postprocessing
     elif args.platform == 'ont':
-        echo_list.append("[INFO] STEP 4: Haplotype graph postprocessing")
+        echo_list.append("[INFO] STEP 4: Haplotype filtering")
         hap_g_command = '( ' + time + args.pypy + ' ' + main_entry + ' haplotype_filtering'
         hap_g_command += ' --tumor_bam_fn ' + tumor_bam_prefix
         hap_g_command += ' --ref_fn ' + args.ref_fn
@@ -955,9 +956,9 @@ def somatic_calling(args):
         hap_g_command += ' --output_dir ' + args.output_dir + '/tmp/vcf_output'
         hap_g_command += ' --samtools ' + args.samtools
         hap_g_command += ' --threads ' + str(args.threads)
-        hap_g_command += ' --apply_post_processing ' + str(args.apply_post_processing)
+        hap_g_command += ' --debug ' if args.debug else ''
+        hap_g_command += ' --apply_post_processing False' if not args.apply_post_processing else ''
         hap_g_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/4_HAP_FILTER.log'
-
         commands_list += [hap_g_command]
 
     echo_list.append("[INFO] STEP 5: Merge and sort VCF")
@@ -970,7 +971,6 @@ def somatic_calling(args):
     sort_vcf_command += ' --qual ' + str(args.qual)
     sort_vcf_command += ' --sample_name ' + str(args.sample_name)
     sort_vcf_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/5_MV.log'
-
     commands_list += [sort_vcf_command]
 
     if args.vcf_fn is not None:
@@ -1331,6 +1331,13 @@ def somatic_parser():
         "--apply_post_processing",
         type=str2bool,
         default=True,
+        help=SUPPRESS
+    )
+
+    optional_params.add_argument(
+        "--debug",
+        type=str2bool,
+        default=False,
         help=SUPPRESS
     )
 
