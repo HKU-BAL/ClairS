@@ -183,11 +183,6 @@ def output_vcf_from_probability(
     # discard Indel
     if len(reference_base) > 1 or len(alternate_base) > 1:
         return
-    # genotype string
-    if is_reference:
-        genotype_string = '0/0'
-    else:
-        genotype_string = "0/1"
 
     def decode_alt_info(alt_info_dict, read_depth):
         alt_type_list = [{}, {}, {}]  # SNP I D
@@ -221,8 +216,13 @@ def output_vcf_from_probability(
     tumor_allele_frequency = min((tumor_supported_reads_count / tumor_read_depth) if tumor_read_depth != 0 else 0.0,
                                  1.0)
 
-    if is_germline:
-        genotype_string = "1/1" if tumor_allele_frequency > 0.5 else genotype_string
+    # genotype string
+    if is_reference:
+        genotype_string = '0/0'
+    elif is_germline:
+        genotype_string = "0/1" if tumor_allele_frequency <= 0.5 else "0/1"
+    else:
+        genotype_string = "0/1" if tumor_allele_frequency < 1.0 else '1/1'
     # quality score
     quality_score = quality_score_from(maximum_probability)
 
