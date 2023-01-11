@@ -22,7 +22,6 @@ normal_snv_max_af = 0.05
 tensor_max_depth = 168
 center_padding_depth = 2
 min_rescale_cov = 50
-min_qual = 0.8
 SAMTOOLS_VIEW_FILTER_FLAG = 2316
 extend_bp = 100
 alternative_base_num = min_tumor_support_read_num = 3
@@ -46,7 +45,7 @@ normal_matrix_depth_dict = {'ont': ont_max_normal_depth, 'ilmn': max_normal_dept
 tumor_matrix_depth_dict = {'ont': ont_max_tumor_depth, 'ilmn': max_tumor_depth}
 phase_normal = {'ont': False, 'ilmn': False}
 phase_tumor = {'ont': True, 'ilmn': False}
-qual_dict = {'ont': min_qual, 'ilmn': min_qual}
+qual_dict = {'ont': 0.8, 'ilmn': 0.95}
 af_dict = {'ont': 0.5, 'ilmn': None}
 
 

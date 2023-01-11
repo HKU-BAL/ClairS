@@ -178,7 +178,7 @@ def realign_variants(args):
         pos = k if ctg_name is not None else k[1]
         contig = ctg_name if ctg_name is not None else k[0]
         row_str = v.row_str.rstrip()
-        if (contig, pos) in realign_fail_pos_set:
+        if (contig, pos) in realign_fail_pos_set and float(v.qual) < param.qual_dict['ilmn']:
             row_str = row_str.replace("PASS", "LowQual")
 
         p_vcf_writer.vcf_writer.write(row_str + '\n')
@@ -187,7 +187,7 @@ def realign_variants(args):
         pos = k if ctg_name is not None else k[1]
         contig = ctg_name if ctg_name is not None else k[0]
         row_str = v.row_str.rstrip()
-        if (contig, pos) in realign_fail_pos_set:
+        if (contig, pos) in realign_fail_pos_set and float(v.qual) < param.qual_dict['ilmn']:
             row_str = row_str.replace("PASS", "LowQual")
 
         f_vcf_writer.vcf_writer.write(row_str + '\n')

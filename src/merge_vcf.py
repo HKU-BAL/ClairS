@@ -84,10 +84,16 @@ def merge_vcf(args):
         if filter != 'PASS':
             continue
 
-        if max_qual_filter_fa_calls is not None and qual <= max_qual_filter_fa_calls:
-            if (ctg_name, int(pos)) not in pass_fa_set:
-                filter_count += 1
-                continue
+        if max_qual_filter_fa_calls is not None:
+            if qual <= max_qual_filter_fa_calls:
+                if (ctg_name, int(pos)) not in pass_fa_set:
+                    filter_count += 1
+                    continue
+            elif (ctg_name, int(pos)) not in pass_fa_set and platform == 'ilmn':
+                columns[5] = quality_score_from(columns[5], use_phred_qual=use_phred_qual)
+                columns = update_GQ(columns)
+                row = '\t'.join(columns) + '\n'
+                contig_dict[ctg_name][int(pos)] = row
 
         if af_cut_off is not None:
             tag_list = columns[8].split(':')
@@ -131,10 +137,10 @@ def merge_vcf(args):
     contigs_order_list = sorted(contig_dict.keys(), key=lambda x: contigs_order.index(x))
 
     output_vcf_writer = VcfWriter(vcf_fn=args.output_fn,
-                             ctg_name=','.join(list(contig_dict.keys())),
-                             ref_fn=args.ref_fn,
-                             sample_name=args.sample_name,
-                             show_ref_calls=True)
+                                 ctg_name=','.join(list(contig_dict.keys())),
+                                 ref_fn=args.ref_fn,
+                                 sample_name=args.sample_name,
+                                 show_ref_calls=True)
 
     for contig in contigs_order_list:
         all_pos = sorted(contig_dict[contig].keys())
