@@ -11,7 +11,7 @@ Email: rbluo@cs.hku.hk, zxzheng@cs.hku.hk
 
 ## Introduction
 
-ClairS is a deep learning-based long-read somatic variant caller.  ClairS identifies somatic SNVs (single nucleotide variants) from aligned tumor and matched normal DNA reads efficiently and sensitively. ClairS was trained in ~20M synthetic germline datasets with various coverages and allele frequencies.
+ClairS is a deep learning-based long-read somatic variant caller.  ClairS identifies somatic SNVs (single nucleotide variants) from aligned tumor and matched normal reads efficiently and sensitively. ClairS was trained in ~30M synthetic germline datasets with various coverages and allele frequencies.
 
 ------
 
@@ -38,7 +38,7 @@ ClairS is a deep learning-based long-read somatic variant caller.  ClairS identi
 After following [installation](#installation), you can run ClairS with one command:
 
 ```bash
-./run_clairs -T tumor.bam -N normal.bam  -R ref.fa -o output -t 8 -p ont
+./run_clairs -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont
 ## Final output file: output/output.vcf.gz
 ```
 
@@ -150,13 +150,13 @@ docker run -it hkubal/clairs:latest /opt/bin/run_clairs --help
 ### General Usage
 
 ```bash
-run_clairs \
+./run_clairs \
   --tumor_bam_fn ${INPUT_DIR}/tumor.bam \    ## change your tumor bam file name here
   --normal_bam_fn ${INPUT_DIR}/normal.bam \  ## change your bam file name here
-  --ref_fn ${INPUT_DIR}/ref.fa \       		 ## change your reference file name here
-  --threads ${THREADS} \               		 ## maximum threads to be used
-  --platform ${PLATFORM} \             		 ## options: {ont,ilmn}
-  --output ${OUTPUT_DIR}               		 ## output path prefix
+  --ref_fn ${INPUT_DIR}/ref.fa \             ## change your reference file name here
+  --threads ${THREADS} \                     ## maximum threads to be used
+  --platform ${PLATFORM} \                   ## options: {ont,ilmn}
+  --output ${OUTPUT_DIR}                     ## output path prefix
  
 ## Final output file: ${OUTPUT_DIR}/output.vcf.gz
 ```
@@ -171,7 +171,7 @@ run_clairs \
   -R, --ref_fn FASTA                Reference file input. The input file must be samtools indexed.
   -o, --output_dir OUTPUT_DIR       VCF output directory.
   -t, --threads THREADS             Max #threads to be used.
-  -p, --platform PLATFORM  			Select the sequencing platform of the input. Possible options {ont,ilmn}.
+  -p, --platform PLATFORM           Select the sequencing platform of the input. Possible options {ont,ilmn}.
 ```
 
 **Other parameters:**
