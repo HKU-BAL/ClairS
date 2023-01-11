@@ -133,6 +133,10 @@ def check_python_path():
     python_path = subprocess.run("which python", stdout=subprocess.PIPE, shell=True).stdout.decode().rstrip()
     sys.exit(log_error("[ERROR] Current python execution path: {}".format(python_path)))
 
+def check_python_version(python):
+    python_path = subprocess.run("{} --version".format(python), stdout=subprocess.PIPE, shell=True).stdout.decode().rstrip()
+    return python_path.split(' ')[1]
+
 
 def check_tools_version(args):
 
@@ -145,7 +149,7 @@ def check_tools_version(args):
     }
 
     tool_version = {
-        'python': version_parse(sys.version.split()[0]),
+        'python': version_parse(check_python_version(args.python)),
         'pypy': check_version(tool=args.pypy, pos=0, is_pypy=True),
         'samtools': check_version(tool=args.samtools, pos=1),
         'parallel': check_version(tool=args.parallel, pos=2),
@@ -1011,7 +1015,7 @@ def somatic_calling(args):
 def somatic_parser():
 
     parser = argparse.ArgumentParser(
-        description="Run ClairS for somatic variant calling. Example run: run_clair_somatic -T TUMOR_BAM -N NORMAL_BAM -R REF -o OUTPUT_DIR -t THREADS -p PLATFORM")
+        description="Run ClairS for somatic variant calling. Example run: run_clairs -T TUMOR_BAM -N NORMAL_BAM -R REF -o OUTPUT_DIR -t THREADS -p PLATFORM")
 
     # print version
     parser.add_argument('-v', '--version', action='version',

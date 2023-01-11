@@ -320,7 +320,7 @@ def extract_candidates(args):
                                                    'CANDIDATES_FILE_{}_{}'.format(ctg_name, chunk_id))
         with open(all_candidates_regions_path, 'w') as output_file:
             output_file.write('\n'.join(all_candidates_regions) + '\n')
-
+    print("[INFO] Total {} candidates found in {}-{}/{}".format(len(candidates_list), args.ctg_name, chunk_id, chunk_num))
     samtools_mpileup_process.stdout.close()
     samtools_mpileup_process.wait()
 
