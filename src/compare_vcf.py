@@ -91,6 +91,8 @@ def compare_vcf(args):
                                  skip_genotype=skip_genotyping,
                                  filter_tag=input_filter_tag,
                                  keep_af=True,
+                                 min_qual=args.min_qual,
+                                 max_qual=args.max_qual,
                                  discard_indel=True)
     input_vcf_reader.read_vcf()
     input_variant_dict = input_vcf_reader.variant_dict
@@ -282,7 +284,10 @@ def compare_vcf(args):
         alt_base = vcf_infos.alternate_bases[0]
         genotype = vcf_infos.genotype
         qual = vcf_infos.qual
-        qual = float(qual) if qual is not None else qual
+        try:
+            qual = float(qual) if qual is not None else qual
+        except:
+            qual = None
         is_snv = len(ref_base) == 1 and len(alt_base) == 1
         is_ins = len(ref_base) < len(alt_base)
         is_del = len(ref_base) > len(alt_base)
@@ -437,6 +442,18 @@ def compare_vcf(args):
                 qual = float(TLOD.split('=')[1])
                 tp_dict[key] = qual
 
+        elif args.caller.lower() == 'somaticsniper':
+            fp_dict = {}
+            for key in fp_set:
+                SSC = input_variant_dict[key].row_str.split('\t')[10].split(':')[-1]
+                qual = float(SSC)
+                fp_dict[key] = qual
+            tp_dict = {}
+            for key in tp_set:
+                SSC = input_variant_dict[key].row_str.split('\t')[10].split(':')[-1]
+                qual = float(SSC)
+                tp_dict[key] = qual
+
         elif args.caller.lower() == 'varnet':
             fp_dict = {}
             for key in fp_set:
@@ -535,10 +552,10 @@ def main():
     parser.add_argument('--output_dir', type=str, default=None,
                         help="Output directory")
 
-    parser.add_argument('--input_filter_tag', type=str, default=None,
+    parser.add_argument('--input_filter_tag', type=str_none, default=None,
                         help="Filter tag for the input VCF")
 
-    parser.add_argument('--truth_filter_tag', type=str, default=None,
+    parser.add_argument('--truth_filter_tag', type=str_none, default=None,
                         help="Filter tag for the truth VCF")
 
     parser.add_argument('--tumor_bam_fn', type=str, default=None,
@@ -562,7 +579,7 @@ def main():
     parser.add_argument('--samtools', type=str, default="samtools",
                         help="Path to the 'samtools', samtools version >= 1.10 is required. default: %(default)s")
 
-    parser.add_argument('--threads', type=int, default=32,
+    parser.add_argument('--threads', type=int, default=8,
                         help="Max #threads to be used")
 
     ## Output VCF filename
@@ -609,6 +626,12 @@ def main():
 
     ## 0-> all, 1: phasable, 2 non-phasebale
     parser.add_argument('--validate_phase_only', type=str_none, default=None,
+                        help=SUPPRESS)
+
+    parser.add_argument('--min_qual', type=float, default=None,
+                        help=SUPPRESS)
+
+    parser.add_argument('--max_qual', type=float, default=None,
                         help=SUPPRESS)
 
     parser.add_argument('--debug', action='store_true',
