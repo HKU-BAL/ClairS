@@ -108,7 +108,7 @@ def compare_vcf(args):
     no_normal_count, no_tumor_alt_count, low_tumor_count, high_normal_af, low_af_count = 0, 0, 0, 0, 0
     if discard_low_af:
         if args.low_af_path is None or not os.path.exists(args.low_af_path):
-            if not (os.path.exists(args.normal_bam_fn) and os.path.exists(args.tumor_bam_fn)):
+            if args.normal_bam_fn is None or args.tumor_bam_fn is None or (not (os.path.exists(args.normal_bam_fn) and os.path.exists(args.tumor_bam_fn))):
                 sys.exit("[ERROR] Pls input --normal_bam_fn and --tumor_bam_fn for calculation")
             result_dict = cal_af(args, truth_variant_dict, input_variant_dict)
         else:
@@ -137,7 +137,6 @@ def compare_vcf(args):
                 del input_variant_dict[k]
                 low_af_count += 1
 
-    confict_phase = 0
     phasable_count = 0
     non_phasable_count = 0
     if args.validate_phase_only is not None:
@@ -156,9 +155,9 @@ def compare_vcf(args):
             if key in input_variant_dict:
                 continue
 
-            # phaseable
             phaseable = all_hp1 * all_hp2 > 0 and hp1 * hp2 == 0 and (
                         int(hp1) > args.min_alt_coverage or int(hp2) > args.min_alt_coverage)
+            # phaseable 1 non phaseable 2
             if int(args.validate_phase_only) == 1 and not phaseable:
                 low_af_truth.add(key)
                 continue
@@ -167,8 +166,8 @@ def compare_vcf(args):
                 continue
 
         for k, v in input_variant_dict.items():
-            row = v.row_str.rstrip().split('\t')
-            phaseable = row.split('\t')[6] == 'H'
+            columns = v.row_str.rstrip().split('\t')
+            phaseable = columns[7] == 'H'
             if phaseable:
                 phasable_count += 1
             else:
@@ -176,8 +175,10 @@ def compare_vcf(args):
 
             if int(args.validate_phase_only) == 1 and not phaseable:
                 low_af_truth.add(k)
+                continue
             if int(args.validate_phase_only) == 2 and phaseable:
                 low_af_truth.add(k)
+                continue
 
         print("[INFO] Fail or non-phasable:", non_phasable_count, 'Low ALT base phase count :', unphase, "Phasable:",
               phasable_count)

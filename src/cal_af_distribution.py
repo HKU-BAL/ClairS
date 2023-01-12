@@ -122,8 +122,6 @@ def cal_af(args, truth_variant_dict=None, input_variant_dict=None):
                                filter_tag=args.truth_filter_tag)
         vcf_reader.read_vcf()
         truth_variant_dict = vcf_reader.variant_dict
-    else:
-        truth_variant_dict = defaultdict()
 
     if input_variant_dict is None:
         input_vcf_fn = args.input_vcf_fn
@@ -140,7 +138,6 @@ def cal_af(args, truth_variant_dict=None, input_variant_dict=None):
 
     if output_path is not None:
         output_file = open(output_path, 'w')
-
     for k, v in truth_variant_dict.items():
         if k not in input_variant_dict:
             variant_dict[k] = v
