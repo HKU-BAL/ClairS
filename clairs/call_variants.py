@@ -153,7 +153,7 @@ def output_vcf_from_probability(
             is_INS = True
         elif best_match_alt[0] == 'D':
             alternate_base = reference_base
-            reference_base = best_match_alt[1:]
+            reference_base += best_match_alt[1:]
 
     if is_germline and output_config.is_show_germline:
         best_match_alt, tumor_supported_reads_count, normal_supported_reads_count = rank_germline_alt(
@@ -168,7 +168,7 @@ def output_vcf_from_probability(
             is_INS = True
         elif best_match_alt[0] == 'D':
             alternate_base = reference_base
-            reference_base = best_match_alt[1:]
+            reference_base += best_match_alt[1:]
 
     if (not output_config.is_show_reference and is_reference) or (
             not is_reference and reference_base == alternate_base):
