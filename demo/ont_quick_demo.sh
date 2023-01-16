@@ -36,7 +36,7 @@ docker run -it \
   --normal_bam_fn ${INPUT_DIR}/${NORMAL_BAM} \
   --ref_fn ${INPUT_DIR}/${REF} \
   --threads 4 \
-  --platform ont \
+  --platform ont_r10 \
   --output_dir ${OUTPUT_DIR} \
   --region chr17:80000000-80100000
 
