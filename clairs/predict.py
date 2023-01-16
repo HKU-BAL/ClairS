@@ -1,3 +1,33 @@
+# BSD 3-Clause License
+#
+# Copyright 2023 The University of Hong Kong, Department of Computer Science
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice, this
+#    list of conditions and the following disclaimer.
+#
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# 3. Neither the name of the copyright holder nor the names of its
+#    contributors may be used to endorse or promote products derived from
+#    this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 import sys
 import os
 import tables
@@ -528,23 +558,21 @@ def main():
     parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of the sequence to be processed")
 
-    parser.add_argument('--ctg_start', type=int, default=None,
-                        help="The 1-based starting position of the sequence to be processed, optional, will process the whole --ctg_name if not set")
-
-    parser.add_argument('--ctg_end', type=int, default=None,
-                        help="The 1-based inclusive ending position of the sequence to be processed, optional, will process the whole --ctg_name if not set")
-
     parser.add_argument('--sample_name', type=str, default="SAMPLE",
                         help="Define the sample name to be shown in the VCF file, optional")
-
-    parser.add_argument('--qual', type=int, default=0,
-                        help="If set, variants with >=QUAL will be marked 'PASS', or 'LowQual' otherwise, optional")
 
     parser.add_argument('--samtools', type=str, default="samtools",
                         help="Absolute path to the 'samtools', samtools version >= 1.10 is required. Default: %(default)s")
 
+    parser.add_argument('--show_ref', action='store_true',
+                        help="Show reference calls (0/0) in VCF file")
+
+    parser.add_argument('--show_germline', action='store_true',
+                        help="Show germline calls in VCF file")
+
+    # options for advanced users
     parser.add_argument('--min_rescale_cov', type=int, default=param.min_rescale_cov,
-                        help="Minimum coverage after rescalling from excessively high coverage data")
+                        help="EXPERIMENTAL: Minimum coverage after rescalling from excessively high coverage data")
 
     # options for debug purpose
     parser.add_argument('--predict_fn', type=str, default="PIPE",
@@ -556,15 +584,13 @@ def main():
     parser.add_argument('--output_probabilities', action='store_true',
                         help="DEBUG: Output the network probabilities of gt21, genotype, indel_length_1 and indel_length_2")
 
-    parser.add_argument('--show_ref', action='store_true',
-                        help="Output reference calls")
-
-    parser.add_argument('--show_germline', action='store_true',
-                        help="Output germline calls")
-
     # options for internal process control
     ## Use GPU for calling
     parser.add_argument('--use_gpu', type=str2bool, default=False,
+                        help=SUPPRESS)
+
+    ## If set, variants with >=QUAL will be marked 'PASS', or 'LowQual'
+    parser.add_argument('--qual', type=int, default=0,
                         help=SUPPRESS)
 
     ## In pileup mode or not (full alignment mode), default: False

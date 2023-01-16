@@ -321,6 +321,7 @@ def update_filter_info(args, key, row_str, phase_dict, fail_set_list):
         if k in fail_pos_set:
             columns[5] = '0.000'
             if args.debug:
+                #0 coeixst 1 indel 2 fail het 3 fail homo 4 het both 5 start end 6 bq
                 columns[6] = columns[6].replace('PASS', 'LowQual')
                 columns[6] += ' ' + str(idx)
             else:
@@ -337,8 +338,22 @@ def update_filter_info(args, key, row_str, phase_dict, fail_set_list):
     return row_str, is_candidate_filtered
 
 def haplotype_filter(args):
+
+    if args.test_pos:
+        # pypy3 /autofs/bal36/zxzheng/somatic/Clair-somatic/clairs.py haplotype_filtering --ctg_name chr14 --test_pos 30470366
+        args.tumor_bam_fn ="/autofs/bal36/zxzheng/somatic/ont/workflow_update/hcc13951_chr20_45_71x/tmp/clair3_output/phased_output/tumor_"
+        args.ref_fn = "/autofs/bal36/zxzheng/somatic/data/reference/GRCh38.d1.vd1.fa"
+        #parallel -j 20 "gzip -fdc merge_output.vcf.gz | grep -w {1} > {1}" ::: ${CHR[@]}
+        args.germline_vcf_fn = '/autofs/bal36/zxzheng/somatic/ont/workflow_update/hcc13951_chr20_45_71x/tmp/clair3_output/clair3_tumor_output/{}'.format(args.ctg_name)
+        args.pileup_vcf_fn = "/autofs/bal36/zxzheng/somatic/ont/workflow_update/hcc13951_chr20_45_71x/tmp/vcf_output/pileup.vcf"
+        args.full_alignment_vcf_fn = "/autofs/bal36/zxzheng/somatic/ont/workflow_update/hcc13951_chr20_45_71x/tmp/vcf_output/full_alignment.vcf"
+        args.output_dir = '/autofs/bal36/zxzheng/somatic/ont/workflow_update/hcc13951_chr20_45_71x/test'
+        args.debug = True
+        args.samtools = '/autofs/bal33/zxzheng/env/conda/envs/clair-somatic/bin/samtools'
+
     ctg_name = args.ctg_name
     threads = args.threads
+    threads_low = max(1, int(threads * 4 / 5))
     apply_post_processing = args.apply_post_processing
     pileup_vcf_fn = args.pileup_vcf_fn
     fa_input_vcf_fn = args.full_alignment_vcf_fn
@@ -402,6 +417,8 @@ def haplotype_filter(args):
             continue
         if len(pileup_variant_dict) and (k not in pileup_variant_dict or pileup_variant_dict[k].filter != "PASS"):
             continue
+        if args.test_pos and k != args.test_pos:
+            continue
         input_variant_dict[k] = v
 
     p_vcf_writer = VcfWriter(vcf_fn=pileup_output_vcf_fn,
@@ -449,7 +466,7 @@ def haplotype_filter(args):
 
         rn_dict = defaultdict(list)
 
-        with concurrent.futures.ProcessPoolExecutor(max_workers=threads) as exec:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=threads_low) as exec:
             for result in exec.map(extract_base, POS_list):
                 total_num += 1
                 key, pass_hetero, pass_homo, pass_hetero_both_side, match_count, indel_length, pass_read_start_end, alt_base_read_name_set, extra = result
@@ -556,12 +573,6 @@ def main():
     parser.add_argument('--output_dir', type=str, default=None,
                         help="Output VCF directory")
 
-    parser.add_argument('--apply_post_processing', type=str2bool, default=True,
-                        help="Apply post processing to the variant calls")
-
-    parser.add_argument('--samtools', type=str, default="samtools",
-                        help="Absolute path to the 'samtools', samtools version >= 1.10 is required. Default: %(default)s")
-
     parser.add_argument('--python', type=str, default="python3",
                         help="Absolute path to the 'python3', default: %(default)s")
 
@@ -571,7 +582,13 @@ def main():
     parser.add_argument('--input_filter_tag', type=str_none, default=None,
                         help='Filter variants with tag from the input VCF')
 
+    parser.add_argument('--samtools', type=str, default="samtools",
+                        help="Absolute path to the 'samtools', samtools version >= 1.10 is required. Default: %(default)s")
+
     # options for advanced users
+    parser.add_argument('--apply_post_processing', type=str2bool, default=True,
+                        help="EXPERIMENTAL: Apply post processing to the variant calls")
+
     parser.add_argument('--min_mq', type=int, default=param.min_mq,
                         help="EXPERIMENTAL: If set, reads with mapping quality with <$min_mq are filtered, default: %(default)d")
 
@@ -582,7 +599,7 @@ def main():
                         help="Minimum number of reads supporting an alternative allele required for a somatic variant to be called. Default: %(default)d")
 
     parser.add_argument('--max_overlap_distance', type=int, default=100000,
-                        help="The largest window size for two somatic variants to be considered together for haplotype filtering. Default: %(default)d")
+                        help="EXPERIMENTAL: The largest window size for two somatic variants to be considered together for haplotype filtering. Default: %(default)d")
 
     ## test using one position
     parser.add_argument('--test_pos', type=int, default=None,

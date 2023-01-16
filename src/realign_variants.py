@@ -115,6 +115,7 @@ def extract_base(POS):
 def realign_variants(args):
     ctg_name = args.ctg_name
     threads = args.threads
+    threads_low = max(1, int(threads * 4 / 5))
     output_dir = args.output_dir
     enable_realignment = args.enable_realignment
     qual_cut_off = args.qual if args.qual is not None else param.qual_dict['ilmn']
