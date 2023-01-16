@@ -22,10 +22,11 @@ ClairS is now available for early access to interested and experienced users. Yo
 ### Setup
 * 70-fold HCC1395 (tumor) and 45-fold HCC1395BL (normal) of ONT R10.4.1 data.
 * Benchmarking against the truths (Fang et al., 2021)
+### SNV performance
+<p align="center">
+<img src="./images/ont_result.png" alt="ONT benmarking result" width="1080p"></img>
+</p>
 
-### SNV precision
-
-### SNV recall
 
 ------
 
@@ -53,7 +54,7 @@ ClairS is now available for early access to interested and experienced users. Yo
 After following [installation](#installation), you can run ClairS with one command:
 
 ```bash
-./run_clairs -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont
+./run_clairs -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont_r10
 ## Final output file: output/output.vcf.gz
 ```
 
@@ -65,11 +66,13 @@ Check [Usage](#Usage) for more options.
 
 ClairS trained both pileup and full-alignment models using GIAB samples, and carry on benchmarking on HCC1395-HCC1395BL pair dataset. All models were trained with chr20 excluded (including only chr1-19, 21, 22). 
 
-| Platform | Chemistry /Instruments | Option (`-p/--platform`) |   Reference   | Aligner  | Training samples |
-| :------: | ---------------------- | ------------------------ | :-----------: | :------: | :--------------: |
-|   ONT    | R10.4/R10.4.1          | `ont`                    | GRCh38_no_alt | Minimap2 |     HG001,2      |
-|   ONT    | R9.4.1                 | `ont_r9`                 | GRCh38_no_alt | Minimap2 |     HG003,4      |
-| Illumina | NovaSeq/HiseqX         | `ilmn`                   |    GRCh38     | BWA-MEM  |     HG003,4      |
+| Platform |       Model name       | Chemistry /Instruments | Option (`-p/--platform`) |   Reference   | Aligner  | Included in the docker image | Training samples | Caveats |
+| :------: | :--------------------: | :--------------------: | :----------------------: | :-----------: | :------: | :--------------------------: | :--------------: | :-----: |
+|   ONT    | ont_r104_e81_sup_g5015 |     R10.4/R10.4.1      |        `ont_r10`         | GRCh38_no_alt | Minimap2 |             Yes              |     HG001,2      |         |
+|   ONT    |  r941_prom_sup_g5014   |         R9.4.1         |         `ont_r9`         | GRCh38_no_alt | Minimap2 |             Yes              |     HG003,4      |    1    |
+| Illumina |          ilmn          |     NovaSeq/HiseqX     |          `ilmn`          |    GRCh38     | BWA-MEM  |             Yes              |     HG003,4      |         |
+
+**Caveats 1**: Although the r9(`r941_prom_sup_g5014`) model was trained on synthetic samples with r9.4.1 real data, the minimal AF cutoff, minimal coverage, and post-calling filtering parameters for the r9 model are copied from the r10 model, and are not optimized due to lack of real r9 data on a cancer sample with known truths.
 
 
 ------
@@ -93,7 +96,7 @@ docker run -it \
   --normal_bam_fn ${INPUT_DIR}/normal.bam \    ## use your normal bam file name here
   --ref_fn ${INPUT_DIR}/ref.fa \               ## use your reference file name here
   --threads ${THREADS} \                       ## maximum threads to be used
-  --platform ${PLATFORM} \                     ## options: {ont,ilmn}
+  --platform ${PLATFORM} \                     ## options: {ont_r10, ont_r9, ilmn}
   --output ${OUTPUT_DIR}                       ## output path prefix 
 ```
 
@@ -121,7 +124,7 @@ singularity exec clairs.sif \
   --normal_bam_fn ${INPUT_DIR}/normal.bam \    ## use your normal bam file name here
   --ref_fn ${INPUT_DIR}/ref.fa \               ## use your reference file name here
   --threads ${THREADS} \                       ## maximum threads to be used
-  --platform ${PLATFORM} \                     ## options: {ont,ilmn}
+  --platform ${PLATFORM} \                     ## options: {ont_r10, ont_r9, ilmn}
   --output ${OUTPUT_DIR}                       ## output path prefix 
 ```
 
@@ -155,7 +158,7 @@ cd ClairS
 echo ${CONDA_PREFIX}
 mkdir -p ${CONDA_PREFIX}/bin/somatic_models
 wget http://www.bio8.cs.hku.hk/clairs/models/clairs_models.tar.gz
-tar -zxvf clairs_models.tar.gz -C ${CONDA_PREFIX}/bin/somatic_models/
+tar -zxvf clairs_models.tar.gz -C ${CONDA_PREFIX}/bin/clairs_models/
 
 ./run_clairs --help
 ```
@@ -188,7 +191,7 @@ docker run -it hkubal/clairs:latest /opt/bin/run_clairs --help
   --normal_bam_fn ${INPUT_DIR}/normal.bam \  ## use your bam file name here
   --ref_fn ${INPUT_DIR}/ref.fa \             ## use your reference file name here
   --threads ${THREADS} \                     ## maximum threads to be used
-  --platform ${PLATFORM} \                   ## options: {ont,ilmn}
+  --platform ${PLATFORM} \                   ## options: {ont_r10, ont_r9, ilmn}
   --output ${OUTPUT_DIR}                     ## output path prefix
  
 ## Final output file: ${OUTPUT_DIR}/output.vcf.gz
@@ -204,7 +207,7 @@ docker run -it hkubal/clairs:latest /opt/bin/run_clairs --help
   -R, --ref_fn FASTA                Reference file input. The input file must be samtools indexed.
   -o, --output_dir OUTPUT_DIR       VCF output directory.
   -t, --threads THREADS             Max #threads to be used.
-  -p, --platform PLATFORM           Select the sequencing platform of the input. Possible options {ont,ilmn}.
+  -p, --platform PLATFORM           Select the sequencing platform of the input. Possible options {ont_r10, ont_r9, ilmn}.
 ```
 
 **Miscellaneous parameters:**
@@ -236,9 +239,9 @@ docker run -it hkubal/clairs:latest /opt/bin/run_clairs --help
   --remove_intermediate_dir
                         Remove intermediate directory before finishing to save disk space.
   --include_all_ctgs    Call variants on all contigs, otherwise call in chr{1..22} and {1..22}.
-  --print_ref_calls     Show reference calls (0/0) in output VCF.
+  --print_ref_calls     Show reference calls (0/0) in VCF file.
   --print_germline_calls
-                        Show germline calls in output VCF.
+                        Show germline calls in VCF file.
   -d, --dry_run         Print the commands that will be ran.
   --python PYTHON       Absolute path of python, python3 >= 3.9 is required.
   --pypy PYPY           Absolute path of pypy3, pypy3 >= 3.6 is required.
@@ -250,19 +253,19 @@ docker run -it hkubal/clairs:latest /opt/bin/run_clairs --help
 #### Call SNVs in one or mutiple chromosomes using the `-C/--ctg_name` parameter
 
 ```bash
-./run_clairs -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont -C chr21,chr22
+./run_clairs -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont_r10 -C chr21,chr22
 ```
 
 #### Call SNVs in one specific region using the `-r/--region` parameter
 
 ```bash
-./run_clairs -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont -r chr20:1000000-2000000
+./run_clairs -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont_r10 -r chr20:1000000-2000000
 ```
 
 #### Call SNVs at interested variant sites (genotyping) using the `-V/--vcf_fn` parameter
 
 ```bash
-./run_clairs -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont -V input.vcf
+./run_clairs -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont_r10 -V input.vcf
 ```
 
 #### Call SNVs in the BED regions using the `-B/--bed_fn` parameter
@@ -278,7 +281,7 @@ echo -e "${CTG2}\t${START_POS_2}\t${END_POS_2}" >> input.bed
 Then:
 
 ```bash
-./run_clairs -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont -B input.bed
+./run_clairs -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont_r10 -B input.bed
 ```
 
 ------
@@ -287,4 +290,3 @@ Then:
 ## Disclaimer
 
 NOTE: the content of this research code repository (i) is not intended to be a medical device; and (ii) is not intended for clinical use of any kind, including but not limited to diagnosis or prognosis.
-
