@@ -487,7 +487,7 @@ def main():
     parser = ArgumentParser(description="Train a somatic model")
 
     parser.add_argument('--platform', type=str, default="ont",
-                        help="Sequencing platform of the input, default: %(default)s")
+                        help="Select the sequencing platform of the input. Default: %(default)s")
 
     parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of sequence to be processed")

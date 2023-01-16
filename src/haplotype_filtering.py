@@ -554,22 +554,22 @@ def main():
                         help="The 1-based starting position of the sequence to be processed")
 
     parser.add_argument('--output_dir', type=str, default=None,
-                        help="Output vcf directory")
+                        help="Output VCF directory")
 
     parser.add_argument('--apply_post_processing', type=str2bool, default=True,
-                        help="Apply post processing in calling")
+                        help="Apply post processing to the variant calls")
 
     parser.add_argument('--samtools', type=str, default="samtools",
-                        help="Path to the 'samtools', samtools version >= 1.10 is required. default: %(default)s")
+                        help="Absolute path to the 'samtools', samtools version >= 1.10 is required. Default: %(default)s")
 
     parser.add_argument('--python', type=str, default="python3",
-                        help="Path to the 'python3', default: %(default)s")
+                        help="Absolute path to the 'python3', default: %(default)s")
 
     parser.add_argument('--threads', type=int, default=4,
                         help="Max #threads to be used")
 
     parser.add_argument('--input_filter_tag', type=str_none, default=None,
-                        help='VCF FILTER tag for input VCF')
+                        help='Filter variants with tag from the input VCF')
 
     # options for advanced users
     parser.add_argument('--min_mq', type=int, default=param.min_mq,
@@ -579,10 +579,10 @@ def main():
                         help="EXPERIMENTAL: If set, bases with base quality with <$min_bq are filtered, default: %(default)d")
 
     parser.add_argument('--min_alt_coverage', type=int, default=2,
-                        help="Minimum alt base count for a variant to be included into bechmarking")
+                        help="Minimum number of reads supporting an alternative allele required for a somatic variant to be called. Default: %(default)d")
 
     parser.add_argument('--max_overlap_distance', type=int, default=100000,
-                        help="Maximum overlapped distance to consider somatic read overlapping")
+                        help="The largest window size for two somatic variants to be considered together for haplotype filtering. Default: %(default)d")
 
     ## test using one position
     parser.add_argument('--test_pos', type=int, default=None,

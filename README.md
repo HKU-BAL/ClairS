@@ -1,17 +1,31 @@
-
-# ClairS
+# ClairS (early access stage)
 
 [![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 
 Contact: Ruibang Luo, Zhenxian Zheng  
-
 Email: rbluo@cs.hku.hk, zxzheng@cs.hku.hk  
 
 ------
 
 ## Introduction
 
-ClairS is a deep learning-based long-read somatic variant caller.  ClairS identifies somatic SNVs (single nucleotide variants) from aligned tumor and matched normal reads efficiently and sensitively. ClairS was trained in ~30M synthetic germline datasets with various coverages and allele frequencies.
+ClairS is a somatic variant caller designed for paired samples and primarily ONT long-read. It uses Clair3 to eliminate germline variants. It ensembles the pileup and full-alignment models in Clair3, trusts them equally, and decides on the result using a set of rules and post-processing filters. With 70-fold HCC1395 (tumor) and 45-fold HCC1395BL (normal) of ONT R10.4.1 data, benchmarking against the truth SNVs (Fang et al., 2021) has shown ClairS achieved 91.10% precision and 71.92% recall. Specifically, ClairS achieved 98.12% precision and 99.15% recall on variants with AF≥0.20, and 94.26% precision and 87.46% recall on variants with AF≥0.05. Detailed performance figures are shown below.
+
+ClairS means Clair-Somatic, or the masculine plural of "Clair" in french (thus, 's' is silent).
+
+ClairS is now available for early access to interested and experienced users. Your suggestions and comments are highly appreciated.
+
+------
+
+## Performance figures
+
+### Setup
+* 70-fold HCC1395 (tumor) and 45-fold HCC1395BL (normal) of ONT R10.4.1 data.
+* Benchmarking against the truths (Fang et al., 2021)
+
+### SNV precision
+
+### SNV recall
 
 ------
 
@@ -23,17 +37,18 @@ ClairS is a deep learning-based long-read somatic variant caller.  ClairS identi
   - [Option 3. Build an anaconda virtual environment](#option-3-build-an-anaconda-virtual-environment)
   - [Option 4. Docker Dockerfile](#option-4-docker-dockerfile)
 - [Quick Demo](#quick-demo)
-- [Usage](#usage)
 - [Pre-trained Models](#pre-trained-models)
+- [Usage](#usage)
 - [Disclaimer](#disclaimer)
+
+------
 
 ## Quick Demo
 
-- Oxford Nanopore (ONT) [Q20+](https://nanoporetech.com/q20plus-chemistry) data, see [ONT Quick Demo](docs/ont_quick_demo.md).
-- Illumina NGS data, see [Illumina Quick Demo](docs/illumina_quick_demo.md).
+- Oxford Nanopore (ONT) [Q20+](https://nanoporetech.com/q20plus-chemistry) data as input, see [ONT Quick Demo](docs/ont_quick_demo.md).
+- Illumina NGS data as input, see [Illumina Quick Demo](docs/illumina_quick_demo.md).
 
-
-### General Usage
+### Quick start
 
 After following [installation](#installation), you can run ClairS with one command:
 
@@ -44,13 +59,29 @@ After following [installation](#installation), you can run ClairS with one comma
 
 Check [Usage](#Usage) for more options.
 
-### Installation
+------
+
+## Pre-trained Models
+
+ClairS trained both pileup and full-alignment models using GIAB samples, and carry on benchmarking on HCC1395-HCC1395BL pair dataset. All models were trained with chr20 excluded (including only chr1-19, 21, 22). 
+
+| Platform | Chemistry /Instruments | Option (`-p/--platform`) |   Reference   | Aligner  | Training samples |
+| :------: | ---------------------- | ------------------------ | :-----------: | :------: | :--------------: |
+|   ONT    | R10.4/R10.4.1          | `ont`                    | GRCh38_no_alt | Minimap2 |     HG001,2      |
+|   ONT    | R9.4.1                 | `ont_r9`                 | GRCh38_no_alt | Minimap2 |     HG003,4      |
+| Illumina | NovaSeq/HiseqX         | `ilmn`                   |    GRCh38     | BWA-MEM  |     HG003,4      |
+
+
+------
+
+
+## Installation
 
 ### Option 1.  Docker pre-built image
 
-A pre-built docker image is available [here](https://hub.docker.com/r/hkubal/clairs). 
+A pre-built docker image is available at [DockerHub](https://hub.docker.com/r/hkubal/clairs). 
 
-**Caution**: Absolute path is needed for both `INPUT_DIR` and `OUTPUT_DIR`. 
+**Caution**: Absolute path is needed for both `INPUT_DIR` and `OUTPUT_DIR` in docker. 
 
 ```bash
 docker run -it \
@@ -58,9 +89,9 @@ docker run -it \
   -v ${OUTPUT_DIR}:${OUTPUT_DIR} \
   hkubal/clairs:latest \
   /opt/bin/run_clairs \
-  --tumor_bam_fn ${INPUT_DIR}/tumor.bam \      ## change your tumor bam file name here
-  --normal_bam_fn ${INPUT_DIR}/normal.bam \    ## change your normal bam file name here
-  --ref_fn ${INPUT_DIR}/ref.fa \               ## change your reference file name here
+  --tumor_bam_fn ${INPUT_DIR}/tumor.bam \      ## use your tumor bam file name here
+  --normal_bam_fn ${INPUT_DIR}/normal.bam \    ## use your normal bam file name here
+  --ref_fn ${INPUT_DIR}/ref.fa \               ## use your reference file name here
   --threads ${THREADS} \                       ## maximum threads to be used
   --platform ${PLATFORM} \                     ## options: {ont,ilmn}
   --output ${OUTPUT_DIR}                       ## output path prefix 
@@ -70,7 +101,7 @@ Check [Usage](#Usage) for more options.
 
 ### Option 2. Singularity
 
-**Caution**: Absolute path is needed for both `INPUT_DIR` and `OUTPUT_DIR`. 
+**Caution**: Absolute path is needed for both `INPUT_DIR` and `OUTPUT_DIR` in singularity. 
 
 ```bash
 conda config --add channels defaults
@@ -86,9 +117,9 @@ singularity exec clairs.sif \
   -v ${OUTPUT_DIR}:${OUTPUT_DIR} \
   hkubal/clairs:latest \
   /opt/bin/run_clairs \
-  --tumor_bam_fn ${INPUT_DIR}/tumor.bam \      ## change your tumor bam file name here
-  --normal_bam_fn ${INPUT_DIR}/normal.bam \    ## change your normal bam file name here
-  --ref_fn ${INPUT_DIR}/ref.fa \               ## change your reference file name here
+  --tumor_bam_fn ${INPUT_DIR}/tumor.bam \      ## use your tumor bam file name here
+  --normal_bam_fn ${INPUT_DIR}/normal.bam \    ## use your normal bam file name here
+  --ref_fn ${INPUT_DIR}/ref.fa \               ## use your reference file name here
   --threads ${THREADS} \                       ## maximum threads to be used
   --platform ${PLATFORM} \                     ## options: {ont,ilmn}
   --output ${OUTPUT_DIR}                       ## output path prefix 
@@ -145,15 +176,17 @@ docker build -f ./Dockerfile -t hkubal/clairs:latest .
 docker run -it hkubal/clairs:latest /opt/bin/run_clairs --help
 ```
 
+------
+
 ## Usage
 
 ### General Usage
 
 ```bash
 ./run_clairs \
-  --tumor_bam_fn ${INPUT_DIR}/tumor.bam \    ## change your tumor bam file name here
-  --normal_bam_fn ${INPUT_DIR}/normal.bam \  ## change your bam file name here
-  --ref_fn ${INPUT_DIR}/ref.fa \             ## change your reference file name here
+  --tumor_bam_fn ${INPUT_DIR}/tumor.bam \    ## use your tumor bam file name here
+  --normal_bam_fn ${INPUT_DIR}/normal.bam \  ## use your bam file name here
+  --ref_fn ${INPUT_DIR}/ref.fa \             ## use your reference file name here
   --threads ${THREADS} \                     ## maximum threads to be used
   --platform ${PLATFORM} \                   ## options: {ont,ilmn}
   --output ${OUTPUT_DIR}                     ## output path prefix
@@ -174,65 +207,65 @@ docker run -it hkubal/clairs:latest /opt/bin/run_clairs --help
   -p, --platform PLATFORM           Select the sequencing platform of the input. Possible options {ont,ilmn}.
 ```
 
-**Other parameters:**
+**Miscellaneous parameters:**
 
 ```bash
   -P PILEUP_MODEL_PATH, --pileup_model_path PILEUP_MODEL_PATH
-                        Pileup somatic model path.
+                        Specify the path to your own somatic calling pileup model.
   -F FULL_ALIGNMENT_MODEL_PATH, --full_alignment_model_path FULL_ALIGNMENT_MODEL_PATH
-                        Full-alignment somatic model path.
+                        Specify the path to your own somatic calling full-alignment model.
   -c CTG_NAME, --ctg_name CTG_NAME
-                        The name of the contigs to be processed. Split by ',' for multiple contigs.
+                        The name of the contigs to be processed. Split by ',' for multiple contigs. Default: all contigs will be processed.
   -r REGION, --region REGION
-                        Region in `ctg_name:start-end` format(1-index), default is None.
+                        A region to be processed. Format: `ctg_name:start-end` (start is 1-based).
   -b BED_FN, --bed_fn BED_FN
-                        Path to BED file. Call variants only in the provided bed regions.
+                        Path to a BED file. Call variants only in the provided BED regions.
   -V VCF_FN, --vcf_fn VCF_FN
-                        Candidate sites VCF file input, variants will only be called at the sites in the VCF file if provided.
-  -q QUAL, --qual QUAL  If set, variants with >$qual will be marked PASS, or LowQual otherwise.
+                        VCF file input containing candidate sites to be genotyped. Variants will only be called at the sites in the VCF file if provided.
+  -q QUAL, --qual QUAL  If set, variants with >QUAL will be marked as PASS, or LowQual otherwise.
   --snv_min_af SNV_MIN_AF
-                        Minimum SNV AF required for a candidate variant. Lowering the value might increase a bit of sensitivity in trade of speed and accuracy, default: 0.05.
+                        Minimal SNV AF required for a variant to be called. Decrease SNV_MIN_AF might increase a bit of sensitivity, but in trade of precision, speed and accuracy. Default: 0.05.
   --min_coverage MIN_COVERAGE
-                        Minimum coverage required to call a somatic mutation, default: 4.
+                        Minimal coverage required for a variant to be called. Default: 4.
   --chunk_size CHUNK_SIZE
-                        The size of each chuck for parallel processing, default: 5000000.
+                        The size of each chuck for parallel processing. Default: 5000000.
   -s SAMPLE_NAME, --sample_name SAMPLE_NAME
-                        Define the sample name to be shown in the VCF file, default: SAMPLE.
+                        Define the sample name to be shown in the VCF file. Default: SAMPLE.
   --output_prefix OUTPUT_PREFIX
-                        Prefix for output VCF filename, default: output.
+                        Prefix for output VCF filename. Default: output.
   --remove_intermediate_dir
-                        Remove intermediate directory, default: disable.
-  --include_all_ctgs    Call variants on all contigs, otherwise call in chr{1..22} and {1..22}, default: disable.
-  --print_ref_calls     Show reference calls (0/0) in VCF file, default: disable.
+                        Remove intermediate directory before finishing to save disk space.
+  --include_all_ctgs    Call variants on all contigs, otherwise call in chr{1..22} and {1..22}.
+  --print_ref_calls     Show reference calls (0/0) in output VCF.
   --print_germline_calls
-                        Show germline calls in VCF file, default: disable.
-  -d, --dry_run         If true then only the commands will be printed, default: disable.
-  --python PYTHON       Path of python, python3 >= 3.9 is required.
-  --pypy PYPY           Path of pypy3, pypy3 >= 3.6 is required.
-  --samtools SAMTOOLS   Path of samtools, samtools version >= 1.10 is required.
-  --parallel PARALLEL   Path of parallel, parallel >= 20191122 is required.
-  --disable_phasing     If true then call variants without longphase or whatshap phasing for long-read data.
+                        Show germline calls in output VCF.
+  -d, --dry_run         Print the commands that will be ran.
+  --python PYTHON       Absolute path of python, python3 >= 3.9 is required.
+  --pypy PYPY           Absolute path of pypy3, pypy3 >= 3.6 is required.
+  --samtools SAMTOOLS   Absolute path of samtools, samtools version >= 1.10 is required.
+  --parallel PARALLEL   Absolute path of parallel, parallel >= 20191122 is required.
+  --disable_phasing     Disable phasing with longphase or whatshap. Usually leads to significant performance loss.
 ```
 
-#### Call mutations in one or mutiple chromosomes using `-C/--ctg_name` parameter
+#### Call SNVs in one or mutiple chromosomes using the `-C/--ctg_name` parameter
 
 ```bash
 ./run_clairs -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont -C chr21,chr22
 ```
 
-#### Call mutations in one specific region using `-r/--region` parameter
+#### Call SNVs in one specific region using the `-r/--region` parameter
 
 ```bash
 ./run_clairs -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont -r chr20:1000000-2000000
 ```
 
-#### Call mutations at known variant sites using `-V/--vcf_fn` parameter
+#### Call SNVs at interested variant sites (genotyping) using the `-V/--vcf_fn` parameter
 
 ```bash
 ./run_clairs -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont -V input.vcf
 ```
 
-#### Call mutations at multiple specific sites or bed regions using `-B/--bed_fn` parameter
+#### Call SNVs in the BED regions using the `-B/--bed_fn` parameter
 
 We highly recommended using BED file to define multiple regions of interest like:
 
@@ -242,21 +275,14 @@ echo -e "${CTG2}\t${START_POS_2}\t${END_POS_2}" >> input.bed
 ...
 ```
 
-Then run the command like:
+Then:
 
 ```bash
 ./run_clairs -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont -B input.bed
 ```
 
-## Pre-trained Models
+------
 
-ClairS trained both pileup and full-alignment models using GIAB samples, and carry on benchmarking on HCC1395-HCC1395BL pair dataset. All models were trained with chr20 excluded (including only chr1-19, 21, 22). 
-
-| Platform | Chemistry /Instruments | Option (`-p/--platform`) |   Reference   | Aligner  | Training samples |
-| :------: | ---------------------- | ------------------------ | :-----------: | :------: | :--------------: |
-|   ONT    | R10.4/R10.4.1          | `ont`                    | GRCh38_no_alt | Minimap2 |     HG001,2      |
-|   ONT    | R9.4.1                 | `ont_r9`                 | GRCh38_no_alt | Minimap2 |     HG003,4      |
-| Illumina | NovaSeq/HiseqX         | `ilmn`                   |    GRCh38     | BWA-MEM  |     HG003,4      |
 
 ## Disclaimer
 

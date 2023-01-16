@@ -279,7 +279,7 @@ def call_variants_from_probability(args):
                            sample_name=args.sample_name,
                            )
 
-    logging.info("Calling variants ...")
+    logging.info("Calling somatic variants ...")
     variant_call_start_time = time()
     prediction_path = args.predict_fn
 
@@ -317,7 +317,7 @@ def call_variants_from_probability(args):
         for row in vcf_file:
             if row[0] != '#':
                 return
-        logging.info("[INFO] No vcf output for file {}, remove empty file".format(args.call_fn))
+        logging.info("[INFO] No vcf output in file {}, remove.".format(args.call_fn))
         os.remove(args.call_fn)
 
 
@@ -325,7 +325,7 @@ def main():
     parser = ArgumentParser(description="Call variants using a trained model and tensors of candidate variants")
 
     parser.add_argument('--platform', type=str, default="ont",
-                        help="Sequencing platform of the input, default: %(default)s")
+                        help="Select the sequencing platform of the input. Default: %(default)s")
 
     parser.add_argument('--tensor_fn', type=str, default="PIPE",
                         help="Tensor input filename, or stdin if not set")
@@ -343,10 +343,10 @@ def main():
                         help="Define the sample name to be shown in the VCF file, optional")
 
     parser.add_argument('--qual', type=int, default=0,
-                        help="If set, variants with >=$qual will be marked 'PASS', or 'LowQual' otherwise, optional")
+                        help="If set, variants with >=QUAL will be marked 'PASS', or 'LowQual' otherwise, optional")
 
     parser.add_argument('--samtools', type=str, default="samtools",
-                        help="Path to the 'samtools', samtools version >= 1.10 is required, default: %(default)s")
+                        help="Absolute path to samtools, samtools version >= 1.10 is required, default: %(default)s")
 
     parser.add_argument('--predict_fn', type=str, default="PIPE",
                         help="DEBUG: Output network output probabilities for further analysis")

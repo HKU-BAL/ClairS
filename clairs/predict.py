@@ -511,7 +511,7 @@ def main():
     parser = ArgumentParser(description="Candidate variants probability prediction using tensors and a trained model")
 
     parser.add_argument('--platform', type=str, default="ont",
-                        help="Sequencing platform of the input, default: %(default)s")
+                        help="Select the sequencing platform of the input. Default: %(default)s")
 
     parser.add_argument('--tensor_fn', type=str, default="PIPE",
                         help="Tensor input filename, or stdin if not set")
@@ -538,13 +538,13 @@ def main():
                         help="Define the sample name to be shown in the VCF file, optional")
 
     parser.add_argument('--qual', type=int, default=0,
-                        help="If set, variants with >=$qual will be marked 'PASS', or 'LowQual' otherwise, optional")
+                        help="If set, variants with >=QUAL will be marked 'PASS', or 'LowQual' otherwise, optional")
 
     parser.add_argument('--samtools', type=str, default="samtools",
-                        help="Path to the 'samtools', samtools version >= 1.10 is required, default: %(default)s")
+                        help="Absolute path to the 'samtools', samtools version >= 1.10 is required. Default: %(default)s")
 
     parser.add_argument('--min_rescale_cov', type=int, default=param.min_rescale_cov,
-                        help="Minimum rescale coverage for high-coverage calling data")
+                        help="Minimum coverage after rescalling from excessively high coverage data")
 
     # options for debug purpose
     parser.add_argument('--predict_fn', type=str, default="PIPE",

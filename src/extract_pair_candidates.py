@@ -438,7 +438,7 @@ def main():
     parser = ArgumentParser(description="Generate normal-tumor pair variant candidates for tensor creation in calling")
 
     parser.add_argument('--platform', type=str, default='ont',
-                        help="Sequencing platform of the input, default: %(default)s")
+                        help="Select the sequencing platform of the input. Default: %(default)s")
 
     parser.add_argument('--candidates_folder', type=str, default=None,
                         help="Output candidate folder to store the candidate bed information, required")
@@ -456,10 +456,10 @@ def main():
                         help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file, default: %(default)s")
 
     parser.add_argument('--snv_min_af', type=float, default=param.snv_min_af,
-                        help="Minimum SNV allele frequency for a site to be considered as a candidate site in tumor sample, default: %(default)f")
+                        help="Minimum SNV allele frequency in the tumor sample for a site to be considered as a candidate site in tumor sample, default: %(default)f")
 
     parser.add_argument('--normal_snv_max_af', type=float, default=param.normal_snv_max_af,
-                        help="Maximum SNV allele frequency for a site to be considered as a somatic candidate site in normal sample, default: %(default)f")
+                        help="Maximum SNV allele frequency in the normal sample for a site to be considered as a somatic candidate site, default: %(default)f")
 
     parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of sequence to be processed, required if --bed_fn is not defined")
@@ -478,7 +478,7 @@ def main():
 
     # options for advanced users
     parser.add_argument('--min_coverage', type=float, default=param.min_coverage,
-                        help="EXPERIMENTAL: Minimum coverage required to call a variant, default: %(default)f")
+                        help="EXPERIMENTAL: Minimum coverage required in both normal and tumor sample to call a variant, default: %(default)f")
 
     parser.add_argument('--min_mq', type=int, default=param.min_mq,
                         help="EXPERIMENTAL: If set, reads with mapping quality with <$min_mq are filtered, default: %(default)d")

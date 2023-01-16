@@ -127,7 +127,7 @@ def check_skip_steps_legal(args):
         sys.exit(log_error("[ERROR] --skip_steps option provided but no skip steps index found"))
     for step in skip_steps_list:
         if int(step) < 1 or int(step) > MAX_STEP:
-            sys.exit(log_error("[ERROR] --skip_steps option provided skip steps index is not avaliable, should be 1-index"))
+            sys.exit(log_error("[ERROR] --skip_steps option provided but contains invalid skip steps index, should be 1-index"))
 
 def check_python_path():
     python_path = subprocess.run("which python", stdout=subprocess.PIPE, shell=True).stdout.decode().rstrip()
@@ -158,10 +158,10 @@ def check_tools_version(args):
     for tool, version in tool_version.items():
         required_version = required_tool_version[tool]
         if version is None:
-            logging(log_error("[ERROR] {} not found, please check you are in conda virtual environment".format(tool)))
+            logging(log_error("[ERROR] {} not found, please check if you are in the conda virtual environment".format(tool)))
             check_python_path()
         elif version < required_version:
-            logging(log_error("[ERROR] Tool version not match, please check you are in conda virtual environment"))
+            logging(log_error("[ERROR] Tool version not match, please check if you are in the conda virtual environment"))
             logging(' '.join([str(item).ljust(10) for item in ["Tool", "Version", "Required"]]))
             error_info = ' '.join([str(item).ljust(10) for item in [tool, version, '>=' + str(required_version)]])
             logging(error_info)
@@ -187,14 +187,14 @@ def check_contig_in_bam(bam_fn, sorted_contig_list, samtools, allow_none=False, 
     for contig_name in sorted_contig_list:
         if contig_name not in contig_with_read_support_set:
             logging(log_warning(
-                "[WARNING] Contig name {} provided but no mapped reads in {} BAM, skip!".format(flag, contig_name)))
+                "[WARNING] Contig name {} provided but no mapped reads found in {} BAM, skip!".format(flag, contig_name)))
     filtered_sorted_contig_list = [item for item in sorted_contig_list if item in contig_with_read_support_set]
 
     found_contig = True
     if len(filtered_sorted_contig_list) == 0:
         found_contig = False
         logging(log_warning(
-            "[WARNING] No mapped reads support in {} BAM for provided contigs set {}".format(
+            "[WARNING] No mapped reads found in {} BAM for provided contigs set {}".format(
                 flag, ' '.join(sorted_contig_list))))
 
     return filtered_sorted_contig_list, found_contig
@@ -212,7 +212,7 @@ def check_threads(args):
 
     if threads > num_cpus:
         logging(log_warning(
-            '[WARNING] Current maximum threads {} is larger than support cpu count {},'.format(
+            '[WARNING] Threads setting {} is larger than the number of available threads {} in the system,'.format(
                 threads, num_cpus)))
         logging(log_warning('Set --threads={} for better parallelism.'.format(num_cpus)))
         args.threads = num_cpus
@@ -233,7 +233,7 @@ def split_extend_vcf(vcf_fn, output_fn):
         ctg_start, ctg_end = center_pos - 1, center_pos
         if ctg_start < 0:
             sys.exit(
-                log_error("[ERROR] Invalid VCF input in {}-th row {} {} {}".format(row_id + 1, ctg_name, center_pos)))
+                log_error("[ERROR] Invalid VCF input at the {}-th row {} {} {}".format(row_id + 1, ctg_name, center_pos)))
         if ctg_start - expand_region_size < 0:
             continue
         expand_ctg_start = ctg_start - expand_region_size
@@ -271,7 +271,7 @@ def split_extend_bed(bed_fn, output_fn, contig_set=None):
 
         if ctg_end < ctg_start or ctg_start < 0 or ctg_end < 0:
             sys.exit(log_error(
-                "[ERROR] Invalid BED input in {}-th row {} {} {}".format(row_id + 1, ctg_name, ctg_start, ctg_end)))
+                "[ERROR] Invalid BED input at the {}-th row {} {} {}".format(row_id + 1, ctg_name, ctg_start, ctg_end)))
         expand_ctg_start = max(0, ctg_start - expand_region_size)
         expand_ctg_end = max(0, ctg_end + expand_region_size)
         output_ctg_dict[ctg_name].append(
@@ -291,7 +291,7 @@ def write_region_bed(region):
         ctg_name, start_end = region.split(':')
         ctg_start, ctg_end = int(start_end.split('-')[0]) - 1, int(start_end.split('-')[1]) - 1  # bed format
     except:
-        sys.exit("[ERROR] Please input the correct format for --region ctg_name:start-end, your input is {}".format(
+        sys.exit("[ERROR] Please use the correct format for --region: ctg_name:start-end, your input is {}".format(
             region))
     if ctg_end < ctg_start or ctg_start < 0 or ctg_end < 0:
         sys.exit("[ERROR] Invalid region input: {}".format(region))
@@ -324,10 +324,10 @@ def check_contigs_intersection(args, fai_fn):
         logging("[INFO] --include_all_ctgs enabled")
 
     if is_ctg_name_list_provided and is_bed_file_provided:
-        logging(log_warning("[WARNING] both --ctg_name and --bed_fn provided, will only proceed contigs in intersection"))
+        logging(log_warning("[WARNING] both --ctg_name and --bed_fn provided, will only proceed with the contigs appeared in both"))
 
     if is_ctg_name_list_provided and is_known_vcf_file_provided:
-        logging(log_warning("[WARNING] both --ctg_name and --vcf_fn provided, will only proceed contigs in intersection"))
+        logging(log_warning("[WARNING] both --ctg_name and --vcf_fn provided, will only proceed with the contigs appeared in both"))
 
     if is_ctg_name_list_provided:
         contig_set = contig_set.intersection(
@@ -382,18 +382,18 @@ def check_contigs_intersection(args, fai_fn):
     if not len(contig_set):
         if is_bed_file_provided:
             all_contig_in_bed = ' '.join(list(tree.keys()))
-            logging(log_warning("[WARNING] No contig intersection found by --bed_fn, contigs in BED {}: {}".format(args.bed_fn, all_contig_in_bed)))
+            logging(log_warning("[WARNING] No contig in --bed_fn was found in the reference, contigs in BED {}: {}".format(args.bed_fn, all_contig_in_bed)))
         if is_known_vcf_file_provided:
             all_contig_in_vcf = ' '.join(list(know_vcf_contig_set))
-            logging(log_warning("[WARNING] No contig intersection found by --vcf_fn, contigs in VCF {}: {}".format(args.vcf_fn, all_contig_in_vcf)))
+            logging(log_warning("[WARNING] No contig in --vcf_fn was found in the reference, contigs in VCF {}: {}".format(args.vcf_fn, all_contig_in_vcf)))
         if is_ctg_name_list_provided:
             all_contig_in_ctg_name = ' '.join(args.ctg_name.split(','))
-            logging(log_warning("[WARNING] No contig intersection found by --ctg_name, contigs in contigs list: {}".format(all_contig_in_ctg_name)))
+            logging(log_warning("[WARNING] No contig in --ctg_name was found in the reference, contigs in contigs list: {}".format(all_contig_in_ctg_name)))
         found_contig = False
     else:
         for c in sorted_contig_list:
             if c not in contig_chunk_num:
-                logging(log_warning(("[WARNING] Contig {} given but not found in reference fai file".format(c))))
+                logging(log_warning(("[WARNING] Contig {} given but not found in the reference".format(c))))
 
         # check contig in bam have support reads
         sorted_contig_list, tumor_found_contig = check_contig_in_bam(bam_fn=args.tumor_bam_fn, sorted_contig_list=sorted_contig_list,
@@ -404,25 +404,25 @@ def check_contigs_intersection(args, fai_fn):
         found_contig = tumor_found_contig and normal_found_contig
 
     if not found_contig:
-        log_warning("[WARNING] Exit calling as no contig found in BAM!")
+        log_warning("[WARNING] Exit calling because no contig was found in BAM!")
         sys.exit(0)
-    logging('[INFO] Call mutations in contigs: {}'.format(' '.join(sorted_contig_list)))
-    logging('[INFO] Chunk number for each contig: {}'.format(
+    logging('[INFO] Call variants in contigs: {}'.format(' '.join(sorted_contig_list)))
+    logging('[INFO] Number of chunks for each contig: {}'.format(
         ' '.join([str(contig_chunk_num[c]) for c in sorted_contig_list])))
 
     if default_chunk_num > 0 and max_chunk_length > MAX_CHUNK_LENGTH:
         logging(log_warning(
-            '[WARNING] Current maximum chunk size {} is larger than default maximum chunk size {}, You may set a larger chunk_num by setting --chunk_num=$ for better parallelism.'.format(
+            '[WARNING] The maximum chunk size set {} is larger than the suggested maximum chunk size {}, consider setting a larger --chunk_num= instead for better parallelism.'.format(
                 min_chunk_length, MAX_CHUNK_LENGTH)))
 
     elif default_chunk_num > 0 and min_chunk_length < MIN_CHUNK_LENGTH:
         logging(log_warning(
-            '[WARNING] Current minimum chunk size {} is smaller than default minimum chunk size {}, You may set a smaller chunk_num by setting --chunk_num=$.'.format(
+            '[WARNING] The minimum chunk size set {} is smaller than the suggested  minimum chunk size {}, consider setting a smaller --chunk_num= instead.'.format(
                 min_chunk_length, MIN_CHUNK_LENGTH)))
 
     if default_chunk_num == 0 and max(contig_length_list) < DEFAULT_CHUNK_SIZE / 5:
         logging(log_warning(
-            '[WARNING] Current maximum contig length {} is much smaller than default chunk size {}, You may set a smaller chunk size by setting --chunk_size=$ for better parallelism.'.format(
+            '[WARNING] The length of the longest contig {} is more than five times smaller smaller than the default chunk size {}, consider setting a smaller --chunk_size= instead for better parallelism.'.format(
                 max(contig_length_list), DEFAULT_CHUNK_SIZE)))
 
     if is_bed_file_provided:
@@ -468,9 +468,9 @@ def check_clair3_options(args):
     longphase = os.path.join(args.clair3_path, 'longphase')
     longphase_for_phasing = False if args.whatshap_for_phasing is True else param.clair3_option['longphase_for_phasing']
     if longphase_for_phasing and not os.path.exists(longphase):
-        sys.exit(log_error("[ERROR] Cannot find longphase path in {}".format(longphase)))
+        sys.exit(log_error("[ERROR] Cannot find longphase at {}".format(longphase)))
     if args.whatshap_for_phasing and not os.path.exists(args.whatshap):
-        sys.exit(log_error("[ERROR] Cannot find whatshap path in {}".format(args.whatshap)))
+        sys.exit(log_error("[ERROR] Cannot find whatshap at {}".format(args.whatshap)))
 
     args.clair3_option = Clair3Option(
         clair3_path=args.clair3_path,
@@ -494,7 +494,7 @@ def check_args(args):
                 python_path = subprocess.run('which python', stdout=subprocess.PIPE, shell=True).stdout.decode().rstrip()
                 args.conda_prefix = os.path.dirname(os.path.dirname(python_path))
             except:
-                sys.exit(log_error("[ERROR] Conda prefix not found, please activate conda environment first!"))
+                sys.exit(log_error("[ERROR] Conda prefix not found, please activate a correct conda environment."))
 
     args.normal_bam_fn = file_path_from(file_name=args.normal_bam_fn, exit_on_not_found=True, allow_none=False)
     normal_bai_fn = file_path_from(file_name=args.normal_bam_fn, suffix=".bai", exit_on_not_found=False, sep='.')
@@ -512,11 +512,11 @@ def check_args(args):
     args.vcf_fn = file_path_from(file_name=args.vcf_fn, exit_on_not_found=True, allow_none=True)
 
     if normal_bai_fn is None and normal_crai_fn is None and normal_csi_fn is None:
-        sys.exit(log_error("[ERROR] No normal BAM index file {} or {} or found. Please run `samtools index $BAM` first!".format(args.normal_bam_fn + '.bai',
+        sys.exit(log_error("[ERROR] Normal BAM index file {} or {} not found. Please run `samtools index $BAM` first.".format(args.normal_bam_fn + '.bai',
                                                                                       args.normal_bam_fn + '.crai')))
 
     if tumor_bai_fn is None and tumor_crai_fn is None and tumor_csi_fn is None:
-        sys.exit(log_error("[ERROR] No tumor BAM index file {} or {} or found. Please run `samtools index $BAM` first!".format(args.tumor_bam_fn + '.bai',
+        sys.exit(log_error("[ERROR] Tumor BAM index file {} or {} not found. Please run `samtools index $BAM` first.".format(args.tumor_bam_fn + '.bai',
                                                                                       args.tumor_bam_fn + '.crai')))
 
     if args.pileup_model_path is None:
@@ -550,7 +550,7 @@ def check_args(args):
     if args.phase_tumor is None:
         if args.vcf_fn is not None:
             logging(log_warning(
-                "[WARNING] We will disable Clair3 HET SNPs_phasing if `--vcf_fn` provided, add `--phase_tumor True` if still need to enable phasing!"))
+                "[WARNING] Clair3 HET SNPs based phasing is disabled if `--vcf_fn` is provided, add `--phase_tumor True` if phasing the tumor is still needed. Please ensure you have enough heterozygous variant candidates given in the --vcf_fn file, otherwise the phasing might fail or lead to worse performance."))
         else:
             args.phase_tumor = True if args.platform != 'ilmn' else False
 
@@ -591,19 +591,19 @@ def print_args(args):
     logging("[INFO] FULL-ALIGNMENT MODEL PATH: {}".format(args.full_alignment_model_path))
     logging("[INFO] BED FILE PATH: {}".format(args.bed_fn))
     logging("[INFO] VCF FILE PATH: {}".format(args.vcf_fn))
-    logging("[INFO] REGION: {}".format(args.region))
-    logging("[INFO] CONTIGS: {}".format(args.ctg_name))
-    logging("[INFO] CONDA PREFIX: {}".format(args.conda_prefix))
-    logging("[INFO] SAMTOOLS PATH: {}".format(args.samtools))
-    logging("[INFO] PYTHON PATH: {}".format(args.python))
-    logging("[INFO] PYPY PATH: {}".format(args.pypy))
-    logging("[INFO] PARALLEL PATH: {}".format(args.parallel))
+    logging("[INFO] REGION FOR CALLING: {}".format(args.region))
+    logging("[INFO] CONTIGS FOR CALLING: {}".format(args.ctg_name))
+    logging("[INFO] CONDA BINARY PREFIX: {}".format(args.conda_prefix))
+    logging("[INFO] SAMTOOLS BINARY PATH: {}".format(args.samtools))
+    logging("[INFO] PYTHON BINARY PATH: {}".format(args.python))
+    logging("[INFO] PYPY BINARY PATH: {}".format(args.pypy))
+    logging("[INFO] PARALLEL BINARY PATH: {}".format(args.parallel))
     logging("[INFO] CHUNK SIZE: {}".format(args.chunk_size))
-    logging("[INFO] SNV THRESHOLD: {}".format(args.snv_min_af))
+    logging("[INFO] SNV MINIMUM AF: {}".format(args.snv_min_af))
     logging("[INFO] ENABLE DRY RUN: {}".format(args.dry_run))
     logging("[INFO] ENABLE PRINTING REFERENCE CALLS: {}".format(args.print_ref_calls))
     logging("[INFO] ENABLE PRINTING GERMLINE CALLS: {}".format(args.print_germline_calls))
-    logging("[INFO] ENABLE INCLUDE ALL CTGS CALLING: {}".format(args.include_all_ctgs))
+    logging("[INFO] ENABLE INCLUDING ALL CTGS FOR CALLING: {}".format(args.include_all_ctgs))
     logging("[INFO] ENABLE REMOVING INTERMEDIATE FILES: {}".format(args.remove_intermediate_dir))
     logging("")
 
@@ -673,7 +673,7 @@ def somatic_calling(args):
         clair3_tumor_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/2_CLAIR3_TUMOR.log'
         commands_list.append(clair3_tumor_command)
 
-        echo_list.append("[INFO] Select Hetero SNP for Phasing")
+        echo_list.append("[INFO] Select Heterozygous SNP for Phasing")
         ssp_command = '( ' + time + args.parallel
         ssp_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_1_select_hetero_snp_for_phasing.log'
         ssp_command += ' -j ' + str(args.threads)
@@ -687,7 +687,7 @@ def somatic_calling(args):
         commands_list.append(ssp_command)
 
         if args.phase_normal:
-            echo_list.append("[INFO] Phase VCF using Normal BAM")
+            echo_list.append("[INFO] Phase the Normal BAM")
             if args.clair3_option.longphase_for_phasing is not None:
                 pn_command = '( ' + time + args.parallel
                 pn_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_2_phase_normal.log'
@@ -725,7 +725,7 @@ def somatic_calling(args):
             tabix_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
             commands_list.append(pn_command + ' && ' + tabix_command)
 
-            echo_list.append("[INFO] Haplotag Normal BAM")
+            echo_list.append("[INFO] Haplotag the Normal BAM")
             ht_command = '( ' + time + args.parallel
             ht_command += ' --joblog ' + args.output_dir + '/logs/parallel_3_haplotag_normal.log'
             ht_command += ' -j ' + str(args.threads)
@@ -747,7 +747,7 @@ def somatic_calling(args):
             commands_list.append(ht_command + ' && ' + index_command)
 
 
-        echo_list.append("[INFO] Phase VCF using Tumor BAM")
+        echo_list.append("[INFO] Phase the Tumor BAM")
         if args.clair3_option.longphase_for_phasing is not None:
             pt_command = '( ' + time + args.parallel
             pt_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_4_phase_tumor.log'
@@ -785,7 +785,7 @@ def somatic_calling(args):
         tabix_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
         commands_list.append(pt_command + ' && ' + tabix_command)
 
-        echo_list.append("[INFO] Haplotag Tumor BAM")
+        echo_list.append("[INFO] Haplotag the Tumor BAM")
         ht_command = '( ' + time + args.parallel
         ht_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_5_haplotag_tumor.log'
         ht_command += ' -j ' + str(args.threads)
@@ -808,7 +808,7 @@ def somatic_calling(args):
 
     # Pileup calling
     #STEP 1: EXTRACT CANDIDATES
-    echo_list.append("[INFO] STEP {}: Extract Candidates for Tumor and Normal BAMs".format(step))
+    echo_list.append("[INFO] STEP {}: Extract Variant Candidates from Tumor and Normal BAMs".format(step))
     step += 1
     ec_command = '( ' + time + args.parallel
     ec_command += ' --joblog ' + args.output_dir + '/logs/parallel_1_extract_tumor_candidates.log'
@@ -835,7 +835,7 @@ def somatic_calling(args):
 
     ##STEP 2: CREATE PAIR TENSOR
     echo_list.append("[INFO] STEP 2: Pileup Model Calling\n")
-    echo_list[-1] += ("[INFO] Create Pair Tensor")
+    echo_list[-1] += ("[INFO] Create Paired Tensors")
     cpt_command = '( ' + time + args.parallel
     cpt_command += ' --joblog ' + args.output_dir + '/logs/parallel_2-1_create_pair_tensor.log'
     cpt_command += ' -j ' + str(args.threads)
@@ -872,7 +872,7 @@ def somatic_calling(args):
     commands_list += [p_predict_command]
 
     # STEP 4: MERGE VCF
-    echo_list.append("[INFO] Merge Pileup VCF")
+    echo_list.append("[INFO] Merge Pileup VCFs")
     p_mv_command = args.pypy + ' ' + main_entry + ' sort_vcf'
     p_mv_command += ' --ref_fn ' + args.ref_fn
     p_mv_command += ' --contigs_fn ' + os.path.join(args.output_dir, 'tmp', 'CONTIGS')
@@ -887,7 +887,7 @@ def somatic_calling(args):
     tumor_bam_prefix = clair3_output_path + '/phased_output/tumor_' if args.phase_tumor else args.tumor_bam_fn
 
     echo_list.append("[INFO] STEP 3: Full-alignment Model Calling\n")
-    echo_list[-1] += "[INFO] Create Full-alignment Pair Tensor"
+    echo_list[-1] += "[INFO] Create Full-alignment Paired Tensors"
     cpt_fa_command = '( ' + time + args.parallel
     cpt_fa_command += ' --joblog ' + args.output_dir + '/logs/parallel_3-1_create_pair_tensor_fa.log'
     cpt_fa_command += ' -j ' + str(args.threads)
@@ -923,7 +923,7 @@ def somatic_calling(args):
     commands_list += [fa_predict_command]
 
     ## STEP 4: MERGE VCF
-    echo_list.append("[INFO] Merge Full-alignment VCF")
+    echo_list.append("[INFO] Merge Full-alignment VCFs")
     fa_mv_command = args.pypy + ' ' + main_entry + ' sort_vcf'
     fa_mv_command += ' --ref_fn ' + args.ref_fn
     fa_mv_command += ' --contigs_fn ' + os.path.join(args.output_dir, 'tmp', 'CONTIGS')
@@ -934,7 +934,7 @@ def somatic_calling(args):
 
     # short-read realignment
     if args.platform == 'ilmn':
-        echo_list.append("[INFO] STEP 4:  Short-read realignment")
+        echo_list.append("[INFO] STEP 4: Short-read realignment")
         realign_command = '( ' + time + args.python + ' ' + main_entry + ' realign_variants'
         realign_command += ' --bam_fn ' + args.tumor_bam_fn
         realign_command += ' --ref_fn ' + args.ref_fn
@@ -978,7 +978,7 @@ def somatic_calling(args):
     commands_list += [sort_vcf_command]
 
     if args.vcf_fn is not None:
-        echo_list.append("[INFO] Check VCF output in genotyping mode")
+        echo_list.append("[INFO] Add reference calls to the output VCF output in the genotyping mode")
         genotyping_command = args.pypy + ' ' + main_entry + ' add_back_missing_variants_in_genotyping'
         genotyping_command += ' --vcf_fn ' + args.vcf_fn
         genotyping_command += ' --call_fn ' + args.output_dir + '/{}.vcf.gz'.format(args.output_prefix)
@@ -998,7 +998,7 @@ def somatic_calling(args):
         logging("")
         if not args.dry_run:
             if skip_steps is not None and str(i+1) in skip_steps:
-                logging("[INFO] --skip_steps is enabled, skip running step {}!".format(i+1))
+                logging("[INFO] --skip_steps is enabled, skip running step {}.".format(i+1))
                 logging("")
                 continue
             try:
@@ -1015,7 +1015,7 @@ def somatic_calling(args):
 def somatic_parser():
 
     parser = argparse.ArgumentParser(
-        description="Run ClairS for somatic variant calling. Example run: run_clairs -T TUMOR_BAM -N NORMAL_BAM -R REF -o OUTPUT_DIR -t THREADS -p PLATFORM")
+        description="Run ClairS for paired-sample somatic variant calling. Example run: run_clairs -T TUMOR_BAM -N NORMAL_BAM -R REF -o OUTPUT_DIR -t THREADS -p PLATFORM")
 
     # print version
     parser.add_argument('-v', '--version', action='version',
@@ -1082,7 +1082,7 @@ def somatic_parser():
         "--pileup_model_path",
         type=str,
         default=None,
-        help="Pileup somatic model path."
+        help="Specify the path to your own somatic calling pileup model."
     )
 
     optional_params.add_argument(
@@ -1090,7 +1090,7 @@ def somatic_parser():
         "--full_alignment_model_path",
         type=str,
         default=None,
-        help="Full-alignment somatic model path."
+        help="Specify the path to your own somatic calling full-alignment model."
     )
 
     optional_params.add_argument(
@@ -1108,7 +1108,7 @@ def somatic_parser():
         "--region",
         type=str,
         default=None,
-        help="Region in `ctg_name:start-end` format(1-index), default is None."
+        help="A region to be processed. Format: `ctg_name:start-end` (start is 1-based)."
     )
 
     region_group.add_argument(
@@ -1116,7 +1116,7 @@ def somatic_parser():
         "--bed_fn",
         type=str,
         default=None,
-        help="Path to BED file. Call variants only in the provided bed regions."
+        help="Path to a BED file. Call variants only in the provided BED regions."
     )
 
     region_group.add_argument(
@@ -1124,7 +1124,7 @@ def somatic_parser():
         "--vcf_fn",
         type=str,
         default=None,
-        help="Candidate sites VCF file input, variants will only be called at the sites in the VCF file if provided."
+        help="VCF file input containing candidate sites to be genotyped. Variants will only be called at the sites in the VCF file if provided."
     )
 
     optional_params.add_argument(
@@ -1132,28 +1132,28 @@ def somatic_parser():
         "--qual",
         type=int,
         default=None,
-        help="If set, variants with >$qual will be marked PASS, or LowQual otherwise."
+        help="If set, variants with >QUAL will be marked as PASS, or LowQual otherwise.."
     )
 
     optional_params.add_argument(
         "--snv_min_af",
         type=float,
         default=None,
-        help="Minimum SNV AF required for a candidate variant. Lowering the value might increase a bit of sensitivity in trade of speed and accuracy, default: 0.05."
+        help="Minimal SNV AF required for a variant to be called. Decrease SNV_MIN_AF might increase a bit of sensitivity, but in trade of precision, speed and accuracy. Default: 0.05."
     )
 
     optional_params.add_argument(
         "--min_coverage",
         type=int,
         default=None,
-        help="Minimum coverage required to call a somatic mutation, default: 4."
+        help="Minimal coverage required for a variant to be called. Default: 4."
     )
 
     optional_params.add_argument(
         "--chunk_size",
         type=int,
         default=None,
-        help="The size of each chuck for parallel processing, default: 5000000."
+        help="The size of each chuck for parallel processing. Default: 5000000."
     )
 
     optional_params.add_argument(
@@ -1161,20 +1161,20 @@ def somatic_parser():
         "--sample_name",
         type=str,
         default="SAMPLE",
-        help="Define the sample name to be shown in the VCF file, default: %(default)s."
+        help="Define the sample name to be shown in the VCF file. Default: %(default)s."
     )
 
     optional_params.add_argument(
         "--output_prefix",
         type=str,
         default="output",
-        help="Prefix for output VCF filename, default: %(default)s."
+        help="Prefix for output VCF filename. Default: %(default)s."
     )
 
     optional_params.add_argument(
         "--remove_intermediate_dir",
         action='store_true',
-        help="Remove intermediate directory, default: disable."
+        help="Remove intermediate directory before finishing to save disk space."
     )
 
     optional_params.add_argument(
@@ -1186,55 +1186,55 @@ def somatic_parser():
     optional_params.add_argument(
         "--print_ref_calls",
         action='store_true',
-        help="Show reference calls (0/0) in VCF file, default: disable."
+        help="Show reference calls (0/0) in the output VCF."
     )
 
     optional_params.add_argument(
         "--print_germline_calls",
         action='store_true',
-        help="Show germline calls in VCF file, default: disable."
+        help="Show germline calls in the output VCF file."
     )
 
     optional_params.add_argument(
         '-d',
         "--dry_run",
         action='store_true',
-        help="If true then only the commands will be printed, default: disable."
+        help="Print the commands that will be ran."
     )
 
     optional_params.add_argument(
         "--python",
         type=str,
         default="python3",
-        help="Path of python, python3 >= 3.9 is required."
+        help="Absolute path of python, python3 >= 3.9 is required."
     )
 
     optional_params.add_argument(
         "--pypy",
         type=str,
         default="pypy3",
-        help="Path of pypy3, pypy3 >= 3.6 is required."
+        help="Absolute path of pypy3, pypy3 >= 3.6 is required."
     )
 
     optional_params.add_argument(
         "--samtools",
         type=str,
         default="samtools",
-        help="Path of samtools, samtools version >= 1.10 is required."
+        help="Absolute path of samtools, samtools version >= 1.10 is required."
     )
 
     optional_params.add_argument(
         "--parallel",
         type=str,
         default="parallel",
-        help="Path of parallel, parallel >= 20191122 is required."
+        help="Absolute path of parallel, parallel >= 20191122 is required."
     )
 
     ont_params = parser.add_argument_group('ONT parameters')
     ont_params.add_argument(
         "--disable_phasing",
         action='store_true',
-        help="If true then call variants without longphase or whatshap phasing for long-read data."
+        help="Disable phasing with longphase or whatshap. Usually leads to significant performance loss."
     )
 
     clair3_params = parser.add_argument_group('Clair3 parameters')
@@ -1243,7 +1243,7 @@ def somatic_parser():
         "--clair3_path",
         type=str_none,
         default=None,
-        help='Clair3 entry path.'
+        help='Absolute path of Clair3.'
     )
 
     clair3_params.add_argument(
@@ -1257,14 +1257,14 @@ def somatic_parser():
         "--longphase",
         type=str,
         default=None,
-        help="Path of longphase, longphase >= 1.3 is required."
+        help="Absolute path of longphase, longphase >= 1.3 is required."
     )
 
     clair3_params.add_argument(
         "--whatshap",
         type=str,
         default=None,
-        help="Path of whatshap, whatshap >= 1.0 is required."
+        help="Absolute path of whatshap, whatshap >= 1.0 is required."
     )
 
     clair3_params.add_argument(

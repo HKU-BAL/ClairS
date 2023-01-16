@@ -168,7 +168,7 @@ def main():
                         help="Candidate sites VCF file input for genotyping")
 
     parser.add_argument('--call_fn', type=str, default=None,
-                        help="Somatic input vcf")
+                        help="Somatic VCF input")
 
     parser.add_argument('--output_fn', type=str, default=None,
                         help="Output vcf file name")

@@ -158,7 +158,7 @@ def main():
     parser = ArgumentParser(description="Merge full-alignment with pileup VCF")
 
     parser.add_argument('--platform', type=str, default='ont',
-                        help="Sequencing platform of the input, default: %(default)s")
+                        help="Select the sequencing platform of the input. Default: %(default)s")
 
     parser.add_argument('--output_fn', type=str, default=None, required=True,
                         help="Output VCF filename, required")
@@ -176,7 +176,7 @@ def main():
                         help="Define the sample name to be shown in the VCF file, optional")
 
     parser.add_argument('--compress_vcf', type=str2bool, default=True,
-                        help="Compress and index output VCF")
+                        help="Compress and index the output VCF")
 
     parser.add_argument('--qual', type=float, default=None,
                         help="If set, variants Phread quality with >=$qual will be marked 'PASS', or 'LowQual' otherwise")

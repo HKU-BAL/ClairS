@@ -194,16 +194,16 @@ def main():
                         help="Sorted normal BAM file input, required")
 
     parser.add_argument('--input_vcf_fn', type=str, default=None,
-                        help="Input vcf filename")
+                        help="Input VCF filename")
 
-    parser.add_argument('--truth_vcf_fn', type=str, default="PASS;HighConf,PASS;MedConf",
-                        help="Truth vcf filename")
+    parser.add_argument('--truth_vcf_fn', type=str, default=None,
+                        help="Input truth VCF filename")
 
     parser.add_argument('--input_filter_tag', type=str, default=None,
-                        help="Filter tag for the input VCF")
+                        help="Filter variants with tag from the input VCF")
 
     parser.add_argument('--truth_filter_tag', type=str, default=None,
-                        help="Filter tag for the truth VCF")
+                        help="Filter variants with tag from the truth VCF")
 
     parser.add_argument('--ctg_name', type=str, default=None,
                         help="Output VCF filename, required")
@@ -212,10 +212,10 @@ def main():
                         help="Output VCF filename, required")
 
     parser.add_argument('--min_mq', type=int, default=param.min_mq,
-                        help="EXPERIMENTAL: If set, reads with mapping quality with <$min_mq are filtered, default: %(default)d")
+                        help="EXPERIMENTAL: If set, reads with mapping quality with <$min_mq are filtered. Default: %(default)d")
 
     parser.add_argument('--min_bq', type=int, default=param.min_bq,
-                        help="EXPERIMENTAL: If set, bases with base quality with <$min_bq are filtered, default: %(default)d")
+                        help="EXPERIMENTAL: If set, bases with base quality with <$min_bq are filtered. Default: %(default)d")
 
     parser.add_argument('--min_bq_cut', type=int, default=0,
                         help="Output VCF filename, required")
@@ -224,10 +224,10 @@ def main():
                         help="Output phasing INFO")
 
     parser.add_argument('--pos', type=int, default=None,
-                        help="Output VCF filename, required")
+                        help="")
 
     parser.add_argument('--samtools', type=str, default="samtools",
-                        help="Path to the 'samtools', samtools version >= 1.10 is required. default: %(default)s")
+                        help="Absolute path to the 'samtools', samtools version >= 1.10 is required. Default: %(default)s")
 
     parser.add_argument('--threads', type=int, default=4,
                         help="Max #threads to be used")

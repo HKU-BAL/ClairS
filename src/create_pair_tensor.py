@@ -798,7 +798,7 @@ def main():
     parser = ArgumentParser(description="Generate normal-tumor pair variant candidate tensors for calling")
 
     parser.add_argument('--platform', type=str, default='ont',
-                        help="Sequencing platform of the input, default: %(default)s")
+                        help="Select the sequencing platform of the input. Default: %(default)s")
 
     parser.add_argument('--normal_bam_fn', type=str, default=None,
                         help="Sorted normal BAM file input, required")
@@ -816,7 +816,7 @@ def main():
                         help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file,  default: %(default)s")
 
     parser.add_argument('--snv_min_af', type=float, default=param.snv_min_af,
-                        help="Minimum snv allele frequency for a site to be considered as a candidate site, default: %(default)f")
+                        help="Minimum SMV allele frequency in the tumor sample for a site to be considered as a candidate site, default: %(default)f")
 
     parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of sequence to be processed, required if --bed_fn is not defined")
@@ -835,7 +835,7 @@ def main():
 
     # options for advanced users
     parser.add_argument('--min_coverage', type=float, default=param.min_coverage,
-                        help="EXPERIMENTAL: Minimum coverage required to call a variant, default: %(default)f")
+                        help="EXPERIMENTAL: Minimum coverage required in both normal and tumor sample to call a variant, default: %(default)f")
 
     parser.add_argument('--min_mq', type=int, default=param.min_mq,
                         help="EXPERIMENTAL: If set, reads with mapping quality with <$min_mq are filtered, default: %(default)d")

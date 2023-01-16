@@ -556,7 +556,7 @@ def main():
     parser = ArgumentParser(description="Generate tumor-normal pair pileup tensors for calling")
 
     parser.add_argument('--platform', type=str, default='ont',
-                        help="Sequencing platform of the input, default: %(default)s")
+                        help="Select the sequencing platform of the input. Default: %(default)s")
 
     parser.add_argument('--normal_bam_fn', type=str, default=None,
                         help="Sorted normal BAM file input, required")

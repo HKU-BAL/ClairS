@@ -677,7 +677,7 @@ def main():
     parser = ArgumentParser(description="Create pileup tesnors for training")
 
     parser.add_argument('--platform', type=str, default='ont',
-                        help="Sequencing platform of the input, default: %(default)s")
+                        help="Select the sequencing platform of the input. Default: %(default)s")
 
     parser.add_argument('--bam_fn', type=str, default="input.bam",
                         help="Sorted BAM file input, required")

@@ -542,7 +542,7 @@ def main():
                         help="Reference fasta file input")
 
     parser.add_argument('--ctg_name', type=str, default=None,
-                        help="Contigs file with all processing contigs")
+                        help="The name of the contig to be proceed")
 
     parser.add_argument('--ctg_start', type=int, default=None,
                         help="The 1-based starting position of the sequence to be processed")
@@ -554,10 +554,10 @@ def main():
                         help="Output directory")
 
     parser.add_argument('--input_filter_tag', type=str_none, default=None,
-                        help="Filter tag for the input VCF")
+                        help="Filter variants with tag ffrom the input VCF")
 
     parser.add_argument('--truth_filter_tag', type=str_none, default=None,
-                        help="Filter tag for the truth VCF")
+                        help="Filter variants with tag from the truth VCF")
 
     parser.add_argument('--tumor_bam_fn', type=str, default=None,
                         help="Sorted tumor BAM file input")
@@ -566,19 +566,19 @@ def main():
                         help="Sorted normal BAM file input")
 
     parser.add_argument('--min_af', type=float, default=None,
-                        help="Minimum VAF for a variant to be included into bechmarking")
+                        help="Minimum VAF for a variant to be included in bechmarking")
 
     parser.add_argument('--min_alt_coverage', type=int, default=2,
-                        help="Minimum alt base count for a variant to be included into bechmarking")
+                        help="Minimum alt base count for a variant to be included in bechmarking")
 
     parser.add_argument('--min_coverage', type=int, default=4,
-                        help="Minimum coverage for a variant to be included into bechmarking")
+                        help="Minimum coverage for a variant to be included in bechmarking")
 
     parser.add_argument('--strat_bed_fn', type=str, default=None,
                         help="Genome stratifications v2 bed region")
 
     parser.add_argument('--samtools', type=str, default="samtools",
-                        help="Path to the 'samtools', samtools version >= 1.10 is required. default: %(default)s")
+                        help="Absolute path to the 'samtools', samtools version >= 1.10 is required. Default: %(default)s")
 
     parser.add_argument('--threads', type=int, default=8,
                         help="Max #threads to be used")
