@@ -65,6 +65,7 @@ data_preprocess_folder = [
     "merge_vcf",
     'cal_af_distribution',
     'add_back_missing_variants_in_genotyping',
+    'clair3_somatic_calling',
 ]
 
 
