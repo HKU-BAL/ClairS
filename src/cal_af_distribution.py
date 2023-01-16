@@ -241,6 +241,16 @@ def main():
     parser.add_argument('--output_path', type=str, default=None,
                         help="Output VCF filename, required")
 
+    parser.add_argument('--threads', type=int, default=4,
+                        help="Max #threads to be used")
+
+    parser.add_argument('--phase_output', type=str2bool, default=False,
+                        help="Output phasing INFO")
+
+    parser.add_argument('--samtools', type=str, default="samtools",
+                        help="Absolute path to the 'samtools', samtools version >= 1.10 is required. Default: %(default)s")
+
+    # options for advanced users
     parser.add_argument('--min_mq', type=int, default=param.min_mq,
                         help="EXPERIMENTAL: If set, reads with mapping quality with <$min_mq are filtered. Default: %(default)d")
 
@@ -248,19 +258,7 @@ def main():
                         help="EXPERIMENTAL: If set, bases with base quality with <$min_bq are filtered. Default: %(default)d")
 
     parser.add_argument('--min_bq_cut', type=int, default=0,
-                        help="Output VCF filename, required")
-
-    parser.add_argument('--phase_output', type=str2bool, default=False,
-                        help="Output phasing INFO")
-
-    parser.add_argument('--pos', type=int, default=None,
-                        help="")
-
-    parser.add_argument('--samtools', type=str, default="samtools",
-                        help="Absolute path to the 'samtools', samtools version >= 1.10 is required. Default: %(default)s")
-
-    parser.add_argument('--threads', type=int, default=4,
-                        help="Max #threads to be used")
+                        help="EXPERIMENTAL: Minimal base quality cut-off")
 
     global args
     args = parser.parse_args()

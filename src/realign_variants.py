@@ -165,7 +165,7 @@ def realign_variants(args):
 
     total_num = 0
     realign_fail_pos_set = set()
-    with concurrent.futures.ProcessPoolExecutor(max_workers=threads) as exec:
+    with concurrent.futures.ProcessPoolExecutor(max_workers=threads_low) as exec:
         for result in exec.map(extract_base, list(fa_input_variant_dict.values())):
             contig, pos, pass_realign_filter = result[:3]
             if pass_realign_filter is False:
@@ -223,14 +223,6 @@ def main():
     parser.add_argument('--output_dir', type=str, default=None,
                         help="Output vcf directory")
 
-    # options for advanced users
-    parser.add_argument('--min_mq', type=int, default=param.min_mq,
-                        help="EXPERIMENTAL: If set, reads with mapping quality with <$min_mq are filtered, default: %(default)d")
-
-    parser.add_argument('--min_bq', type=int, default=param.min_bq,
-                        help="EXPERIMENTAL: If set, bases with base quality with <$min_bq are filtered, default: %(default)d")
-
-    # options for debug purpose
     parser.add_argument('--samtools', type=str, default="samtools",
                         help="Path to the 'samtools', samtools version >= 1.10 is required. default: %(default)s")
 
@@ -240,12 +232,20 @@ def main():
     parser.add_argument('--python', type=str, default="python3",
                         help="Path to the 'python3', default: %(default)s")
 
+    # options for advanced users
+    parser.add_argument('--min_mq', type=int, default=param.min_mq,
+                        help="EXPERIMENTAL: If set, reads with mapping quality with <$min_mq are filtered, default: %(default)d")
+
+    parser.add_argument('--min_bq', type=int, default=param.min_bq,
+                        help="EXPERIMENTAL: If set, bases with base quality with <$min_bq are filtered, default: %(default)d")
+
     parser.add_argument('--enable_realignment', type=str2bool, default=True,
-                        help="Enable realignment for illumina calling, default: enable")
+                        help="EXPERIMENTAL; Enable realignment for illumina calling, default: enable")
 
     parser.add_argument('--qual', type=float, default=None,
-                        help="Maximum QUAL to realign a variant")
+                        help="EXPERIMENTAL: Maximum QUAL to realign a variant")
 
+    # options for debug purpose
     parser.add_argument('--pos', type=int, default=None,
                         help=SUPPRESS)
 

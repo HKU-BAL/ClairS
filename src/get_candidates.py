@@ -574,7 +574,7 @@ def main():
     parser = ArgumentParser(description="Get pair cofident candidates for model training")
 
     parser.add_argument('--platform', type=str, default='ont',
-                        help="Sequencing platform of the input. default: %(default)s")
+                        help="Select the sequencing platform of the input. Default: %(default)s")
 
     parser.add_argument('--bam_fn', type=str, default="input.bam",
                         help="Sorted BAM file input, required")
@@ -606,10 +606,6 @@ def main():
     parser.add_argument('--output_dir', type=str, default="",
                         help="Output directory")
 
-    # options for advanced users
-    parser.add_argument('--flanking_base_num', type=int, default=None,
-                        help="Flanking window size")
-
     # options for debug purpose
     parser.add_argument('--sample_normal_af', type=float, default=None,
                         help="DEBUG: Sample a proportion of normal candidates")
@@ -635,6 +631,10 @@ def main():
                         help=SUPPRESS)
 
     parser.add_argument('--split_folder', type=str, default=None,
+                        help=SUPPRESS)
+
+    # Flanking window size
+    parser.add_argument('--flanking_base_num', type=int, default=None,
                         help=SUPPRESS)
 
     ## Maximum non-variant ratio against variant in the training data

@@ -1,4 +1,35 @@
 #!/usr/bin/env python
+
+# BSD 3-Clause License
+#
+# Copyright 2023 The University of Hong Kong, Department of Computer Science
+# All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice, this
+#    list of conditions and the following disclaimer.
+#
+# 2. Redistributions in binary form must reproduce the above copyright notice,
+#    this list of conditions and the following disclaimer in the documentation
+#    and/or other materials provided with the distribution.
+#
+# 3. Neither the name of the copyright holder nor the names of its
+#    contributors may be used to endorse or promote products derived from
+#    this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 import os
 import sys
 import argparse
@@ -1015,7 +1046,7 @@ def somatic_calling(args):
 def somatic_parser():
 
     parser = argparse.ArgumentParser(
-        description="Run ClairS for paired-sample somatic variant calling. Example run: run_clairs -T TUMOR_BAM -N NORMAL_BAM -R REF -o OUTPUT_DIR -t THREADS -p PLATFORM")
+        description="Run ClairS for somatic variant calling. Example run: run_clairs -T TUMOR_BAM -N NORMAL_BAM -R REF -o OUTPUT_DIR -t THREADS -p PLATFORM")
 
     # print version
     parser.add_argument('-v', '--version', action='version',
@@ -1073,7 +1104,7 @@ def somatic_parser():
         required=True,
         type=str,
         default=None,
-        help="Select the sequencing platform of the input. Possible options: {ont, ont_r9, ilmn}."
+        help="Select the sequencing platform of the input. Possible options: {ont_r10, ont_r9, ilmn}."
     )
 
     optional_params = parser.add_argument_group('Optional parameters')
@@ -1098,7 +1129,7 @@ def somatic_parser():
         "--ctg_name",
         type=str,
         default=None,
-        help="The name of the contigs to be processed. Split by ',' for multiple contigs."
+        help="The name of the contigs to be processed. Split by ',' for multiple contigs. Default: all contigs will be processed."
     )
 
     region_group = optional_params.add_mutually_exclusive_group(required=False)
@@ -1127,12 +1158,13 @@ def somatic_parser():
         help="VCF file input containing candidate sites to be genotyped. Variants will only be called at the sites in the VCF file if provided."
     )
 
-    optional_params.add_argument(
+    mode_group = optional_params.add_mutually_exclusive_group(required=False)
+    mode_group.add_argument(
         '-q',
         "--qual",
         type=int,
         default=None,
-        help="If set, variants with >QUAL will be marked as PASS, or LowQual otherwise.."
+        help="If set, variants with >QUAL will be marked as PASS, or LowQual otherwise."
     )
 
     optional_params.add_argument(
@@ -1161,14 +1193,14 @@ def somatic_parser():
         "--sample_name",
         type=str,
         default="SAMPLE",
-        help="Define the sample name to be shown in the VCF file. Default: %(default)s."
+        help="Define the sample name to be shown in the VCF file. Default: SAMPLE."
     )
 
     optional_params.add_argument(
         "--output_prefix",
         type=str,
         default="output",
-        help="Prefix for output VCF filename. Default: %(default)s."
+        help="Prefix for output VCF filename. Default: output."
     )
 
     optional_params.add_argument(
@@ -1180,19 +1212,19 @@ def somatic_parser():
     optional_params.add_argument(
         "--include_all_ctgs",
         action='store_true',
-        help="Call variants on all contigs, otherwise call in chr{1..22} and {1..22}, default: disable."
+        help="Call variants on all contigs, otherwise call in chr{1..22} and {1..22}."
     )
 
     optional_params.add_argument(
         "--print_ref_calls",
         action='store_true',
-        help="Show reference calls (0/0) in the output VCF."
+        help="Show reference calls (0/0) in VCF file."
     )
 
     optional_params.add_argument(
         "--print_germline_calls",
         action='store_true',
-        help="Show germline calls in the output VCF file."
+        help="Show germline calls in VCF file."
     )
 
     optional_params.add_argument(
@@ -1243,7 +1275,7 @@ def somatic_parser():
         "--clair3_path",
         type=str_none,
         default=None,
-        help='Absolute path of Clair3.'
+        help='Clair3 main entry path.'
     )
 
     clair3_params.add_argument(
@@ -1271,10 +1303,24 @@ def somatic_parser():
         "--whatshap_for_phasing",
         type=str2bool,
         default=None,
-        help="Use whatshap for phasing, default: disable."
+        help="Use whatshap for phasing."
     )
 
     # options for internal process control
+    ## Prefer maximized recall
+    mode_group.add_argument(
+        "--prefer_recall",
+        action='store_true',
+        help=SUPPRESS
+    )
+
+    ## Prefer balance between precision and recall
+    mode_group.add_argument(
+        "--prefer_balance",
+        action='store_true',
+        help=SUPPRESS
+    )
+
     ## Phase normal BAM in calling
     ont_params.add_argument(
         "--phase_normal",
@@ -1331,6 +1377,7 @@ def somatic_parser():
         help=SUPPRESS
     )
 
+    ##Apply haplotype filter for long-read data
     optional_params.add_argument(
         "--apply_post_processing",
         type=str2bool,
@@ -1395,7 +1442,7 @@ def main():
     args = parser.parse_args()
 
     args.output_dir = folder_path_from(args.output_dir, create_not_found=True)
-    tee_logger = os.path.join(args.output_dir, 'run_somatic.log' if not args.dry_run else "run_somatic_dry_run.log")
+    tee_logger = os.path.join(args.output_dir, 'run_clairs.log' if not args.dry_run else "run_clairs_dry_run.log")
     if os.path.exists(tee_logger):
         subprocess.run("mv {} {}".format(tee_logger, tee_logger + '.bak'), shell=True)
     try:

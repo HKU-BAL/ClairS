@@ -34,7 +34,7 @@ import os
 from sys import stderr
 from subprocess import Popen
 from subprocess import PIPE
-from argparse import ArgumentParser
+from argparse import ArgumentParser, SUPPRESS
 from collections import defaultdict
 
 from shared.interval_tree import bed_tree_from, is_region_in
@@ -175,7 +175,7 @@ def main():
     parser = ArgumentParser(description="Find tumor truth variants INFO in normal")
 
     parser.add_argument('--platform', type=str, default='ont',
-                        help="Sequencing platform of the input, default: %(default)s")
+                        help="Select the sequencing platform of the input. Default: %(default)s")
 
     parser.add_argument('--bam_fn', type=str, default="input.bam",
                         help="Sorted BAM file input, required")
@@ -204,17 +204,20 @@ def main():
     parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of sequence to be processed, required if --bed_fn is not defined")
 
+    # options for internal process control
+    ## The path of all reference files
     parser.add_argument('--reference_cans', type=str, default=None,
-                        help="The path of all reference files")
+                        help=SUPPRESS)
 
+    ## Call variant only in the provided regions
     parser.add_argument('--bed_fn', type=str, default=None,
-                        help="Call variant only in the provided regions. Will take an intersection if --ctg_name and/or (--ctgStart, --ctgEnd) are set")
+                        help=SUPPRESS)
 
     parser.add_argument('--split_folder', type=str, default=None,
-                        help="Call variant only in the provided regions. Will take an intersection if --ctg_name and/or (--ctgStart, --ctgEnd) are set")
+                        help=SUPPRESS)
 
     parser.add_argument('--add_truths', action='store_true',
-                        help="Include all truths variants")
+                        help=SUPPRESS)
 
 
     args = parser.parse_args()

@@ -208,17 +208,18 @@ def main():
     parser.add_argument('--compress_vcf', type=str2bool, default=True,
                         help="Compress and index the output VCF")
 
+    # options for advanced users
     parser.add_argument('--qual', type=float, default=None,
-                        help="If set, variants Phread quality with >=$qual will be marked 'PASS', or 'LowQual' otherwise")
+                        help="EXPERIMENTAL: If set, variants Phread quality with >=$qual will be marked 'PASS', or 'LowQual' otherwise")
+
+    parser.add_argument('--use_phred_qual', type=str2bool, default=True,
+                        help="EXPERIMENTAL: Use Phred quality score instead of probability")
 
     parser.add_argument('--af', type=float, default=None,
                         help=SUPPRESS)
 
     parser.add_argument('--max_qual_filter_fa_calls', type=float, default=None,
                         help=SUPPRESS)
-
-    parser.add_argument('--use_phred_qual', type=str2bool, default=True,
-                        help="Use Phred quality score instead of probability")
 
     parser.add_argument('--bed_format', action='store_true',
                         help=SUPPRESS)

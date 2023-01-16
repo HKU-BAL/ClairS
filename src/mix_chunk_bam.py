@@ -197,23 +197,11 @@ def main():
     parser.add_argument('--input_dir', type=str, default=None,
                         help="Input directory, required")
 
-    parser.add_argument('--min_bin_coverage', type=int, default=4,
-                        help="Reference fasta file input, required")
-
     parser.add_argument('--samtools', type=str, default="samtools",
                         help="Path to the 'samtools', samtools version >= 1.10 is required")
 
     parser.add_argument('--samtools_threads', type=int, default=32,
                         help="Samtools threads to read input BAM")
-
-    parser.add_argument('--synthetic_proportion', type=float, default=0.25,
-                        help="Target tumor proportion for synthetic pair data")
-
-    parser.add_argument('--synthetic_coverage', type=int, default=None,
-                        help="Target coverage for synthetic pair data")
-
-    parser.add_argument('--contaminative_proportions', type=str, default=None,
-                        help="contaminative_proportions, split by ','. ")
 
     parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of sequence to be processed, required if --bed_fn is not defined")
@@ -222,6 +210,18 @@ def main():
                         help="Directory of mosdepth coverage summary")
 
     # options for advanced users
+    parser.add_argument('--synthetic_proportion', type=float, default=0.25,
+                        help="EXPERIMENTAL: Target tumor proportion for synthetic pair data")
+
+    parser.add_argument('--synthetic_coverage', type=int, default=None,
+                        help="EXPERIMENTAL: Target coverage for synthetic pair data")
+
+    parser.add_argument('--contaminative_proportions', type=str, default=None,
+                        help="EXPERIMENTAL: Contaminative proportions, split by ','. ")
+
+    parser.add_argument('--min_bin_coverage', type=int, default=4,
+                        help="Reference fasta file input, required")
+
     parser.add_argument('--tensor_sample_mode', type=str2bool, default=0,
                         help="EXPERIMENTAL: Add all tumor tensor and only sampling in tensor generation")
 

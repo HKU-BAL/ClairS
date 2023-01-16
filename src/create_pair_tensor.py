@@ -846,7 +846,7 @@ def main():
                         help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file,  default: %(default)s")
 
     parser.add_argument('--snv_min_af', type=float, default=param.snv_min_af,
-                        help="Minimum SMV allele frequency in the tumor sample for a site to be considered as a candidate site, default: %(default)f")
+                        help="Minimum SNV allele frequency in the tumor sample for a site to be considered as a candidate site, default: %(default)f")
 
     parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of sequence to be processed, required if --bed_fn is not defined")
@@ -883,16 +883,15 @@ def main():
     parser.add_argument('--alt_fn', type=str, default=None,
                         help="DEBUG: Output all alternative indel cigar for debug purpose")
 
-    parser.add_argument('--truth_vcf_fn', type=str, default=None,
-                        help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file,  default: %(default)s")
-
-    parser.add_argument('--phase_normal', type=str2bool, default=0,
-                        help="Phase normal tensor in calling")
-
-    parser.add_argument('--phase_tumor', type=str2bool, default=None,
-                        help="Phase tumor tensor in calling")
-
     # options for internal process control
+    ## Phase normal tensor in calling
+    parser.add_argument('--phase_normal', type=str2bool, default=0,
+                        help=SUPPRESS)
+
+    ## Phase tumor tensor in calling
+    parser.add_argument('--phase_tumor', type=str2bool, default=None,
+                        help=SUPPRESS)
+
     ## Path to the 'zstd' compression
     parser.add_argument('--zstd', type=str, default=param.zstd,
                         help=SUPPRESS)
@@ -923,6 +922,10 @@ def main():
 
     parser.add_argument('--mask_low_bq', type=str2bool, default=0,
                         help=SUPPRESS)
+
+    parser.add_argument('--truth_vcf_fn', type=str, default=None,
+                        help=SUPPRESS)
+
 
     args = parser.parse_args()
 

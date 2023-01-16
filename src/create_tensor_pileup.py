@@ -759,9 +759,6 @@ def main():
     parser.add_argument('--alt_fn', type=str, default=None,
                         help="DEBUG: Output all alternative indel cigar for debug purpose")
 
-    parser.add_argument('--truth_vcf_fn', type=str, default=None,
-                        help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file,  default: %(default)s")
-
     # options for internal process control
     ## Minimum indel allele frequency for a site to be considered as a candidate site
     parser.add_argument('--indel_min_af', type=float, default=0.2,
@@ -797,6 +794,9 @@ def main():
                         help=SUPPRESS)
 
     parser.add_argument('--proportion', type=float, default=1.0,
+                        help=SUPPRESS)
+
+    parser.add_argument('--truth_vcf_fn', type=str, default=None,
                         help=SUPPRESS)
 
     args = parser.parse_args()

@@ -557,7 +557,7 @@ def main():
     parser = ArgumentParser(description="Compare input VCF with truth VCF")
 
     parser.add_argument('--platform', type=str, default='ont',
-                        help="Sequencing platform of the input, default: %(default)s")
+                        help="Select the sequencing platform of the input. Default: %(default)s")
 
     parser.add_argument('--bed_fn', type=str, default=None,
                         help="High confident BED region for benchmarking")
@@ -584,7 +584,7 @@ def main():
                         help="Output directory")
 
     parser.add_argument('--input_filter_tag', type=str_none, default=None,
-                        help="Filter variants with tag ffrom the input VCF")
+                        help="Filter variants with tag from the input VCF")
 
     parser.add_argument('--truth_filter_tag', type=str_none, default=None,
                         help="Filter variants with tag from the truth VCF")
@@ -595,23 +595,24 @@ def main():
     parser.add_argument('--normal_bam_fn', type=str, default=None,
                         help="Sorted normal BAM file input")
 
-    parser.add_argument('--min_af', type=float, default=None,
-                        help="Minimum VAF for a variant to be included in bechmarking")
-
-    parser.add_argument('--min_alt_coverage', type=int, default=2,
-                        help="Minimum alt base count for a variant to be included in bechmarking")
-
-    parser.add_argument('--min_coverage', type=int, default=4,
-                        help="Minimum coverage for a variant to be included in bechmarking")
-
-    parser.add_argument('--strat_bed_fn', type=str, default=None,
-                        help="Genome stratifications v2 bed region")
-
     parser.add_argument('--samtools', type=str, default="samtools",
                         help="Absolute path to the 'samtools', samtools version >= 1.10 is required. Default: %(default)s")
 
     parser.add_argument('--threads', type=int, default=8,
                         help="Max #threads to be used")
+
+    # options for advanced users
+    parser.add_argument('--min_af', type=float, default=None,
+                        help="EXPERIMENTAL: Minimum VAF for a variant to be included in bechmarking")
+
+    parser.add_argument('--min_alt_coverage', type=int, default=2,
+                        help="EXPERIMENTAL: Minimum alt base count for a variant to be included in bechmarking")
+
+    parser.add_argument('--min_coverage', type=int, default=4,
+                        help="EXPERIMENTAL: Minimum coverage for a variant to be included in bechmarking")
+
+    parser.add_argument('--strat_bed_fn', type=str, default=None,
+                        help="EXPERIMENTAL: Genome stratifications v2 bed region")
 
     ## Output VCF filename
     parser.add_argument('--output_fn', type=str, default=None,

@@ -362,7 +362,7 @@ def main():
     parser = ArgumentParser(description="Extract candidates for tensor creation in training")
 
     parser.add_argument('--platform', type=str, default='ont',
-                        help="Sequencing platform of the input, default: %(default)s")
+                        help="Select the sequencing platform of the input. Default: %(default)s")
 
     parser.add_argument('--candidates_folder', type=str, default=None,
                         help="Output candidate folder to store the candidate bed information, required")
@@ -423,9 +423,6 @@ def main():
     parser.add_argument('--alt_fn', type=str, default=None,
                         help="DEBUG: Output all alternative indel cigar for debug purpose")
 
-    parser.add_argument('--store_tumor_infos', type=str2bool, default=False,
-                        help="DEBUG: Enable bp resolution for GVCF, default: disabled")
-
     # options for internal process control
     ## Minimum indel allele frequency for a site to be considered as a candidate site
     parser.add_argument('--indel_min_af', type=float, default=0.2,
@@ -454,6 +451,11 @@ def main():
     ## The chuck ID to work on
     parser.add_argument('--chunk_id', type=int, default=None,
                         help=SUPPRESS)
+
+    ## Store tumor INFOs in training
+    parser.add_argument('--store_tumor_infos', type=str2bool, default=False,
+                        help=SUPPRESS)
+
 
     args = parser.parse_args()
 

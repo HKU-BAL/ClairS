@@ -378,6 +378,13 @@ def main():
     parser.add_argument('--samtools', type=str, default="samtools",
                         help="Absolute path to samtools, samtools version >= 1.10 is required, default: %(default)s")
 
+    parser.add_argument('--show_ref', action='store_true',
+                        help="Show reference calls (0/0) in VCF file")
+
+    parser.add_argument('--show_germline', action='store_true',
+                        help="Show germline calls in VCF file")
+
+    # options for debug purpose
     parser.add_argument('--predict_fn', type=str, default="PIPE",
                         help="DEBUG: Output network output probabilities for further analysis")
 
@@ -410,14 +417,6 @@ def main():
 
     ## Use bin file from pytables to speed up calling.
     parser.add_argument('--is_from_tables', action='store_true',
-                        help=SUPPRESS)
-
-    ## Output reference calls
-    parser.add_argument('--show_ref', action='store_true',
-                        help=SUPPRESS)
-
-    ## Output germline calls
-    parser.add_argument('--show_germline', action='store_true',
                         help=SUPPRESS)
 
     args = parser.parse_args()

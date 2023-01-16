@@ -114,7 +114,7 @@ def sort_vcf_from(args):
     input_dir = args.input_dir
     vcf_fn_prefix = args.vcf_fn_prefix
     vcf_fn_suffix = args.vcf_fn_suffix
-    sample_name = args.sampleName
+    sample_name = args.sample_name
     ref_fn = args.ref_fn
     contigs_fn = args.contigs_fn
     compress_vcf = args.compress_vcf
@@ -234,14 +234,14 @@ def main():
     parser.add_argument('--ref_fn', type=str, default=None,
                         help="Reference fasta file input")
 
-    parser.add_argument('--sampleName', type=str, default="SAMPLE",
+    parser.add_argument('--sample_name', type=str, default="SAMPLE",
                         help="Define the sample name to be shown in the VCF file, optional")
 
     parser.add_argument('--contigs_fn', type=str, default=None,
                         help="Contigs file with all processing contigs")
 
     parser.add_argument('--compress_vcf', type=str2bool, default=False,
-                        help="Only work for gvcf file, reduce hard disk space")
+                        help="Compress and index the output VCF")
 
     args = parser.parse_args()
     if args.input_dir is None:

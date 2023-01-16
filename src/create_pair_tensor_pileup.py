@@ -641,9 +641,6 @@ def main():
     parser.add_argument('--alt_fn', type=str, default=None,
                         help="DEBUG: Output all alternative indel cigar for debug purpose")
 
-    parser.add_argument('--truth_vcf_fn', type=str, default=None,
-                        help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file,  default: %(default)s")
-
     # options for internal process control
     ## Path to the 'zstd' compression
     parser.add_argument('--zstd', type=str, default=param.zstd,
@@ -656,7 +653,6 @@ def main():
     ## Minimum indel allele frequency for a site to be considered as a candidate site
     parser.add_argument('--indel_min_af', type=float, default=1.0,
                         help=SUPPRESS)
-
 
     ## The number of chucks to be divided into for parallel processing
     parser.add_argument('--chunk_num', type=int, default=None,
@@ -674,6 +670,9 @@ def main():
                         help=SUPPRESS)
 
     parser.add_argument('--flanking', type=int, default=None,
+                        help=SUPPRESS)
+
+    parser.add_argument('--truth_vcf_fn', type=str, default=None,
                         help=SUPPRESS)
 
     args = parser.parse_args()

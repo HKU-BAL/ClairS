@@ -74,9 +74,6 @@ def vcf_reader(vcf_fn, contig_name, bed_tree=None):
     return homo_variant_set, homo_variant_info, variant_set
 
 
-split_bed_size = 2000
-
-
 def decode_af(input_dir, file_list, output_depth=False, output_alt=False, bed_tree=None, contig_name=None):
     af_dict = defaultdict(float)
     alt_info_dict = defaultdict()
@@ -178,7 +175,7 @@ def main():
     parser = ArgumentParser(description="Filter reference calls in training")
 
     parser.add_argument('--platform', type=str, default='ont',
-                        help="Sequencing platform of the input. Options: 'ont,ilmn', default: %(default)s")
+                        help="Select the sequencing platform of the input. Default: %(default)s")
 
     parser.add_argument('--bam_fn', type=str, default="input.bam",
                         help="Sorted BAM file input, required")
@@ -208,14 +205,14 @@ def main():
                         help="The name of sequence to be processed, required if --bed_fn is not defined")
 
     parser.add_argument('--reference_cans_dir', type=str, default=None,
-                        help="The path of all reference files")
+                        help="The path of all reference alternative INFO files")
 
     parser.add_argument('--bed_fn', type=str, default=None,
                         help="Call variant only in the provided regions. Will take an intersection if --ctgName and/or (--ctgStart, --ctgEnd) are set")
 
     # options for debug purpose
     parser.add_argument('--add_truths', action='store_true',
-                        help="Include all truths variants")
+                        help="DEBUG: Include all truths variants")
 
     args = parser.parse_args()
 
