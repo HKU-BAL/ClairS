@@ -485,8 +485,8 @@ def check_clair3_options(args):
             sys.exit(log_error("[ERROR] Cannot find clair3 main entry in {}".format(args.clair3_path)))
 
     if args.clair3_model_path is None:
-        if args.platform == 'ont':
-            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'somatic_models', 'clair3_models', 'ont_r104_e81_sup_g5015')
+        if args.platform == 'ont_r10' or args.platform == 'ont':
+            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'clairs_models', 'clair3_models', 'ont_r104_e81_sup_g5015')
         elif args.platform == 'ont_r9':
             # clair3 r9 model in bioconda bin
             args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'r941_prom_sup_g5014')
@@ -551,10 +551,10 @@ def check_args(args):
                                                                                       args.tumor_bam_fn + '.crai')))
 
     if args.pileup_model_path is None:
-        args.pileup_model_path = os.path.join(args.conda_prefix, 'bin', 'somatic_models', args.platform, 'pileup.pkl')
+        args.pileup_model_path = os.path.join(args.conda_prefix, 'bin', 'clairs_models', args.platform, 'pileup.pkl')
 
     if args.full_alignment_model_path is None:
-        args.full_alignment_model_path = os.path.join(args.conda_prefix, 'bin', 'somatic_models', args.platform, 'full_alignment.pkl')
+        args.full_alignment_model_path = os.path.join(args.conda_prefix, 'bin', 'clairs_models', args.platform, 'full_alignment.pkl')
 
     args.pileup_model_path = file_path_from(file_name=args.pileup_model_path, exit_on_not_found=True, is_directory=False, allow_none=False)
     args.full_alignment_model_path = file_path_from(file_name=args.full_alignment_model_path, exit_on_not_found=True, is_directory=False, allow_none=False)
@@ -563,14 +563,20 @@ def check_args(args):
         args.snv_min_af = param.snv_min_af
     if args.indel_min_af is None:
         args.indel_min_af = 1.0
-    if args.qual is None:
-        args.qual = param.min_thred_qual[args.platform] if args.platform in param.min_thred_qual else 0
     if args.min_coverage is None:
         args.min_coverage = param.min_coverage
     if args.chunk_size is None:
         args.chunk_size = 5000000
-    if args.platform not in {'ont', 'ont_r9', 'ilmn'}:
+    if args.platform not in {'ont_r10', 'ont_r9', 'ont', 'ilmn'}:
         logging(log_error('[ERROR] Invalid platform input, optional: {ont, ont_r9, ilmn}'))
+    # default we enable prefer_recall
+    if args.prefer_recall is False and args.prefer_balance is False:
+        args.prefer_recall = True
+    if args.qual is None:
+        if args.prefer_recall:
+            args.qual = param.min_thred_qual[args.platform] if args.platform == 'ilmn' else param.min_thred_qual['ont']
+        else:
+            args.qual = param.best_thred_qual[args.platform] if args.platform == 'ilmn' else param.best_thred_qual['ont']
     if args.skip_steps is not None:
         check_skip_steps_legal(args)
     if args.enable_realignment and args.platform != 'ilmn':
