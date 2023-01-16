@@ -12,26 +12,27 @@ caller_name = param.caller_name
 version = param.version
 
 vcf_header = dedent("""\
-            ##fileformat=VCFv4.2
-            ##source={}
+            #fileformat=VCFv4.2
+            ##source=ClairS
             ##{}_version={}
             ##FILTER=<ID=PASS,Description="All filters passed">
             ##FILTER=<ID=LowQual,Description="Low quality variant">
             ##FILTER=<ID=RefCall,Description="Reference call">
-            ##FILTER=<ID=Germline,Description="Germline variant call">
-            ##INFO=<ID=H,Number=0,Type=Flag,Description="Variant only in one phased haplotype">
+            ##FILTER=<ID=Germline,Description="Germline variant">
+            ##INFO=<ID=H,Number=0,Type=Flag,Description="Variant found only in one haplotype in the phased reads">
             ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
-            ##FORMAT=<ID=GQ,Number=1,Type=Float,Description="Genotype quality">
-            ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Tumor read depth">
-            ##FORMAT=<ID=AF,Number=1,Type=Float,Description="Estimated allele frequency in tumor sample">
-            ##FORMAT=<ID=NAF,Number=1,Type=Float,Description="Estimated allele frequency in normal sample">
-            ##FORMAT=<ID=NDP,Number=1,Type=Integer,Description="Normal Read Depth">
-            ##FORMAT=<ID=AU,Number=1,Type=Integer,Description="Number of 'A' alleles in tumor BAM">
-            ##FORMAT=<ID=CU,Number=1,Type=Integer,Description="Number of 'C' alleles in tumor BAM">
-            ##FORMAT=<ID=GU,Number=1,Type=Integer,Description="Number of 'G' alleles in tumor BAM">
-            ##FORMAT=<ID=TU,Number=1,Type=Integer,Description="Number of 'T' alleles in tumor BAM">
-            """.format(caller_name, caller_name, version)
-                )
+            ##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype quality">
+            ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read depth in the tumor BAM">
+            ##FORMAT=<ID=AF,Number=1,Type=Float,Description="Estimated allele frequency in the tumor BAM">
+            ##FORMAT=<ID=NAF,Number=1,Type=Float,Description="Estimated allele frequency in the normal BAM">
+            ##FORMAT=<ID=NDP,Number=1,Type=Integer,Description="Read depth in the normal BAM">
+            ##FORMAT=<ID=AU,Number=1,Type=Integer,Description="Count of A in the tumor BAM">
+            ##FORMAT=<ID=CU,Number=1,Type=Integer,Description="Count of C in the tumor BAM">
+            ##FORMAT=<ID=GU,Number=1,Type=Integer,Description="Count of G in the tumor BAM">
+            ##FORMAT=<ID=TU,Number=1,Type=Integer,Description="Count of T in the tumor BAM">
+            """.format(caller_name, version)
+                    )
+
 
 class TruthStdout(object):
     def __init__(self, handle):
@@ -40,11 +41,18 @@ class TruthStdout(object):
     def __del__(self):
         self.stdin.close()
 
+
 class VcfWriter(object):
-    def __init__(self, vcf_fn, ctg_name=None, ref_fn=None, sample_name="SAMPLE", write_header=True, show_ref_calls=False):
+    def __init__(self,
+                 vcf_fn,
+                 ctg_name=None,
+                 ref_fn=None,
+                 sample_name="SAMPLE",
+                 write_header=True,
+                 show_ref_calls=False):
         self.vcf_fn = vcf_fn
         self.show_ref_calls = show_ref_calls
-        #make directory if not exist
+        # make directory if not exist
         vcf_folder = os.path.dirname(self.vcf_fn)
         if not os.path.exists(vcf_folder):
             print("[INFO] Output VCF folder {} not found, create it".format(vcf_folder))
@@ -83,8 +91,29 @@ class VcfWriter(object):
 
         self.vcf_writer.write(header)
 
-    def write_row(self, POS=None, REF=None, ALT=None, QUAL=0, GT='0/0', DP=0, AF=0, CHROM=None, GQ=None, ID='.', FILTER=".", INFO='.', NAF=None, TAF=None, VT=None,
-                  NDP=None, TDP=None, AU=None, CU=None, GU=None, TU=None, row_str=None):
+    def write_row(self,
+                  POS=None,
+                  REF=None,
+                  ALT=None,
+                  QUAL=0,
+                  GT='0/0',
+                  DP=0,
+                  AF=0,
+                  CHROM=None,
+                  GQ=None,
+                  ID='.',
+                  FILTER=".",
+                  INFO='.',
+                  NAF=None,
+                  TAF=None,
+                  VT=None,
+                  NDP=None,
+                  TDP=None,
+                  AU=None,
+                  CU=None,
+                  GU=None,
+                  TU=None,
+                  row_str=None):
         if row_str is not None:
             self.vcf_writer.write(row_str)
             return
@@ -103,7 +132,7 @@ class VcfWriter(object):
             QUAL,
             FILTER,
             INFO
-            )
+        )
         if NAF is not None:
             FORMAT += ":NAF"
             FORMAT_V += ":%.4f" % (NAF)
@@ -125,6 +154,7 @@ class VcfWriter(object):
         vcf_format = '\t'.join([basic_vcf_format, FORMAT, FORMAT_V]) + "\n"
 
         self.vcf_writer.write(vcf_format)
+
 
 class VcfReader(object):
     def __init__(self, vcf_fn,
@@ -158,7 +188,7 @@ class VcfReader(object):
         self.direct_open = direct_open
         self.keep_row_str = keep_row_str
         self.skip_genotype = skip_genotype
-        self.filter_tag = filter_tag #PASS;HighConf PASS;MedConf in hcc1395
+        self.filter_tag = filter_tag  # PASS;HighConf PASS;MedConf in hcc1395
         self.naf_filter = naf_filter
         self.taf_filter = taf_filter
         self.header = ""
@@ -167,6 +197,7 @@ class VcfReader(object):
         self.min_qual = min_qual
         self.max_qual = max_qual
         self.keep_af = keep_af
+
     def read_vcf(self):
         is_ctg_region_provided = self.ctg_start is not None and self.ctg_end is not None
 
@@ -188,7 +219,8 @@ class VcfReader(object):
                 header_last_column = columns
                 continue
 
-            tumor_in_last = True if len(header_last_column) and header_last_column[-1].rstrip().lower() == "tumor" else False
+            tumor_in_last = True if len(header_last_column) and header_last_column[
+                -1].rstrip().lower() == "tumor" else False
             # position in vcf is 1-based
             chromosome, position = columns[0], columns[1]
             if self.ctg_name is not None and chromosome != self.ctg_name:
@@ -196,7 +228,7 @@ class VcfReader(object):
             if is_ctg_region_provided and not (self.ctg_start <= int(position) <= self.ctg_end):
                 continue
 
-            #filter NAF
+            # filter NAF
             if self.naf_filter is not None:
                 naf_index = columns[8].split(':').index("NAF")
                 if float(columns[9].split(':')[naf_index]) >= self.naf_filter:
@@ -247,11 +279,11 @@ class VcfReader(object):
                     if int(genotype_1) > int(genotype_2):
                         genotype_1, genotype_2 = genotype_2, genotype_1
 
-                    #remove * to guarentee vcf match
+                    # remove * to guarentee vcf match
                     if '*' in alternate:
                         alternate = alternate.split(',')
                         if int(genotype_1) + int(genotype_2) != 3 or len(alternate) != 2:
-                            print ('error with variant representation')
+                            print('error with variant representation')
                             continue
                         alternate = ''.join([alt_base for alt_base in alternate if alt_base != '*'])
                         # * always have a genotype 1/2
@@ -279,16 +311,17 @@ class VcfReader(object):
             key = (chromosome, position) if self.ctg_name is None else position
 
             self.variant_dict[key] = Position(ctg_name=chromosome,
-                                                   pos=position,
-                                                   ref_base=reference,
-                                                   alt_base=alternate,
-                                                   genotype1=int(genotype_1),
-                                                   genotype2=int(genotype_2),
-                                                   qual=qual,
-                                                   row_str=row_str,
-                                                   af=taf,
-                                                   filter=FILTER,
-                                                   extra_infos=extra_infos)
+                                              pos=position,
+                                              ref_base=reference,
+                                              alt_base=alternate,
+                                              genotype1=int(genotype_1),
+                                              genotype2=int(genotype_2),
+                                              qual=qual,
+                                              row_str=row_str,
+                                              af=taf,
+                                              filter=FILTER,
+                                              extra_infos=extra_infos)
+
     def get_alt_info(self, pos, extra_info=""):
         pos = int(pos)
         if pos not in self.variant_dict:
