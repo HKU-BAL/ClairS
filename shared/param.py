@@ -1,6 +1,6 @@
 # parameters
 caller_name = "clairs"
-version = "0.1"
+version = "0.0.1"
 
 from itertools import accumulate
 
@@ -36,6 +36,7 @@ ont_normal_tumor_ratio = 0.7
 normal_pro = ont_normal_tumor_ratio / (1 + ont_normal_tumor_ratio)
 min_bq_dict = {'ont': ont_min_bq, 'ilmn': min_bq}
 min_thred_qual = {'ont': 8, 'ilmn': 2}
+best_thred_qual = {'ont': 16, 'ilmn': 4}
 ont_max_normal_depth = int(ont_tensor_max_depth * normal_pro)
 ont_max_tumor_depth = ont_tensor_max_depth - ont_max_normal_depth
 

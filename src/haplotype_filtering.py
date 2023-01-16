@@ -339,18 +339,6 @@ def update_filter_info(args, key, row_str, phase_dict, fail_set_list):
 
 def haplotype_filter(args):
 
-    if args.test_pos:
-        # pypy3 /autofs/bal36/zxzheng/somatic/Clair-somatic/clairs.py haplotype_filtering --ctg_name chr14 --test_pos 30470366
-        args.tumor_bam_fn ="/autofs/bal36/zxzheng/somatic/ont/workflow_update/hcc13951_chr20_45_71x/tmp/clair3_output/phased_output/tumor_"
-        args.ref_fn = "/autofs/bal36/zxzheng/somatic/data/reference/GRCh38.d1.vd1.fa"
-        #parallel -j 20 "gzip -fdc merge_output.vcf.gz | grep -w {1} > {1}" ::: ${CHR[@]}
-        args.germline_vcf_fn = '/autofs/bal36/zxzheng/somatic/ont/workflow_update/hcc13951_chr20_45_71x/tmp/clair3_output/clair3_tumor_output/{}'.format(args.ctg_name)
-        args.pileup_vcf_fn = "/autofs/bal36/zxzheng/somatic/ont/workflow_update/hcc13951_chr20_45_71x/tmp/vcf_output/pileup.vcf"
-        args.full_alignment_vcf_fn = "/autofs/bal36/zxzheng/somatic/ont/workflow_update/hcc13951_chr20_45_71x/tmp/vcf_output/full_alignment.vcf"
-        args.output_dir = '/autofs/bal36/zxzheng/somatic/ont/workflow_update/hcc13951_chr20_45_71x/test'
-        args.debug = True
-        args.samtools = '/autofs/bal33/zxzheng/env/conda/envs/clair-somatic/bin/samtools'
-
     ctg_name = args.ctg_name
     threads = args.threads
     threads_low = max(1, int(threads * 4 / 5))
