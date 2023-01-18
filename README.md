@@ -9,7 +9,7 @@ Email: rbluo@cs.hku.hk, zxzheng@cs.hku.hk
 
 ## Introduction
 
-ClairS is a somatic variant caller designed for paired samples and primarily ONT long-read. It uses Clair3 to eliminate germline variants. It ensembles the pileup and full-alignment models in Clair3, trusts them equally, and decides on the result using a set of rules and post-processing filters. With 70-fold HCC1395 (tumor) and 45-fold HCC1395BL (normal) of ONT R10.4.1 data, benchmarking against the truth SNVs (Fang et al., 2021) has shown ClairS achieved 91.10% precision and 71.92% recall. Specifically, ClairS achieved 98.12% precision/99.15% recall on variants with AF≥0.20, and 94.26% precision/87.46% recall on variants with AF≥0.05. Detailed performance figures are shown below.
+ClairS is a somatic variant caller designed for paired samples and primarily ONT long-read. It uses Clair3 to eliminate germline variants. It ensembles the pileup and full-alignment models in Clair3, trusts them equally, and decides on the result using a set of rules and post-processing filters. With 70-fold HCC1395 (tumor) and 45-fold HCC1395BL (normal) of ONT R10.4.1 data, benchmarking against the truth SNVs (Fang et al., 2021) has shown ClairS achieved 91.10% precision and 71.92% recall. Specifically, ClairS achieved 98.12% precision, 99.15% recall on variants with AF≥0.20, and 94.26% precision, 87.46% recall on variants with AF≥0.05. Detailed performance figures are shown below.
 
 ClairS means Clair-Somatic, or the masculine plural of "Clair" in french (thus, 's' is silent).
 
@@ -19,32 +19,31 @@ ClairS is now available for early access to interested and experienced users. Yo
 
 ## Performance figures
 
-### Setup
-* 70-fold HCC1395 (tumor) and 45-fold HCC1395BL (normal) of ONT R10.4.1 data.
-* Benchmarking against the truths (Fang et al., 2021)
-### ONT Q20+ SNV performance
+### ONT Q20+ chemistry SNV performance
 
-| Caller | QUAL cutoff | Precision | Recall | F1-score |   TP   |   FP   |  FN   |
-| :----: | :---------: | :-------: | :----: | :------: | :----: | :----: | :---: |
-| ClairS |      8      |  66.00%   | 97.11% |  78.59%  | 30,553 | 15,738 |  909  |
-| ClairS |     16      |  94.26%   | 87.46% |  90.73%  | 27,512 | 1,675  | 3,944 |
-| Clair3 |      -      |  33.36%   | 65.36% |  44.17%  | 20,522 | 41,055 | 10,892|
+* Truth: * 31,456 AF≥0.05 high confidence (HighConf) and medium confidence (MedConf) SNV from the SEQQC2 HCC1395/BL truths (Fang et al., 2021)
+* Input: 70-fold HCC1395 (tumor) and 45-fold HCC1395BL (normal) of ONT R10.4.1 data
 
-<p align="center">
-<img src="./images/ont_result.png" alt="ONT benmarking result" width="1200p"></img>
-</p>
+| Caller | QUAL<br>cutoff | Precision | Recall | F1-score |   TP   |   FP   |  FN   |
+| :----: | :------------: | :-------: | :----: | :------: | :----: | :----: | :---: |
+| ClairS |      8         |  66.00%   | 97.11% |  78.59%  | 30,553 | 15,738 |  909  |
+| ClairS |     16         |  94.26%   | 87.46% |  90.73%  | 27,512 | 1,675  | 3,944 |
+| Clair3 |      2         |  33.36%   | 65.36% |  44.17%  | 20,522 | 41,055 | 10,892|
+
+![](./images/ont_result.png)
 
 ### Illumina NovaSeq 6000 SNV performance
 
-| Caller   | Precision | Recall | F1     | TP     | FP    | FN    |
-| -------- | --------- | ------ | ------ | ------ | ----- | ----- |
-| ClairS   | 98.01%    | 91.78% | 94.79% | 36,203 | 736   | 3,243 |
-| Streaka2 | 94.60%    | 91.73% | 93.14% | 36,183 | 2,064 | 3,264 |
-| Mutect2  | 97.32%    | 87.74% | 92.28% | 34,609 | 953   | 4,838 |
+* Truth: * 39,446 high confidence (HighConf) and medium confidence (MedConf) SNV from the SEQQC2 HCC1395/BL truths (Fang et al., 2021)
+* 50-fold HCC1395 (tumor) and 40-fold HCC1395BL (normal) of Illumina NovaSeq 6000 data
 
-<p align="center">
-<img src="./images/illumina_result.png" alt="Illumina benmarking result" width="1080p"></img>
-</p>
+| Caller   | QUAL<br>cutoff | Precision | Recall | F1-score | TP     | FP    | FN    |
+| :------: | :------------: | :-------: | :----: | :------: | :----: | :---: | :---: |
+| ClairS   | 7              | 98.01%    | 91.78% | 94.79%   | 36,203 | 736   | 3,243 |
+| Strelka2 | -              | 94.60%    | 91.73% | 93.14%   | 36,183 | 2,064 | 3,264 |
+| Mutect2  | -              | 97.32%    | 87.74% | 92.28%   | 34,609 | 953   | 4,838 |
+
+![](./images/illumina_result.png)
 
 
 
