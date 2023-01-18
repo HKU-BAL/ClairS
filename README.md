@@ -22,10 +22,22 @@ ClairS is now available for early access to interested and experienced users. Yo
 ### Setup
 * 70-fold HCC1395 (tumor) and 45-fold HCC1395BL (normal) of ONT R10.4.1 data.
 * Benchmarking against the truths (Fang et al., 2021)
-### SNV performance
+### ONT Q20+ SNV performance
+
+| Caller | QUAL cutoff | Precision | Recall | F1-score |   TP   |   FP   |  FN   |
+| :----: | :---------: | :-------: | :----: | :------: | :----: | :----: | :---: |
+| ClairS |      8      |  66.00%   | 97.11% |  78.59%  | 30,553 | 15,738 |  909  |
+| ClairS |     16      |  94.26%   | 87.46% |  90.73%  | 27,512 | 1,675  | 3,944 |
+
 <p align="center">
 <img src="./images/ont_result.png" alt="ONT benmarking result" width="1080p"></img>
 </p>
+### Illumina NovaSeq 6000 SNV performance
+
+<p align="center">
+<img src="./images/illumina_result.png" alt="Illumina benmarking result" width="1080p"></img>
+</p>
+
 
 
 ------
