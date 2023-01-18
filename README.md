@@ -21,7 +21,7 @@ ClairS is now available for early access to interested and experienced users. Yo
 
 ### ONT Q20+ chemistry SNV performance
 
-* Truth: * 31,456 AF≥0.05 high confidence (HighConf) and medium confidence (MedConf) SNV from the SEQQC2 HCC1395/BL truths (Fang et al., 2021)
+* Truth: 31,456 AF≥0.05 high confidence (HighConf) and medium confidence (MedConf) SNV from the SEQQC2 HCC1395/BL truths (Fang et al., 2021)
 * Input: 70-fold HCC1395 (tumor) and 45-fold HCC1395BL (normal) of ONT R10.4.1 data
 
 | Caller | QUAL<br>cutoff | Precision | Recall | F1-score |   TP   |   FP   |  FN   |
@@ -34,14 +34,14 @@ ClairS is now available for early access to interested and experienced users. Yo
 
 ### Illumina NovaSeq 6000 SNV performance
 
-* Truth: * 39,446 high confidence (HighConf) and medium confidence (MedConf) SNV from the SEQQC2 HCC1395/BL truths (Fang et al., 2021)
+* Truth: 39,446 high confidence (HighConf) and medium confidence (MedConf) SNV from the SEQQC2 HCC1395/BL truths (Fang et al., 2021)
 * 50-fold HCC1395 (tumor) and 40-fold HCC1395BL (normal) of Illumina NovaSeq 6000 data
 
 | Caller   | QUAL<br>cutoff | Precision | Recall | F1-score | TP     | FP    | FN    |
 | :------: | :------------: | :-------: | :----: | :------: | :----: | :---: | :---: |
 | ClairS   | 7              | 98.01%    | 91.78% | 94.79%   | 36,203 | 736   | 3,243 |
-| Strelka2 | -              | 94.60%    | 91.73% | 93.14%   | 36,183 | 2,064 | 3,264 |
-| Mutect2  | -              | 97.32%    | 87.74% | 92.28%   | 34,609 | 953   | 4,838 |
+| Strelka2 | PASS           | 94.60%    | 91.73% | 93.14%   | 36,183 | 2,064 | 3,264 |
+| Mutect2  | PASS           | 97.32%    | 87.74% | 92.28%   | 34,609 | 953   | 4,838 |
 
 ![](./images/illumina_result.png)
 
