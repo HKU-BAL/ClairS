@@ -30,8 +30,9 @@ ClairS is now available for early access to interested and experienced users. Yo
 | ClairS |     16      |  94.26%   | 87.46% |  90.73%  | 27,512 | 1,675  | 3,944 |
 
 <p align="center">
-<img src="./images/ont_result.png" alt="ONT benmarking result" width="1080p"></img>
+<img src="./images/ont_result.png" alt="ONT benmarking result" width="1200p"></img>
 </p>
+
 ### Illumina NovaSeq 6000 SNV performance
 
 <p align="center">
