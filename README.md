@@ -9,7 +9,7 @@ Email: rbluo@cs.hku.hk, zxzheng@cs.hku.hk
 
 ## Introduction
 
-ClairS is a somatic variant caller designed for paired samples and primarily ONT long-read. It uses Clair3 to eliminate germline variants. It ensembles the pileup and full-alignment models in Clair3, trusts them equally, and decides on the result using a set of rules and post-processing filters. With 70-fold HCC1395 (tumor) and 45-fold HCC1395BL (normal) of ONT R10.4.1 data, benchmarking against the truth SNVs (Fang et al., 2021) has shown ClairS achieved 91.10% precision and 71.92% recall. Specifically, ClairS achieved 98.12% precision and 99.15% recall on variants with AF≥0.20, and 94.26% precision and 87.46% recall on variants with AF≥0.05. Detailed performance figures are shown below.
+ClairS is a somatic variant caller designed for paired samples and primarily ONT long-read. It uses Clair3 to eliminate germline variants. It ensembles the pileup and full-alignment models in Clair3, trusts them equally, and decides on the result using a set of rules and post-processing filters. With 70-fold HCC1395 (tumor) and 45-fold HCC1395BL (normal) of ONT R10.4.1 data, benchmarking against the truth SNVs (Fang et al., 2021) has shown ClairS achieved 91.10% precision and 71.92% recall. Specifically, ClairS achieved 98.12% precision/99.15% recall on variants with AF≥0.20, and 94.26% precision/87.46% recall on variants with AF≥0.05. Detailed performance figures are shown below.
 
 ClairS means Clair-Somatic, or the masculine plural of "Clair" in french (thus, 's' is silent).
 
