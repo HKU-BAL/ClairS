@@ -28,12 +28,19 @@ ClairS is now available for early access to interested and experienced users. Yo
 | :----: | :---------: | :-------: | :----: | :------: | :----: | :----: | :---: |
 | ClairS |      8      |  66.00%   | 97.11% |  78.59%  | 30,553 | 15,738 |  909  |
 | ClairS |     16      |  94.26%   | 87.46% |  90.73%  | 27,512 | 1,675  | 3,944 |
+| Clair3 |      -      |  33.36%   | 65.36% |  44.17%  | 20,522 | 41,055 | 10,892|
 
 <p align="center">
 <img src="./images/ont_result.png" alt="ONT benmarking result" width="1200p"></img>
 </p>
 
 ### Illumina NovaSeq 6000 SNV performance
+
+| Caller   | Precision | Recall | F1     | TP     | FP    | FN    |
+| -------- | --------- | ------ | ------ | ------ | ----- | ----- |
+| ClairS   | 98.01%    | 91.78% | 94.79% | 36,203 | 736   | 3,243 |
+| Streaka2 | 94.60%    | 91.73% | 93.14% | 36,183 | 2,064 | 3,264 |
+| Mutect2  | 97.32%    | 87.74% | 92.28% | 34,609 | 953   | 4,838 |
 
 <p align="center">
 <img src="./images/illumina_result.png" alt="Illumina benmarking result" width="1080p"></img>
