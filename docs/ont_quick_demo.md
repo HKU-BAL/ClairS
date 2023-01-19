@@ -4,7 +4,7 @@ Here is a quick demo for the Oxford Nanopore (ONT) somatic calling using HCC1395
 ```bash
 Platform:          ONT
 Sample:     	   HCC1395-HCC1395BL tumor-normal pair
-Normal coverage:   ~40x
+Normal coverage:   ~45x
 Tumor coverage:    ~70x
 Reference:         GRCh38_no_alt
 Aligner:           minimap2

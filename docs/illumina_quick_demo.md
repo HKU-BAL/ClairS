@@ -4,7 +4,7 @@ Here is a quick demo for the Illumina NGS soamtic variant calling using somatic 
 ```bash
 Platform:          Illumina
 Sample:            HCC1395-HCC1395BL tumor-normal pair
-Normal coverage:   ~50x
+Normal coverage:   ~40x
 Tumor coverage:    ~50x
 Reference:         GRCh38
 Aligner:           BWA-MEM
