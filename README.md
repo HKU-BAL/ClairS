@@ -21,25 +21,25 @@ ClairS is now available for early access to interested and experienced users. Yo
 
 ### ONT Q20+ chemistry SNV performance
 
-* Truth: 31,456 AF≥0.05 high confidence (HighConf) and medium confidence (MedConf) SNV from the SEQQC2 HCC1395/BL truths (Fang et al., 2021)
+* Truth: 31,444 AF≥0.05 high confidence (HighConf) and medium confidence (MedConf) SNV from the SEQQC2 HCC1395/BL truths (Fang et al., 2021)
 * Input: 70-fold HCC1395 (tumor) and 45-fold HCC1395BL (normal) of ONT R10.4.1 data
 
 | Caller | QUAL<br>cutoff | Precision | Recall | F1-score |   TP   |   FP   |  FN   |
 | :----: | :------------: | :-------: | :----: | :------: | :----: | :----: | :---: |
-| ClairS |      8         |  66.00%   | 97.11% |  78.59%  | 30,553 | 15,738 |  909  |
-| ClairS |     16         |  94.26%   | 87.46% |  90.73%  | 27,512 | 1,675  | 3,944 |
-| Clair3 |      2         |  33.36%   | 65.36% |  44.17%  | 20,522 | 41,055 | 10,892|
+| ClairS |      8         |  65.99%   | 97.11% |  78.58%  | 30,535 | 15,736 |  909  |
+| ClairS |     16         |  94.26%   | 87.50% |  90.75%  | 27,512 | 1,676  | 3,932 |
+| Clair3 |      2         |  33.36%   | 65.36% |  44.17%  | 20,552 | 41,055 | 10,892|
 
 ![](./images/ont_result.png)
 
 ### Illumina NovaSeq 6000 SNV performance
 
-* Truth: 39,446 high confidence (HighConf) and medium confidence (MedConf) SNV from the SEQQC2 HCC1395/BL truths (Fang et al., 2021)
+* Truth: 39,447 high confidence (HighConf) and medium confidence (MedConf) SNV from the SEQQC2 HCC1395/BL truths (Fang et al., 2021)
 * 50-fold HCC1395 (tumor) and 40-fold HCC1395BL (normal) of Illumina NovaSeq 6000 data
 
 | Caller   | QUAL<br>cutoff | Precision | Recall | F1-score | TP     | FP    | FN    |
 | :------: | :------------: | :-------: | :----: | :------: | :----: | :---: | :---: |
-| ClairS   | 7              | 98.01%    | 91.78% | 94.79%   | 36,203 | 736   | 3,243 |
+| ClairS   | 7              | 98.00%    | 91.78% | 94.79%   | 36,203 | 737   | 3,244 |
 | Strelka2 | PASS           | 94.60%    | 91.73% | 93.14%   | 36,183 | 2,064 | 3,264 |
 | Mutect2  | PASS           | 97.32%    | 87.74% | 92.28%   | 34,609 | 953   | 4,838 |
 
