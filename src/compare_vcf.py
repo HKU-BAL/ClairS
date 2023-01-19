@@ -54,7 +54,7 @@ def cal_metrics(tp, fp, fn):
     return round(precision, 4), round(recall, 4), round(f1_score, 4)
 
 
-def output_best_cut_off(fp_qual_dict, tp_qual_dict, fn_count, use_int_cut_off=True):
+def output_best_cut_off(fp_qual_dict, tp_qual_dict, fn_count, use_int_cut_off=True, add_tp_fn=False):
     results = []
     if use_int_cut_off:
         qual_list = set([int(q) for q in list(fp_qual_dict.values()) + list(tp_qual_dict.values())])
@@ -360,6 +360,9 @@ def compare_vcf(args):
                 fn_ins = fn_ins + 1 if is_ins_truth else fn_ins
                 fn_del = fn_del + 1 if is_del_truth else fn_del
 
+                fp_set.add(key)
+                fp_qual_dict[key] = qual
+                fn_set.add(key)
                 if is_snv or is_snv_truth:
                     fp_fn_set.add(key)
 
