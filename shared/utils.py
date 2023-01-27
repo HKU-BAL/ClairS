@@ -305,18 +305,18 @@ def output_header(reference_file_path, output_fn=None, sample_name='SAMPLE'):
             ##FILTER=<ID=PASS,Description="All filters passed">
             ##FILTER=<ID=LowQual,Description="Low quality variant">
             ##FILTER=<ID=RefCall,Description="Reference call">
-            ##FILTER=<ID=Germline,Description="Germline variant call">
-            ##INFO=<ID=P,Number=0,Type=Flag,Description="Variant only in one phased haplotype">
+            ##FILTER=<ID=Germline,Description="Germline variant">
+            ##INFO=<ID=H,Number=0,Type=Flag,Description="Variant found only in one haplotype in the phased reads">
             ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
-            ##FORMAT=<ID=GQ,Number=1,Type=Float,Description="Genotype quality">
-            ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Tumor read depth">
-            ##FORMAT=<ID=AF,Number=1,Type=Float,Description="Estimated allele frequency in tumor sample">
-            ##FORMAT=<ID=NAF,Number=1,Type=Float,Description="Estimated allele frequency in normal sample">
-            ##FORMAT=<ID=NDP,Number=1,Type=Integer,Description="Normal Read Depth">
-            ##FORMAT=<ID=AU,Number=1,Type=Integer,Description="Number of 'A' alleles in tumor BAM">
-            ##FORMAT=<ID=CU,Number=1,Type=Integer,Description="Number of 'C' alleles in tumor BAM">
-            ##FORMAT=<ID=GU,Number=1,Type=Integer,Description="Number of 'G' alleles in tumor BAM">
-            ##FORMAT=<ID=TU,Number=1,Type=Integer,Description="Number of 'T' alleles in tumor BAM">
+            ##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype quality">
+            ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read depth in the tumor BAM">
+            ##FORMAT=<ID=AF,Number=1,Type=Float,Description="Estimated allele frequency in the tumor BAM">
+            ##FORMAT=<ID=NAF,Number=1,Type=Float,Description="Estimated allele frequency in the normal BAM">
+            ##FORMAT=<ID=NDP,Number=1,Type=Integer,Description="Read depth in the normal BAM">
+            ##FORMAT=<ID=AU,Number=1,Type=Integer,Description="Count of A in the tumor BAM">
+            ##FORMAT=<ID=CU,Number=1,Type=Integer,Description="Count of C in the tumor BAM">
+            ##FORMAT=<ID=GU,Number=1,Type=Integer,Description="Count of G in the tumor BAM">
+            ##FORMAT=<ID=TU,Number=1,Type=Integer,Description="Count of T in the tumor BAM">
             """)
 
     if reference_file_path is not None:
