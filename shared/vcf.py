@@ -12,7 +12,7 @@ caller_name = param.caller_name
 version = param.version
 
 vcf_header = dedent("""\
-            #fileformat=VCFv4.2
+            ##fileformat=VCFv4.2
             ##source=ClairS
             ##{}_version={}
             ##FILTER=<ID=PASS,Description="All filters passed">
