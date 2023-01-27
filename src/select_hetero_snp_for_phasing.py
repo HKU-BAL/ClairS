@@ -45,12 +45,13 @@ def select_hetero_snp_for_phasing(args):
     contig_name = args.ctg_name
     output_folder = args.output_folder
     variant_dict = defaultdict(str)
+    tumor_variant_dict = defaultdict(str)
     normal_qual_dict = defaultdict(int)
     tumor_qual_dict = defaultdict(int)
     header = []
 
-    tumor_unzip_process = subprocess_popen(shlex.split("gzip -fdc %s" % (tumor_vcf_fn)))
-    for row in tumor_unzip_process.stdout:
+    normal_unzip_process = subprocess_popen(shlex.split("gzip -fdc %s" % (normal_vcf_fn)))
+    for row in normal_unzip_process.stdout:
         row = row.rstrip()
         if row[0] == '#':
             header.append(row + '\n')
@@ -67,14 +68,14 @@ def select_hetero_snp_for_phasing(args):
         if len(ref_base) == 1 and len(alt_base) == 1:
             if genotype == '0/1' or genotype == '1/0':
                 qual = float(columns[5])
-                tumor_qual_dict[pos] = qual
+                normal_qual_dict[pos] = qual
                 variant_dict[pos] = [ref_base, alt_base, qual, row]
 
     intersect_pos_set = set()
     hetero_snp_not_found_in_tumor = 0
     hetero_snp_not_match_in_tumor = 0
-    normal_unzip_process = subprocess_popen(shlex.split("gzip -fdc %s" % (normal_vcf_fn)))
-    for row in normal_unzip_process.stdout:
+    tumor_unzip_process = subprocess_popen(shlex.split("gzip -fdc %s" % (tumor_vcf_fn)))
+    for row in tumor_unzip_process.stdout:
         row = row.rstrip()
         if row[0] == '#':
             continue
@@ -90,7 +91,7 @@ def select_hetero_snp_for_phasing(args):
         if len(ref_base) == 1 and len(alt_base) == 1:
             if genotype == '0/1' or genotype == '1/0':
                 qual = float(columns[5])
-                normal_qual_dict[pos] = qual
+                tumor_qual_dict[pos] = qual
                 if pos not in variant_dict and qual < args.min_qual:
                     hetero_snp_not_found_in_tumor += 1
                     continue
@@ -99,8 +100,8 @@ def select_hetero_snp_for_phasing(args):
                     if tumor_ref_base != ref_base or tumor_alt_base != alt_base:
                         hetero_snp_not_match_in_tumor += 1
                         continue
+                tumor_variant_dict[pos] = row
                 intersect_pos_set.add(pos)
-
 
     normal_low_qual_set = set([item[0] for item in sorted(normal_qual_dict.items(), key=lambda x: x[1])[:int(var_pct_full * len(normal_qual_dict))]])
     tumor_low_qual_set = set([item[0] for item in sorted(tumor_qual_dict.items(), key=lambda x: x[1])[:int(var_pct_full * len(tumor_qual_dict))]])
@@ -108,12 +109,11 @@ def select_hetero_snp_for_phasing(args):
 
     pass_variant_dict = defaultdict()
     low_qual_count = 0
-    for pos in variant_dict:
+    for pos in intersect_pos_set:
         if pos in normal_low_qual_set or pos in tumor_low_qual_set:
             low_qual_count += 1
             continue
-        if pos in variant_dict:
-            pass_variant_dict[pos] = variant_dict[pos][-1]
+        pass_variant_dict[pos] = tumor_variant_dict[pos]
 
     pro = len(pass_variant_dict) / len(tumor_qual_dict)
     print ('[INFO] Total HET SNP calls selected: {}: {}, not found:{}, not match:{}, low_qual_count:{}. Total normal:{} Total tumor:{}, pro: {}'.format(contig_name, len(pass_variant_dict), hetero_snp_not_found_in_tumor, hetero_snp_not_match_in_tumor, low_qual_count, len(normal_qual_dict), len(tumor_qual_dict), pro))
@@ -122,7 +122,7 @@ def select_hetero_snp_for_phasing(args):
         return_code = run("mkdir -p {}".format(output_folder), shell=True)
     f = open(os.path.join(output_folder, '{}.vcf'.format(contig_name)), 'w')
     f.write(''.join(header))
-    for key,row in sorted(pass_variant_dict.items(), key=lambda x: x[0]):
+    for key, row in sorted(pass_variant_dict.items(), key=lambda x: x[0]):
         f.write(row +'\n')
     f.close()
 
@@ -145,7 +145,7 @@ def main():
     parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of sequence to be processed, default: %(default)s")
 
-    parser.add_argument('--min_qual', type=float, default=0,
+    parser.add_argument('--min_qual', type=float, default=5,
                         help=SUPPRESS)
 
     args = parser.parse_args()
