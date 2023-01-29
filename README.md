@@ -21,7 +21,7 @@ ClairS is now available for early access to interested and experienced users. Yo
 
 ### ONT Q20+ chemistry SNV performance
 
-* Truth: 31,444 AF≥0.05 high confidence (HighConf) and medium confidence (MedConf) SNV from the SEQQC2 HCC1395/BL truths (Fang et al., 2021)
+* Truth: 31,444 AF≥0.05 high confidence (HighConf) and medium confidence (MedConf) SNV from the SEQC2 HCC1395/BL truths (Fang et al., 2021)
 * Input: 70-fold HCC1395 (tumor) and 45-fold HCC1395BL (normal) of ONT R10.4.1 data
 
 | Caller | QUAL<br>cutoff | Precision | Recall | F1-score |   TP   |   FP   |  FN   |
@@ -34,7 +34,7 @@ ClairS is now available for early access to interested and experienced users. Yo
 
 ### Illumina NovaSeq 6000 SNV performance
 
-* Truth: 39,447 high confidence (HighConf) and medium confidence (MedConf) SNV from the SEQQC2 HCC1395/BL truths (Fang et al., 2021)
+* Truth: 39,447 high confidence (HighConf) and medium confidence (MedConf) SNV from the SEQC2 HCC1395/BL truths (Fang et al., 2021)
 * 50-fold HCC1395 (tumor) and 40-fold HCC1395BL (normal) of Illumina NovaSeq 6000 data
 
 | Caller   | QUAL<br>cutoff | Precision | Recall | F1-score | TP     | FP    | FN    |
