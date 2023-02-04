@@ -226,14 +226,14 @@ def gen_contaminated_bam(args):
                                                               normal_bam_fn,
                                                               contig_option)
 
-        n_index_cmd = '{} index -@{} {}'.format(samtools_execute_command, samtools_threads, tumor_subsample_bam)
-        t_index_cmd = '{} index -@{} {}'.format(samtools_execute_command, samtools_threads, normal_subsample_bam)
+        t_index_cmd = '{} index -@{} {}'.format(samtools_execute_command, samtools_threads, tumor_subsample_bam)
+        n_index_cmd = '{} index -@{} {}'.format(samtools_execute_command, samtools_threads, normal_subsample_bam)
 
         print('[INFO] Will run the following commands:')
         print(t_s_cmd)
         print(n_s_cmd)
-        print(n_index_cmd)
         print(t_index_cmd)
+        print(n_index_cmd)
 
         if not args.dry_run:
             subprocess.run(t_s_cmd, shell=True)
@@ -308,7 +308,7 @@ def main():
                         help="EXPERIMENTAL: Only print the synthetic log, debug only")
 
     parser.add_argument('--cal_output_bam_coverage', type=str2bool, default=0,
-                        help="EXPERIMENTAL: calculate ouput contaminated BAM using mosdepth")
+                        help="EXPERIMENTAL: calculate output contaminated BAM using mosdepth")
 
     parser.add_argument('--remove_intermediate_dir', action='store_true',
                         help="Remove intermediate directory. Default: False")
