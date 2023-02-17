@@ -323,9 +323,9 @@ def find_tumor_alt_match(center_pos, sorted_read_name_list, pileup_dict, truths_
         if read_name in pileup_dict[center_pos].read_name_dict:
             base, indel = pileup_dict[center_pos].read_name_dict[read_name]
             base_upper = base.upper()
-            if is_ins and indel[1:].upper() == alt_base:
+            if is_ins and base_upper + indel[1:].upper() == alt_base:
                 matched_read_name_set.add(read_name)
-            elif is_del and indel[1:].upper() == ref_base[1:]:
+            elif is_del and len(indel[1:].upper()) == len(ref_base[1:]):
                 matched_read_name_set.add(read_name)
             elif is_snv and base_upper == alt_base:
                 matched_read_name_set.add(read_name)
