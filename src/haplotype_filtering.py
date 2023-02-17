@@ -265,7 +265,7 @@ def extract_base(POS):
 
         all_hp0, all_hp1, all_hp2 = all_homo_hap_counter[0], all_homo_hap_counter[1], all_homo_hap_counter[2]
         hp0, hp1, hp2 = homo_hap_counter[0], homo_hap_counter[1], homo_hap_counter[2]
-        af = (hp0 + hp1 + hp2) / float(all_hp0 + all_hp1 + all_hp2)
+        af = (hp0 + hp1 + hp2) / float(all_hp0 + all_hp1 + all_hp2) if (all_hp0 + all_hp1 + all_hp2) > 0 else 0.0
 
         def phasble(all_hap_list, hap_list):
             all_hp0, all_hp1, all_hp2 = all_hap_list
