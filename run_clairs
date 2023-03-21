@@ -618,6 +618,7 @@ def print_args(args):
     logging("")
     logging("[INFO] CALLER VERSION: {}".format(param.version))
     logging("[INFO] NORMAL BAM FILE PATH: {}".format(args.normal_bam_fn))
+    logging("[INFO] NORMAL VCF FILE PATH: {}".format(args.normal_vcf_fn))
     logging("[INFO] TUMOR BAM FILE PATH: {}".format(args.tumor_bam_fn))
     logging("[INFO] REFERENCE FILE PATH: {}".format(args.ref_fn))
     logging("[INFO] PLATFORM: {}".format(args.platform))
