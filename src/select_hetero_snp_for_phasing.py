@@ -115,7 +115,7 @@ def select_hetero_snp_for_phasing(args):
             continue
         pass_variant_dict[pos] = tumor_variant_dict[pos]
 
-    pro = len(pass_variant_dict) / len(tumor_qual_dict)
+    pro = len(pass_variant_dict) / max(len(tumor_qual_dict), 1.0)
     print ('[INFO] Total HET SNP calls selected: {}: {}, not found:{}, not match:{}, low_qual_count:{}. Total normal:{} Total tumor:{}, pro: {}'.format(contig_name, len(pass_variant_dict), hetero_snp_not_found_in_tumor, hetero_snp_not_match_in_tumor, low_qual_count, len(normal_qual_dict), len(tumor_qual_dict), pro))
 
     if not os.path.exists(output_folder):
