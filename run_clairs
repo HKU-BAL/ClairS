@@ -670,25 +670,29 @@ def somatic_calling(args):
 
     if args.clair3_path is not None and args.platform == 'ont' and args.phase_tumor:
 
-        echo_list.append("[INFO] Call Germline Variants in Normal BAM using Clair3")
-        clair3_normal_command = '( ' + time + args.clair3_path + '/run_clair3.sh'
-        clair3_normal_command += ' --bam_fn ' + args.normal_bam_fn
-        clair3_normal_command += ' --ref_fn ' + args.ref_fn
-        clair3_normal_command += ' --model_path ' + args.clair3_model_path
-        clair3_normal_command += ' --platform ont'
-        clair3_normal_command += ' --threads ' + str(args.threads)
-        clair3_normal_command += ' --output ' + clair3_output_path + '/clair3_normal_output'
-        clair3_normal_command += ' --ctg_name=' + args.clair3_option.ctg_name_str
-        clair3_normal_command += ' --samtools=' + args.samtools
-        clair3_normal_command += ' --pypy=' + args.pypy
-        clair3_normal_command += ' --python=' + args.python
-        clair3_normal_command += ' --min_coverage=' + args.clair3_option.min_coverage
-        clair3_normal_command += ' --snp_min_af=' + args.clair3_option.snp_min_af
-        clair3_normal_command += ' --indel_min_af=' + args.clair3_option.indel_min_af
-        if args.clair3_option.longphase_for_phasing is not None:
-            clair3_normal_command += ' --longphase_for_phasing '
-        clair3_normal_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/1_CLAIR3_NORMAL.log'
-        commands_list.append(clair3_normal_command)
+        if args.normal_vcf_fn: # if a normal vcf file is provided, skip Call Germline Variants in Normal BAM using Clair3
+            normal_vcf_fn = args.normal_vcf_fn
+        else:
+            normal_vcf_fn = clair3_output_path + '/clair3_normal_output/merge_output.vcf.gz'
+            echo_list.append("[INFO] Call Germline Variants in Normal BAM using Clair3")
+            clair3_normal_command = '( ' + time + args.clair3_path + '/run_clair3.sh'
+            clair3_normal_command += ' --bam_fn ' + args.normal_bam_fn
+            clair3_normal_command += ' --ref_fn ' + args.ref_fn
+            clair3_normal_command += ' --model_path ' + args.clair3_model_path
+            clair3_normal_command += ' --platform ont'
+            clair3_normal_command += ' --threads ' + str(args.threads)
+            clair3_normal_command += ' --output ' + clair3_output_path + '/clair3_normal_output'
+            clair3_normal_command += ' --ctg_name=' + args.clair3_option.ctg_name_str
+            clair3_normal_command += ' --samtools=' + args.samtools
+            clair3_normal_command += ' --pypy=' + args.pypy
+            clair3_normal_command += ' --python=' + args.python
+            clair3_normal_command += ' --min_coverage=' + args.clair3_option.min_coverage
+            clair3_normal_command += ' --snp_min_af=' + args.clair3_option.snp_min_af
+            clair3_normal_command += ' --indel_min_af=' + args.clair3_option.indel_min_af
+            if args.clair3_option.longphase_for_phasing is not None:
+                clair3_normal_command += ' --longphase_for_phasing '
+            clair3_normal_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/1_CLAIR3_NORMAL.log'
+            commands_list.append(clair3_normal_command)
 
         echo_list.append("[INFO] Call Germline Variant in Tumor BAM using Clair3")
         clair3_tumor_command = '( ' + time + args.clair3_path + '/run_clair3.sh'
@@ -716,7 +720,7 @@ def somatic_calling(args):
         ssp_command += ' -j ' + str(args.threads)
         ssp_command += ' ' + args.pypy + ' ' + main_entry + ' select_hetero_snp_for_phasing'
         ssp_command += ' --tumor_vcf_fn ' + clair3_output_path + '/clair3_tumor_output/merge_output.vcf.gz'
-        ssp_command += ' --normal_vcf_fn ' + clair3_output_path + '/clair3_normal_output/merge_output.vcf.gz'
+        ssp_command += ' --normal_vcf_fn ' + normal_vcf_fn
         ssp_command += ' --output_folder ' + clair3_output_path + '/vcf'
         ssp_command += ' --ctg_name {1}'
         ssp_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
@@ -1173,6 +1177,12 @@ def somatic_parser():
         help="If set, variants with >QUAL will be marked as PASS, or LowQual otherwise."
     )
 
+    optional_params.add_argument(
+        "--normal_vcf_fn",
+        type=str,
+        default=None,
+        help="Path to normal VCF file with pattern *.vcf.gz. Setting this will skip varaint calling on normal BAM file input"
+    )
     optional_params.add_argument(
         "--snv_min_af",
         type=float,
