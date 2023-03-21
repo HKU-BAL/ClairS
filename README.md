@@ -126,17 +126,21 @@ Check [Usage](#Usage) for more options.
 **Caution**: Absolute path is needed for both `INPUT_DIR` and `OUTPUT_DIR` in singularity. 
 
 ```bash
+INPUT_DIR="[YOUR_INPUT_FOLDER]"        # e.g. /home/user1/input (absolute path needed)
+OUTPUT_DIR="[YOUR_OUTPUT_FOLDER]"      # e.g. /home/user1/output (absolute path needed)
+mkdir -p ${OUTPUT_DIR}
+
 conda config --add channels defaults
 conda create -n singularity-env -c conda-forge singularity -y
 conda activate singularity-env
 
 # singularity pull docker pre-built image
-singularity pull docker://hkubal/clairs
+singularity pull docker://hkubal/clairs:latest
 
 # run the sandbox like this afterward
-singularity exec clairs.sif \
-  -v ${INPUT_DIR}:${INPUT_DIR} \
-  -v ${OUTPUT_DIR}:${OUTPUT_DIR} \
+singularity exec \
+  -B ${INPUT_DIR},${OUTPUT_DIR} \
+  clairs_latest.sif \
   hkubal/clairs:latest \
   /opt/bin/run_clairs \
   --tumor_bam_fn ${INPUT_DIR}/tumor.bam \      ## use your tumor bam file name here
@@ -144,7 +148,8 @@ singularity exec clairs.sif \
   --ref_fn ${INPUT_DIR}/ref.fa \               ## use your reference file name here
   --threads ${THREADS} \                       ## maximum threads to be used
   --platform ${PLATFORM} \                     ## options: {ont_r10, ont_r9, ilmn}
-  --output ${OUTPUT_DIR}                       ## output path prefix 
+  --output ${OUTPUT_DIR} \                     ## output path prefix
+  --conda_prefix /opt/conda/envs/clairs
 ```
 
 ### Option 3. Build an anaconda virtual environment
