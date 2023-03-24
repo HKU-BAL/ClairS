@@ -66,8 +66,8 @@ def output_best_cut_off(fp_qual_dict, tp_qual_dict, fn_count, use_int_cut_off=Tr
         tp_snv = sum([1 for k, v in tp_qual_dict.items() if v >= qual])
         fn_snv = fn_count + len(tp_qual_dict) - tp_snv
         snv_pre, snv_rec, snv_f1 = cal_metrics(tp=tp_snv, fp=fp_snv, fn=fn_snv)
-
-        results.append([qual, snv_pre, snv_rec, snv_f1, tp_snv, fp_snv, fn_snv])
+        tp_fn = tp_snv + fn_snv
+        results.append([qual, snv_pre, snv_rec, snv_f1, tp_snv, fp_snv, fn_snv, tp_fn])
 
     results = sorted(results, key=lambda x: x[3], reverse=True)
     return results
@@ -88,6 +88,7 @@ def compare_vcf(args):
     input_filter_tag = args.input_filter_tag
     truth_filter_tag = args.truth_filter_tag
     discard_fn_out_of_fp_bed = args.discard_fn_out_of_fp_bed
+    benchmark_indel = args.benchmark_indel
 
     fp_bed_tree = bed_tree_from(bed_file_path=bed_fn, contig_name=ctg_name)
     strat_bed_tree_list = []
@@ -123,7 +124,8 @@ def compare_vcf(args):
                                  keep_af=True,
                                  min_qual=args.min_qual,
                                  max_qual=args.max_qual,
-                                 discard_indel=True)
+                                 naf_filter=args.naf_filter,
+                                 discard_indel=False if benchmark_indel else True)
     input_vcf_reader.read_vcf()
     input_variant_dict = input_vcf_reader.variant_dict
 
@@ -251,6 +253,11 @@ def compare_vcf(args):
         if high_confident_only and key in low_qual_truth:
             continue
 
+        if benchmark_indel:
+            ref_base, alt_base = input_variant_dict[key].reference_bases, input_variant_dict[key].alternate_bases[0]
+            if len(ref_base) == 1 and len(alt_base) == 1:
+                del input_variant_dict[key]
+
     for key in list(truth_variant_dict.keys()):
         pos = key if args.ctg_name is not None else key[1]
         contig = args.ctg_name if args.ctg_name is not None else key[0]
@@ -327,7 +334,10 @@ def compare_vcf(args):
             fp_snv = fp_snv + 1 if is_snv else fp_snv
             fp_ins = fp_ins + 1 if is_ins else fp_ins
             fp_del = fp_del + 1 if is_del else fp_del
-            if fp_snv:
+            if is_snv:
+                fp_set.add(key)
+                fp_qual_dict[key] = qual
+            if benchmark_indel and (is_ins or is_del):
                 fp_set.add(key)
                 fp_qual_dict[key] = qual
 
@@ -351,6 +361,10 @@ def compare_vcf(args):
                 if tp_snv or is_snv_truth:
                     tp_set.add(key)
                     tp_qual_dict[key] = qual
+                if benchmark_indel and (is_ins or is_del):
+                    tp_set.add(key)
+                    tp_qual_dict[key] = qual
+
             else:
                 fp_snv = fp_snv + 1 if is_snv else fp_snv
                 fp_ins = fp_ins + 1 if is_ins else fp_ins
@@ -364,6 +378,8 @@ def compare_vcf(args):
                 fp_qual_dict[key] = qual
                 fn_set.add(key)
                 if is_snv or is_snv_truth:
+                    fp_fn_set.add(key)
+                if benchmark_indel and (is_ins_truth or is_del_truth):
                     fp_fn_set.add(key)
 
             truth_set.add(key)
@@ -403,6 +419,9 @@ def compare_vcf(args):
         if is_snv_truth:
             fn_set.add(key)
 
+        if benchmark_indel and (is_ins_truth or is_del_truth):
+            fn_set.add(key)
+
     truth_indel = truth_ins + truth_del
     query_indel = query_ins + query_del
     tp_indel = tp_ins + tp_del
@@ -415,38 +434,45 @@ def compare_vcf(args):
     print("[INFO] Total input records: {}, truth records: {}, records out of BED:{}".format(len(input_variant_dict),
                                                                                             len(truth_variant_dict),
                                                                                             pos_out_of_bed))
+    add_tp_fn = False
+    tp_fn = 'TP+FN' if add_tp_fn else ""
+    tp_fn_count = tp_snv + fn_snv if add_tp_fn else ""
+    print(''.join([item.ljust(13) for item in ["Type", 'Precision', 'Recall', "F1-score", 'TP', 'FP', 'FN', tp_fn]]),
+          file=output_file)
+    print(''.join([str(item).ljust(13) for item in ["SNV", snv_pre, snv_rec, snv_f1, tp_snv, fp_snv, fn_snv, tp_fn_count]]),
+          file=output_file)
+    if args.benchmark_indel:
+        indel_pre, indel_rec, indel_f1 = cal_metrics(tp=tp_indel, fp=fp_indel, fn=fn_indel)
+        ins_pre, ins_rec, ins_f1 = cal_metrics(tp=tp_ins, fp=fp_ins, fn=fn_ins)
+        del_pre, del_rec, del_f1 = cal_metrics(tp=tp_del, fp=fp_del, fn=fn_del)
+        print(''.join(
+            [str(item).ljust(13) for item in ["INDEL", indel_pre, indel_rec, indel_f1, tp_indel, fp_indel, fn_indel, tp_indel+fn_indel]]),
+              file=output_file)
+        print(''.join(
+            [str(item).ljust(13) for item in ["INS", ins_pre, ins_rec, ins_f1, tp_ins, fp_ins, fn_ins, tp_ins + fn_ins]]),
+              file=output_file)
+        print(''.join(
+            [str(item).ljust(13) for item in ["DEL", del_pre, del_rec, del_f1, tp_del, fp_del, fn_del, tp_del + fn_del]]),
+              file=output_file)
 
-    print(''.join([item.ljust(13) for item in ["Type", 'Precision', 'Recall', "F1-score", 'TP', 'FP', 'FN']]),
-          file=output_file)
-    print(''.join([str(item).ljust(13) for item in ["SNV", snv_pre, snv_rec, snv_f1, tp_snv, fp_snv, fn_snv]]),
-          file=output_file)
     if args.output_best_f1_score:
-        results = output_best_cut_off(fp_qual_dict, tp_qual_dict, len(fn_set), use_int_cut_off=args.use_int_cut_off)
+        results = output_best_cut_off(fp_qual_dict, tp_qual_dict, len(fn_set), use_int_cut_off=args.use_int_cut_off,
+                                      add_tp_fn=add_tp_fn)
         best_match = results[0].copy()
         best_match[0] = 'SNV(Best F1)'
         print(
             ''.join(
-                [str(item).ljust(13) if idx >= 4 or idx == 0 else ('%.4f' % item).ljust(13) for idx, item in enumerate(best_match)]),
+                [str(item).ljust(13) if idx >= 4 or idx == 0 else ('%.4f' % item).ljust(13) for idx, item in
+                 enumerate(best_match)]),
             file=output_file)
 
         if args.debug:
             print("")
             for result in results:
                 print(''.join(
-                    [str(item).ljust(13) if idx >= 4 or idx == 0 else ('%.4f' % item).ljust(13) for idx, item in enumerate(result)]),
-                      file=output_file)
-
-    if args.benchmark_indel:
-        indel_pre, indel_rec, indel_f1 = cal_metrics(tp=tp_indel, fp=fp_indel, fn=fn_indel)
-        ins_pre, ins_rec, ins_f1 = cal_metrics(tp=tp_ins, fp=fp_ins, fn=fn_ins)
-        del_pre, del_rec, del_f1 = cal_metrics(tp=tp_del, fp=fp_del, fn=fn_del)
-        print(''.join(
-            [str(item).ljust(13) for item in ["INDEL", tp_indel, fp_indel, fn_indel, indel_pre, indel_rec, indel_f1]]),
-              file=output_file)
-        print(''.join([str(item).ljust(13) for item in ["INS", tp_ins, fp_ins, fn_ins, ins_pre, ins_rec, ins_f1]]),
-              file=output_file)
-        print(''.join([str(item).ljust(13) for item in ["DEL", tp_del, fp_del, fn_del, del_pre, del_rec, del_f1]]),
-              file=output_file)
+                    [str(item).ljust(13) if idx >= 4 or idx == 0 else ('%.4f' % item).ljust(13) for idx, item in
+                     enumerate(result)]),
+                    file=output_file)
 
     if args.roc_fn:
         if args.caller is None:
@@ -667,6 +693,9 @@ def main():
                         help=SUPPRESS)
 
     parser.add_argument('--max_qual', type=float, default=None,
+                        help=SUPPRESS)
+
+    parser.add_argument('--naf_filter', type=float, default=None,
                         help=SUPPRESS)
 
     parser.add_argument('--debug', action='store_true',
