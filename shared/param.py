@@ -101,6 +101,7 @@ grad_norm_clip = 1.0
 
 use_beta_subsampling = True
 use_exp_subsampling = False
+max_indel_length = 60
 
 ## discretized Beta cumulative distribution using numpy
 beta_acc_per = [

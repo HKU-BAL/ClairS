@@ -55,7 +55,8 @@ OutputConfig = namedtuple('OutputConfig', [
     'quality_score_for_pass',
     'tensor_fn',
     'input_probabilities',
-    'pileup'
+    'pileup',
+    'enable_indel_calling'
 ])
 OutputUtilities = namedtuple('OutputUtilities', [
     'print_debug_message',
@@ -183,7 +184,7 @@ def output_vcf_from_probability(
             is_INS = True
         elif best_match_alt[0] == 'D':
             alternate_base = reference_base
-            reference_base += best_match_alt[1:]
+            reference_base += best_match_alt[2:]
 
     if is_germline and output_config.is_show_germline:
         best_match_alt, tumor_supported_reads_count, normal_supported_reads_count = rank_germline_alt(
@@ -211,8 +212,12 @@ def output_vcf_from_probability(
         return
 
     # discard Indel
-    if len(reference_base) > 1 or len(alternate_base) > 1:
+    if (len(reference_base) > 1 or len(alternate_base) > 1) and not output_config.enable_indel_calling:
         return
+
+    if output_config.enable_indel_calling:
+        if len(reference_base) == 1 and len(alternate_base) == 1:
+            return
 
     def decode_alt_info(alt_info_dict, read_depth):
         alt_type_list = [{}, {}, {}]  # SNP I D
@@ -300,7 +305,8 @@ def call_variants_from_probability(args):
         quality_score_for_pass=args.qual,
         tensor_fn=args.tensor_fn,
         input_probabilities=args.input_probabilities,
-        pileup=args.pileup
+        pileup=args.pileup,
+        enable_indel_calling=args.enable_indel_calling
     )
 
     call_fn = args.call_fn
@@ -389,6 +395,10 @@ def main():
 
     parser.add_argument('--show_germline', action='store_true',
                         help="Show germline calls in VCF file")
+
+    # options for advanced users
+    parser.add_argument('--enable_indel_calling', type=str2bool, default=0,
+                        help="EXPERIMENTAL: Call Indel variants, default: disabled")
 
     # options for debug purpose
     parser.add_argument('--predict_fn', type=str, default="PIPE",

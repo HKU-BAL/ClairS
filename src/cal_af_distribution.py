@@ -97,6 +97,14 @@ def extract_base(POS):
     columns = tumor_output.split('\t')
     tumor_base_counter, tumor_base_list = get_base_list(columns)
 
+    match_alt_base = alt_base
+    if len(ref_base) == 1 and len(alt_base) > 1:
+        match_alt_base = alt_base[0].upper() + '+' + alt_base[1:].upper()
+    if len(ref_base) > 1 and len(alt_base) == 1:
+        match_alt_base = ref_base[0].upper() + '-' + len(ref_base[1:]) * "N"
+    normal_alt_count = base_counter[match_alt_base]
+    tumor_alt_count = tumor_base_counter[match_alt_base]
+
     HAP_LIST = [0, 0, 0]
     ALL_HAP_LIST = [0, 0, 0]
     if len(columns) >= 7:
@@ -105,12 +113,13 @@ def extract_base(POS):
             if hap not in '12':
                 hap = 0
             ALL_HAP_LIST[int(hap)] += 1
-            if ''.join(b).upper() == alt_base:
+            if ''.join(b).upper() == match_alt_base:
                 HAP_LIST[int(hap)] += 1
 
     HAP_LIST = " ".join([str(i) for i in HAP_LIST])
     ALL_HAP_LIST = " ".join([str(i) for i in ALL_HAP_LIST])
-    return [ctg_name, pos, len(base_list), len(tumor_base_list), base_counter[alt_base], tumor_base_counter[alt_base],
+
+    return [ctg_name, pos, len(base_list), len(tumor_base_list), normal_alt_count, tumor_alt_count,
             HAP_LIST, ALL_HAP_LIST]
 
 

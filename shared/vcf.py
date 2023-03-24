@@ -77,8 +77,8 @@ class VcfWriter(object):
         except:
             pass
 
-    def write_header(self, ctg_name=None, ref_fn=None):
-        header = vcf_header
+    def write_header(self, ctg_name=None, ref_fn=None, header=None):
+        header = vcf_header if header is None else header
         if self.ref_fn is not None:
             reference_index_file_path = file_path_from(self.ref_fn, suffix=".fai", exit_on_not_found=True, sep='.')
             with open(reference_index_file_path, "r") as fai_fp:

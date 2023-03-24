@@ -30,7 +30,6 @@
 
 import sys
 import os
-import tables
 import numpy as np
 import logging
 import torch
@@ -362,7 +361,8 @@ def predict(args):
         quality_score_for_pass=args.qual,
         tensor_fn=args.tensor_fn,
         input_probabilities=args.input_probabilities,
-        pileup=args.pileup
+        pileup=args.pileup,
+        enable_indel_calling=args.enable_indel_calling
     )
 
     param.flankingBaseNum = param.flankingBaseNum if args.flanking is None else args.flanking
@@ -490,6 +490,7 @@ def predict(args):
             if is_finish_loaded_all_mini_batches and is_nothing_to_predict_and_output:
                 break
     else:
+        import tables
         if not os.path.exists(args.tensor_fn):
             logging.info("skip {}, not existing chunk_id".format(args.tensor_fn))
             return
@@ -573,6 +574,9 @@ def main():
     # options for advanced users
     parser.add_argument('--min_rescale_cov', type=int, default=param.min_rescale_cov,
                         help="EXPERIMENTAL: Minimum coverage after rescalling from excessively high coverage data")
+
+    parser.add_argument('--enable_indel_calling', type=str2bool, default=0,
+                        help="EXPERIMENTAL: Call Indel variants, default: disabled")
 
     # options for debug purpose
     parser.add_argument('--predict_fn', type=str, default="PIPE",
