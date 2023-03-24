@@ -550,6 +550,12 @@ def check_args(args):
         sys.exit(log_error("[ERROR] Tumor BAM index file {} or {} not found. Please run `samtools index $BAM` first.".format(args.tumor_bam_fn + '.bai',
                                                                                       args.tumor_bam_fn + '.crai')))
 
+    if args.enable_indel_calling and args.platform not in {'ont_r10', 'ont'}:
+        sys.exit(log_error("[ERROR] Indel calling only support 'ont_r10' platform"))
+
+    if args.genotyping_mode_vcf_fn is not None and args.hybrid_mode_vcf_fn is not None:
+        sys.exit(log_error("[ERROR] Please provide either --genotyping_mode_vcf_fn or --hybrid_mode_vcf_fn only"))
+
     if args.pileup_model_path is None:
         args.pileup_model_path = os.path.join(args.conda_prefix, 'bin', 'clairs_models', args.platform, 'pileup.pkl')
 
@@ -558,6 +564,21 @@ def check_args(args):
 
     args.pileup_model_path = file_path_from(file_name=args.pileup_model_path, exit_on_not_found=True, is_directory=False, allow_none=False)
     args.full_alignment_model_path = file_path_from(file_name=args.full_alignment_model_path, exit_on_not_found=True, is_directory=False, allow_none=False)
+
+    if args.enable_indel_calling:
+        if args.indel_pileup_model_path is None:
+            args.indel_pileup_model_path = os.path.join(args.conda_prefix, 'bin', 'clairs_models', args.platform, 'indel',
+                                                  'pileup.pkl')
+
+        if args.indel_full_alignment_model_path is None:
+            args.indel_full_alignment_model_path = os.path.join(args.conda_prefix, 'bin', 'clairs_models', args.platform, 'indel',
+                                                          'full_alignment.pkl')
+
+        args.indel_pileup_model_path = file_path_from(file_name=args.indel_pileup_model_path, exit_on_not_found=True,
+                                                is_directory=False, allow_none=False)
+        args.indel_full_alignment_model_path = file_path_from(file_name=args.indel_full_alignment_model_path,
+                                                        exit_on_not_found=True, is_directory=False, allow_none=False)
+
 
     if args.snv_min_af is None:
         args.snv_min_af = param.snv_min_af
@@ -668,27 +689,31 @@ def somatic_calling(args):
     except subprocess.CalledProcessError as e:
         time = ''
 
-    if args.clair3_path is not None and args.platform == 'ont' and args.phase_tumor:
+    if args.clair3_path is not None and args.platform != 'ilmn' and args.phase_tumor:
 
-        echo_list.append("[INFO] Call Germline Variants in Normal BAM using Clair3")
-        clair3_normal_command = '( ' + time + args.clair3_path + '/run_clair3.sh'
-        clair3_normal_command += ' --bam_fn ' + args.normal_bam_fn
-        clair3_normal_command += ' --ref_fn ' + args.ref_fn
-        clair3_normal_command += ' --model_path ' + args.clair3_model_path
-        clair3_normal_command += ' --platform ont'
-        clair3_normal_command += ' --threads ' + str(args.threads)
-        clair3_normal_command += ' --output ' + clair3_output_path + '/clair3_normal_output'
-        clair3_normal_command += ' --ctg_name=' + args.clair3_option.ctg_name_str
-        clair3_normal_command += ' --samtools=' + args.samtools
-        clair3_normal_command += ' --pypy=' + args.pypy
-        clair3_normal_command += ' --python=' + args.python
-        clair3_normal_command += ' --min_coverage=' + args.clair3_option.min_coverage
-        clair3_normal_command += ' --snp_min_af=' + args.clair3_option.snp_min_af
-        clair3_normal_command += ' --indel_min_af=' + args.clair3_option.indel_min_af
-        if args.clair3_option.longphase_for_phasing is not None:
-            clair3_normal_command += ' --longphase_for_phasing '
-        clair3_normal_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/1_CLAIR3_NORMAL.log'
-        commands_list.append(clair3_normal_command)
+        if args.normal_vcf_fn:
+            normal_vcf_fn = args.normal_vcf_fn
+        else:
+            normal_vcf_fn = clair3_output_path + '/clair3_normal_output/merge_output.vcf.gz'
+            echo_list.append("[INFO] Call Germline Variants in Normal BAM using Clair3")
+            clair3_normal_command = '( ' + time + args.clair3_path + '/run_clair3.sh'
+            clair3_normal_command += ' --bam_fn ' + args.normal_bam_fn
+            clair3_normal_command += ' --ref_fn ' + args.ref_fn
+            clair3_normal_command += ' --model_path ' + args.clair3_model_path
+            clair3_normal_command += ' --platform ' + args.platform
+            clair3_normal_command += ' --threads ' + str(args.threads)
+            clair3_normal_command += ' --output ' + clair3_output_path + '/clair3_normal_output'
+            clair3_normal_command += ' --ctg_name=' + args.clair3_option.ctg_name_str
+            clair3_normal_command += ' --samtools=' + args.samtools
+            clair3_normal_command += ' --pypy=' + args.pypy
+            clair3_normal_command += ' --python=' + args.python
+            clair3_normal_command += ' --min_coverage=' + args.clair3_option.min_coverage
+            clair3_normal_command += ' --snp_min_af=' + args.clair3_option.snp_min_af
+            clair3_normal_command += ' --indel_min_af=' + args.clair3_option.indel_min_af
+            if args.clair3_option.longphase_for_phasing is not None:
+                clair3_normal_command += ' --longphase_for_phasing '
+            clair3_normal_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/1_CLAIR3_NORMAL.log'
+            commands_list.append(clair3_normal_command)
 
         echo_list.append("[INFO] Call Germline Variant in Tumor BAM using Clair3")
         clair3_tumor_command = '( ' + time + args.clair3_path + '/run_clair3.sh'
@@ -716,7 +741,7 @@ def somatic_calling(args):
         ssp_command += ' -j ' + str(args.threads)
         ssp_command += ' ' + args.pypy + ' ' + main_entry + ' select_hetero_snp_for_phasing'
         ssp_command += ' --tumor_vcf_fn ' + clair3_output_path + '/clair3_tumor_output/merge_output.vcf.gz'
-        ssp_command += ' --normal_vcf_fn ' + clair3_output_path + '/clair3_normal_output/merge_output.vcf.gz'
+        ssp_command += ' --normal_vcf_fn ' + normal_vcf_fn
         ssp_command += ' --output_folder ' + clair3_output_path + '/vcf'
         ssp_command += ' --ctg_name {1}'
         ssp_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
@@ -1266,6 +1291,14 @@ def somatic_parser():
         type=str,
         default="parallel",
         help="Absolute path of parallel, parallel >= 20191122 is required."
+    )
+
+    # options for advanced users
+    optional_params.add_argument(
+        "--normal_vcf_fn",
+        type=str,
+        default=None,
+        help="EXPERIMENTAL: Path to normal VCF file with pattern *.vcf.gz. Setting this will skip varaint calling on normal BAM file input"
     )
 
     ont_params = parser.add_argument_group('ONT parameters')
