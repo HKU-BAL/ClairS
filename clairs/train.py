@@ -173,7 +173,7 @@ def train_model(args):
     ochk_prefix = args.ochk_prefix
     add_writer = args.add_writer
     smoothing = args.smoothing
-    phase_tumor = args.phase_tumor and args.platform == 'ont'
+    phase_tumor = args.phase_tumor and args.platform != 'ilmn'
 
     add_validation_dataset = args.random_validation or (args.validation_fn is not None)
     validation_fn = args.validation_fn
@@ -205,7 +205,7 @@ def train_model(args):
     else:
         model = model_path.ResNet(platform=platform).to(device)
         input = torch.ones(size=(100, param.channel_size, param.matrix_depth_dict[platform], param.no_of_positions)).to(device)
-        tensor_shape = param.ont_input_shape if platform == 'ont' else param.input_shape
+        tensor_shape = param.input_shape_dict[platform]
 
     if chkpnt_fn is not None:
         model = torch.load(chkpnt_fn)

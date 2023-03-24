@@ -34,20 +34,20 @@ ont_tensor_max_depth = 128
 ont_max_depth = ont_tensor_max_depth + center_padding_depth
 ont_normal_tumor_ratio = 0.7
 normal_pro = ont_normal_tumor_ratio / (1 + ont_normal_tumor_ratio)
-min_bq_dict = {'ont': ont_min_bq, 'ilmn': min_bq}
-min_thred_qual = {'ont': 8, 'ilmn': 2}
-best_thred_qual = {'ont': 16, 'ilmn': 4}
+min_bq_dict = {'ont': ont_min_bq, 'ilmn': min_bq, 'hifi': min_bq}
+min_thred_qual = {'ont': 8, 'ilmn': 2, 'hifi': 2}
+best_thred_qual = {'ont': 16, 'ilmn': 4, 'hifi': 4}
 ont_max_normal_depth = int(ont_tensor_max_depth * normal_pro)
 ont_max_tumor_depth = ont_tensor_max_depth - ont_max_normal_depth
 
 support_platform = {'ont', 'ilmn'}
-matrix_depth_dict = {'ont': ont_max_depth, 'ilmn': max_depth}
-normal_matrix_depth_dict = {'ont': ont_max_normal_depth, 'ilmn': max_normal_depth}
-tumor_matrix_depth_dict = {'ont': ont_max_tumor_depth, 'ilmn': max_tumor_depth}
-phase_normal = {'ont': False, 'ilmn': False}
-phase_tumor = {'ont': True, 'ilmn': False}
-qual_dict = {'ont': 0.8, 'ilmn': 0.95}
-af_dict = {'ont': 0.5, 'ilmn': None}
+matrix_depth_dict = {'ont': ont_max_depth, 'ilmn': max_depth, 'hifi': 130}
+normal_matrix_depth_dict = {'ont': ont_max_normal_depth, 'ilmn': max_normal_depth, 'hifi': 64}
+tumor_matrix_depth_dict = {'ont': ont_max_tumor_depth, 'ilmn': max_tumor_depth, 'hifi': 64}
+phase_normal = {'ont': False, 'ilmn': False, 'hifi': False}
+phase_tumor = {'ont': True, 'ilmn': False, 'hifi': True}
+qual_dict = {'ont': 0.8, 'ilmn': 0.95, 'hifi': 0.8}
+af_dict = {'ont': 0.5, 'ilmn': None, 'hifi': None}
 
 
 pileup_channel = ['A', 'C', 'G', 'T', 'I', 'I1', 'D', 'D1', '*', 'a', 'c', 'g', 't', 'i', 'i1', 'd', 'd1', '#']
@@ -66,7 +66,10 @@ flankingBaseNum = 16
 no_of_positions = 2 * flankingBaseNum + 1
 input_shape = [matrix_depth_dict['ilmn'], no_of_positions, channel_size]
 ont_input_shape = [matrix_depth_dict['ont'], no_of_positions, channel_size]
-
+hifi_input_shape = [matrix_depth_dict['hifi'], no_of_positions, channel_size]
+input_shape_dict = {'ilmn': input_shape,
+                    'ont': ont_input_shape,
+                    'hifi': hifi_input_shape}
 
 # Training hyper parameters
 use_alt_base = True

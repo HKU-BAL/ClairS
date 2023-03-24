@@ -63,7 +63,7 @@ def split_bam(args):
     samtools_execute_command = args.samtools
     samtools_threads = args.samtools_threads
     samtools_output_threads = args.samtools_output_threads
-    min_bin_coverage = args.min_bin_coverage
+    min_bin_coverage = args.min_bin_coverage if args.min_bin_coverage > 0 else 4
     cov_dir = args.cov_dir
 
     normal_coverage_log = os.path.join(cov_dir, 'raw_normal_' + ctg_name + cov_suffix)

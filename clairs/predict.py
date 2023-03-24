@@ -110,7 +110,7 @@ def tensor_generator_from(tensor_file_path, batch_size, pileup=False, min_rescal
         tumor_channel_size = param.tumor_channel_size if phase_tumor else channel_size
         tensor_shape = [param.no_of_positions, channel_size + tumor_channel_size]
     else:
-        tensor_shape = param.ont_input_shape if platform == 'ont' else param.input_shape
+        tensor_shape = param.input_shape_dict[platform]
     prod_tensor_shape = np.prod(tensor_shape)
 
     def item_from(row):

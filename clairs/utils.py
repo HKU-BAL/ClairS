@@ -80,7 +80,7 @@ def tensor_generator_from(tensor_file_path, batch_size, pileup, platform):
         fo = sys.stdin
 
     processed_tensors = 0
-    tensor_shape = param.ont_input_shape if platform == 'ont' else param.input_shape
+    tensor_shape = param.input_shape_dict[platform]
     prod_tensor_shape = np.prod(tensor_shape)
 
     def item_from(row):
@@ -416,7 +416,7 @@ def get_training_array(args,
         import shared.param as param
         float_type = 'int8'
 
-    tensor_shape = param.ont_input_shape if platform == 'ont' else param.input_shape
+    tensor_shape = param.input_shape_dict[platform]
 
     non_variant_subsample_ratio = maximum_non_variant_ratio if maximum_non_variant_ratio is not None else 1.0
 
