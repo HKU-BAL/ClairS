@@ -33,7 +33,7 @@ import subprocess
 import shlex
 import argparse
 
-from sys import stderr
+from sys import stderr, exit
 from subprocess import PIPE
 from argparse import ArgumentParser
 from collections import defaultdict
@@ -42,6 +42,13 @@ from subprocess import Popen
 major_contigs_order = ["chr" + str(a) for a in list(range(1, 23))] + [str(a) for a in
                                                                                    list(range(1, 23))]
 
+def str_none(v):
+    if v is None:
+        return None
+    if v.upper() == "NONE":
+        return None
+    if isinstance(v, str):
+        return v
 
 def str2bool(v):
     if isinstance(v, bool):
@@ -120,21 +127,31 @@ class VcfReader(object):
                                               pos=position,
                                               row_str=row_str)
 
+def switch_genotype_row(row_str):
+    columns = row_str.rstrip().split('\t')
+    if len(columns) < 10:
+        columns += ['.'] * (10 - len(columns))
+    columns[3] = columns[3][0] if len(columns[3]) > 0 else '.'  # Only keep the reference base for REF
+    columns[4] = '.'  # ALT to 0
+    columns[5] = "."  # QUAL to .
+    columns[6] = "."  # FILTER to .
+    columns[7] = "."  # INFO to .
+    columns[8] = "GT"  # keep GT tag only
+    columns[9] = './.'
+    row_str = '\t'.join(columns) + '\n'
+    return row_str
 
 def genotype_vcf(args):
-    vcf_fn = args.vcf_fn
+    genotyping_mode_vcf_fn = args.genotyping_mode_vcf_fn
+    hybrid_mode_vcf_fn = args.hybrid_mode_vcf_fn
     call_fn = args.call_fn
     output_fn = args.output_fn
     switch_genotype = args.switch_genotype
 
-    output = open(output_fn, 'w')
-    vcf_reader = VcfReader(vcf_fn=vcf_fn,
-                           ctg_name=None,
-                           keep_row_str=True,
-                           save_header=True)
+    if genotyping_mode_vcf_fn is None and hybrid_mode_vcf_fn is None:
+        exit("[ERROR] Both VCF {} and additional VCF is None, exit!".format(genotyping_mode_vcf_fn, hybrid_mode_vcf_fn))
 
-    vcf_reader.read_vcf()
-    variant_dict = vcf_reader.variant_dict
+    output = open(output_fn, 'w')
 
     rc = subprocess.run('cp {} {}.bak'.format(call_fn, call_fn), shell=True)
 
@@ -145,57 +162,101 @@ def genotype_vcf(args):
 
     somatic_vcf_reader.read_vcf()
     somatic_variant_dict = somatic_vcf_reader.variant_dict
-
-    all_contigs_list = list(set([k[0] for k in variant_dict]))
-
-    contigs_order = major_contigs_order + all_contigs_list
-
-    contigs_order_list = sorted(all_contigs_list, key=lambda x: contigs_order.index(x))
-
     output.write(somatic_vcf_reader.header)
 
+    if genotyping_mode_vcf_fn is not None:
+        vcf_reader = VcfReader(vcf_fn=genotyping_mode_vcf_fn,
+                               ctg_name=None,
+                               keep_row_str=True,
+                               save_header=True)
+
+        vcf_reader.read_vcf()
+        variant_dict = vcf_reader.variant_dict
+
+        all_contigs_list = list(set([k[0] for k in variant_dict]))
+
+        contigs_order = major_contigs_order + all_contigs_list
+
+        contigs_order_list = sorted(all_contigs_list, key=lambda x: contigs_order.index(x))
+
+        count = 0
+        contig_dict = defaultdict(list)
+        for k, v in variant_dict.items():
+            ctg, pos = k
+            if k not in somatic_variant_dict:
+                row_str = variant_dict[k].row_str
+                count += 1
+                if switch_genotype:
+                    row_str = switch_genotype_row(row_str)
+            else:
+                row_str = somatic_variant_dict[k].row_str
+
+            contig_dict[ctg].append((int(pos), row_str))
+
+        for contig in contigs_order_list:
+            row_list = [item[1] for item in sorted(contig_dict[contig], key=lambda x: x[0])]
+            output.write(''.join(row_list))
 
 
-    count = 0
-    contig_dict = defaultdict(list)
-    for k, v in variant_dict.items():
-        ctg, pos = k
-        if k not in somatic_variant_dict:
-            row_str = variant_dict[k].row_str
-            count += 1
-            if switch_genotype:
-                columns = row_str.rstrip().split('\t')
-                if len(columns) < 10:
-                    columns += ['.'] * (10 - len(columns))
-                columns[3] = columns[3][0] if len(columns[3]) > 0 else '.' # Only keep the reference base for REF
-                columns[4] = '.' # ALT to 0
-                columns[5] = "." # QUAL to .
-                columns[6] = "." # FILTER to .
-                columns[7] = "." # INFO to .
-                columns[8] = "GT" # keep GT tag only
-                columns[9] = './.'
-                row_str = '\t'.join(columns) + '\n'
-        else:
+    elif hybrid_mode_vcf_fn is not None:
+        vcf_reader = VcfReader(vcf_fn=hybrid_mode_vcf_fn,
+                               ctg_name=None,
+                               keep_row_str=True,
+                               save_header=False)
+
+        vcf_reader.read_vcf()
+        variant_dict = vcf_reader.variant_dict
+
+        all_contigs_list = list(set([k[0] for k in somatic_variant_dict] + [k[0] for k in variant_dict]))
+
+        contigs_order = major_contigs_order + all_contigs_list
+
+        contigs_order_list = sorted(all_contigs_list, key=lambda x: contigs_order.index(x))
+
+        count = 0
+        contig_dict = defaultdict(list)
+
+        #add all called rows first
+        for k,v in somatic_variant_dict.items():
+            ctg, pos = k
             row_str = somatic_variant_dict[k].row_str
+            contig_dict[ctg].append((int(pos), row_str))
 
-        contig_dict[ctg].append((int(pos), row_str))
+        #append the rows not in called records
+        for k, v in variant_dict.items():
+            ctg, pos = k
+            if k not in somatic_variant_dict:
+                row_str = variant_dict[k].row_str
+                count += 1
+                if switch_genotype:
+                    row_str = switch_genotype_row(row_str)
 
-    for contig in contigs_order_list:
-        row_list = [item[1] for item in sorted(contig_dict[contig], key=lambda x: x[0])]
-        output.write(''.join(row_list))
+                contig_dict[ctg].append((int(pos), row_str))
+
+        for contig in contigs_order_list:
+            row_list = [item[1] for item in sorted(contig_dict[contig], key=lambda x: x[0])]
+            output.write(''.join(row_list))
 
     output.close()
 
-    print("[INFO] Total variants for genotyping: {}, total somatic variant calls: {}, added {} variants into output VCF"\
-          .format(len(variant_dict), len(somatic_variant_dict), count))
+    if genotyping_mode_vcf_fn is not None:
+        print("[INFO] Total variants for genotyping: {}, total somatic variant calls: {}, added {} variants into output VCF"\
+              .format(len(variant_dict), len(somatic_variant_dict), count))
+    elif hybrid_mode_vcf_fn is not None:
+        print("[INFO] Total additional variants for genotyping: {}, total somatic variant calls: {}, added {} variants into output VCF"\
+              .format(len(variant_dict), len(somatic_variant_dict), count))
+
     compress_index_vcf(output_fn)
 
 
 def main():
     parser = ArgumentParser(description="Genotype VCF in postprocessing")
 
-    parser.add_argument('--vcf_fn', type=str, default=None,
+    parser.add_argument('--genotyping_mode_vcf_fn', type=str_none, default=None,
                         help="Candidate sites VCF file input for genotyping")
+
+    parser.add_argument('--hybrid_mode_vcf_fn', type=str_none, default=None,
+                        help="Variants that passed the threshold and additional VCF candidates will both be subjected to variant calling")
 
     parser.add_argument('--call_fn', type=str, default=None,
                         help="Somatic VCF input")
