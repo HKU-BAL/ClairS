@@ -139,11 +139,13 @@ def get_ref_candidates(fn, contig_name=None, bed_tree=None, variant_info=None):
     return ref_cans_dict
 
 
-def find_most_frequent_candidate(alt_info_dict, ref_base):
+def find_most_frequent_candidate(args, alt_info_dict, ref_base):
     alt_list = sorted(list([k, v] for k, v in alt_info_dict.items() if k != ref_base), key=lambda x: x[1], reverse=True)
 
     for alt_base, af in alt_list:
-        if alt_base == ref_base or len(alt_base) > 1:
+        if alt_base == ref_base:
+            continue
+        if not args.select_indel_candidates and len(alt_base) > 1:
             continue
         return alt_base, af
 
@@ -174,7 +176,7 @@ def find_candidate_match(alt_info_dict, ref_base, alt_base):
     return None, "", None
 
 
-def filter_germline_candidates(truths, variant_info, alt_dict, paired_alt_dict, gen_vcf, INFO, platform='ont'):
+def filter_germline_candidates(args, truths, variant_info, alt_dict, paired_alt_dict, gen_vcf, INFO, platform='ont'):
     # alt_dict: tumor
     # pair alt_dict: normal
     filtered_truths = []
@@ -183,6 +185,7 @@ def filter_germline_candidates(truths, variant_info, alt_dict, paired_alt_dict, 
     germline_filtered_by_af_distance = 0
     germline_af_gap = 0.1 if platform == 'ont' else 0.1
     min_germline_af = 0.1 if platform == 'ont' else None
+    select_indel_candidates = args.select_indel_candidates
     for pos, variant_type in truths:
         if pos not in alt_dict:
             truth_not_pass_af += 1
@@ -194,6 +197,10 @@ def filter_germline_candidates(truths, variant_info, alt_dict, paired_alt_dict, 
         # discard the germline variants, if normal and tumor have large distinct
         if pos in paired_alt_dict:
             ref_base, alt_base = variant_info[pos]
+            if select_indel_candidates:
+                if len(ref_base) == 1 and len(alt_base) == 1:
+                    continue
+
             pair_af, vt, max_af = find_candidate_match(alt_info_dict=paired_alt_dict[pos].alt_dict, ref_base=ref_base,
                                                        alt_base=alt_base)
             paired_alt_dict[pos].max_candidate_af = max_af
@@ -224,7 +231,7 @@ def filter_germline_candidates(truths, variant_info, alt_dict, paired_alt_dict, 
     return filtered_truths, low_confident_germline_truths
 
 
-def filter_reference_candidates(truths, alt_dict, paired_alt_dict, gen_vcf, INFO):
+def filter_reference_candidates(args, truths, alt_dict, paired_alt_dict, gen_vcf, INFO):
     # we filter the reference candidates that have small gap between normal and tumor pair
     filtered_truths = []
     low_confident_reference_candidates = []
@@ -239,7 +246,8 @@ def filter_reference_candidates(truths, alt_dict, paired_alt_dict, gen_vcf, INFO
 
         tumor_af, pair_af = None, None
         ref_base = alt_dict[pos].ref_base
-        most_frequent_alt_base, tumor_af = find_most_frequent_candidate(alt_info_dict=alt_dict[pos].alt_dict,
+        most_frequent_alt_base, tumor_af = find_most_frequent_candidate(args=args,
+                                                                        alt_info_dict=alt_dict[pos].alt_dict,
                                                                         ref_base=ref_base)
 
         if most_frequent_alt_base is None or tumor_af is None:
@@ -272,7 +280,7 @@ def filter_reference_candidates(truths, alt_dict, paired_alt_dict, gen_vcf, INFO
     return filtered_truths, low_confident_reference_candidates
 
 
-def filter_somatic_candidates(truths, variant_info, alt_dict, paired_alt_dict, gen_vcf=False, INFO="Homo"):
+def filter_somatic_candidates(args, truths, variant_info, alt_dict, paired_alt_dict, gen_vcf=False, INFO="Homo"):
     filtered_truths = []
     truth_not_pass_af = 0
     truth_filter_in_normal = 0
@@ -299,6 +307,10 @@ def filter_somatic_candidates(truths, variant_info, alt_dict, paired_alt_dict, g
 
         if pos in paired_alt_dict:
             ref_base, alt_base = variant_info[pos]
+            if args.select_indel_candidates:
+                if len(ref_base) == 1 and len(alt_base) == 1:
+                    continue
+
             # very high af with same alt_base in normal is not suitable as candidate for training
             normal_af, vt, max_af = find_candidate_match(alt_info_dict=alt_dict[pos].alt_dict, ref_base=ref_base,
                                                          alt_base=alt_base)
@@ -405,7 +417,8 @@ def get_candidates(args):
         ref_list += random.sample(normal_ref_cans_list, int(len(normal_ref_cans_list) * sample_normal_af))
 
     references = [(item, 'ref') for item in ref_list]
-    homo_germline, homo_low_confident_germline_truths = filter_germline_candidates(truths=homo_germline,
+    homo_germline, homo_low_confident_germline_truths = filter_germline_candidates(args=args,
+                                                                                   truths=homo_germline,
                                                                                    variant_info=tumor_variant_info,
                                                                                    alt_dict=tumor_alt_dict,
                                                                                    paired_alt_dict=normal_alt_dict,
@@ -413,7 +426,8 @@ def get_candidates(args):
                                                                                    INFO="Homo",
                                                                                    platform=platform)
     # need add hetero, otherwise, in real case, the performance of hetero variants are too bad
-    hetero_germline, hetero_low_confident_germline_truths = filter_germline_candidates(truths=hetero_germline,
+    hetero_germline, hetero_low_confident_germline_truths = filter_germline_candidates(args=args,
+                                                                                       truths=hetero_germline,
                                                                                        variant_info=tumor_variant_info,
                                                                                        alt_dict=tumor_alt_dict,
                                                                                        paired_alt_dict=normal_alt_dict,
@@ -428,7 +442,8 @@ def get_candidates(args):
         homo_germline = []
         hetero_germline = []
 
-    references, low_confident_reference_candidates = filter_reference_candidates(truths=references,
+    references, low_confident_reference_candidates = filter_reference_candidates(args=args,
+                                                                                 truths=references,
                                                                                  alt_dict=tumor_alt_dict,
                                                                                  paired_alt_dict=normal_alt_dict,
                                                                                  gen_vcf=gen_vcf,
@@ -451,13 +466,15 @@ def get_candidates(args):
     # skip hetero variant here
     hetero_somatic = [(item, 'hetero_somatic') for item in hetero_somatic_set] if add_hetero_pos else []
 
-    homo_somatic, homo_low_confident_truths = filter_somatic_candidates(truths=homo_somatic,
+    homo_somatic, homo_low_confident_truths = filter_somatic_candidates(args=args,
+                                                                        truths=homo_somatic,
                                                                         variant_info=tumor_variant_info,
                                                                         alt_dict=tumor_alt_dict,
                                                                         paired_alt_dict=normal_alt_dict,
                                                                         gen_vcf=gen_vcf)
 
-    hetero_somatic, hetero_low_confident_truths = filter_somatic_candidates(truths=hetero_somatic,
+    hetero_somatic, hetero_low_confident_truths = filter_somatic_candidates(args=args,
+                                                                            truths=hetero_somatic,
                                                                             variant_info=tumor_variant_info,
                                                                             alt_dict=tumor_alt_dict,
                                                                             paired_alt_dict=normal_alt_dict,
@@ -605,6 +622,9 @@ def main():
 
     parser.add_argument('--output_dir', type=str, default="",
                         help="Output directory")
+
+    parser.add_argument('--select_indel_candidates', type=str2bool, default=0,
+                        help="Get Indel candidates instead of SNV candidates")
 
     # options for debug purpose
     parser.add_argument('--sample_normal_af', type=float, default=None,
