@@ -29,6 +29,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import subprocess
+import os
 from math import log, e
 from argparse import ArgumentParser, SUPPRESS
 from collections import defaultdict
@@ -183,6 +184,15 @@ def merge_vcf(args):
     if compress_vcf:
         compress_index_vcf(args.output_fn)
 
+    if args.enable_indel_calling and not args.indel_calling:
+        output_fn = args.output_fn + '.gz' if compress_vcf else args.output_fn
+        output_dir = os.path.dirname(output_fn)
+        file_name = output_fn.split('/')[-1]
+        if compress_vcf:
+            subprocess.run("cd {} && ln -sf {} snv.vcf.gz".format(output_dir, file_name), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            subprocess.run("cd {} && ln -sf {}.tbi snv.vcf.gz.tbi".format(output_dir, file_name), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        else:
+            subprocess.run("cd {} && ln -sf {} snv.vcf.vcf".format(output_dir, file_name), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 def main():
     parser = ArgumentParser(description="Merge full-alignment with pileup VCF")
@@ -215,6 +225,9 @@ def main():
     parser.add_argument('--use_phred_qual', type=str2bool, default=True,
                         help="EXPERIMENTAL: Use Phred quality score instead of probability")
 
+    parser.add_argument('--enable_indel_calling', type=str2bool, default=False,
+                        help="EXPERIMENTAL: Enable Indel calling, make the snv output vcf file soft link")
+
     parser.add_argument('--af', type=float, default=None,
                         help=SUPPRESS)
 
@@ -222,6 +235,9 @@ def main():
                         help=SUPPRESS)
 
     parser.add_argument('--bed_format', action='store_true',
+                        help=SUPPRESS)
+
+    parser.add_argument('--indel_calling', action='store_true',
                         help=SUPPRESS)
 
     args = parser.parse_args()

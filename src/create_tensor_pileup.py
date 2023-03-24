@@ -295,7 +295,7 @@ def create_tensor(args):
     vcf_fn = args.vcf_fn
     is_known_vcf_file_provided = vcf_fn is not None
     tensor_sample_mode = args.tensor_sample_mode
-    phasing_info_in_bam = args.phase_tumor and tensor_sample_mode and args.platform == 'ont'
+    phasing_info_in_bam = args.phase_tumor and tensor_sample_mode and args.platform != 'ilmn'
     global test_pos
     test_pos = None
     candidates_pos_set = set()
@@ -440,7 +440,7 @@ def create_tensor(args):
     pileup_info_dict = defaultdict()
     candidate_pos_list = sorted(list(candidates_pos_set))
     has_pileup_candidates = len(candidates_pos_set)
-    use_alt_base = False if platform == 'ont' else param.use_alt_base
+    use_alt_base = False if platform != 'ilmn' else param.use_alt_base
     hap_dict = defaultdict(int)
 
     def samtools_pileup_generator_from(samtools_mpileup_process):

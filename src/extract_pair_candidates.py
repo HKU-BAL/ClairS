@@ -45,9 +45,17 @@ from shared.interval_tree import bed_tree_from, is_region_in
 
 logging.basicConfig(format='%(message)s', level=logging.INFO)
 
-def decode_pileup_bases(pileup_bases, reference_base, min_coverage, minimum_snv_af_for_candidate,
-                        minimum_indel_af_for_candidate, alternative_base_num, has_pileup_candidates, read_name_list,
-                        is_tumor, platform="ont"):
+def decode_pileup_bases(pileup_bases,
+                        reference_base,
+                        min_coverage,
+                        minimum_snv_af_for_candidate,
+                        minimum_indel_af_for_candidate,
+                        alternative_base_num,
+                        has_pileup_candidates,
+                        read_name_list,
+                        is_tumor,
+                        select_indel_candidates=False,
+                        platform="ont"):
     """
     Decode mpileup input string.
     pileup_bases: pileup base string for each position, include all mapping information.
@@ -98,10 +106,15 @@ def decode_pileup_bases(pileup_bases, reference_base, min_coverage, minimum_snv_
         elif key[0] in "#*":
             depth += count
         if len(key) > 1 and key[1] == '+':
-            pileup_dict['I'] += count
+            if select_indel_candidates:
+                pileup_dict['I' + key[0].upper() + key[2:].upper()] += count
+            else:
+                pileup_dict['I'] += count
         elif len(key) > 1 and key[1] == '-':
-            pileup_dict['D'] += count
-
+            if select_indel_candidates:
+                pileup_dict['D' + len(key[2:]) * "N"] += count
+            else:
+                pileup_dict['D'] += count
     denominator = depth if depth > 0 else 1
     pileup_list = sorted(list(pileup_dict.items()), key=lambda x: x[1], reverse=True)
 
@@ -113,7 +126,9 @@ def decode_pileup_bases(pileup_bases, reference_base, min_coverage, minimum_snv_
         if item == reference_base:
             continue
         elif item[0] in 'ID':
-            pass_indel_af = (pass_indel_af or (float(count) / denominator >= minimum_indel_af_for_candidate))
+            if select_indel_candidates:
+                pass_indel_af = (pass_indel_af or (float(count) / denominator >= minimum_indel_af_for_candidate and (
+                        alternative_base_num is not None and count >= alternative_base_num)))
             continue
         pass_snv_af = pass_snv_af or (float(count) / denominator >= minimum_snv_af_for_candidate) and (
                     alternative_base_num is not None and count >= alternative_base_num)
@@ -130,7 +145,7 @@ def decode_pileup_bases(pileup_bases, reference_base, min_coverage, minimum_snv_
                 item[0].upper() != reference_base]
 
     if not pass_af:
-        return base_list, depth, pass_af, af, "", "", "", alt_list
+        return base_list, depth, pass_af, af, "", "", "", alt_list, pass_snv_af, pass_indel_af
 
     pileup_list = [[item[0], str(round(item[1] / denominator, 3))] for item in pileup_list]
     af_infos = ','.join([item[1] for item in pileup_list if item[0] != reference_base])
@@ -144,7 +159,7 @@ def decode_pileup_bases(pileup_bases, reference_base, min_coverage, minimum_snv_
     else:
         tumor_pileup_infos = ""
 
-    return base_list, depth, pass_af, af, af_infos, pileup_infos, tumor_pileup_infos, alt_list
+    return base_list, depth, pass_af, af, af_infos, pileup_infos, tumor_pileup_infos, alt_list, pass_snv_af, pass_indel_af
 
 
 def extract_pair_candidates(args):
@@ -180,6 +195,7 @@ def extract_pair_candidates(args):
     genotyping_mode = vcf_fn is not None
     truth_vcf_fn = args.truth_vcf_fn
     is_truth_vcf_provided = truth_vcf_fn is not None
+    select_indel_candidates = args.select_indel_candidates
 
     truths_variant_dict = {}
     if is_truth_vcf_provided:
@@ -190,6 +206,7 @@ def extract_pair_candidates(args):
     candidates_pos_set = set()
     add_read_regions = True
 
+    #deprecated
     if genotyping_mode:
         vcf_reader = VcfReader(vcf_fn=vcf_fn, ctg_name=ctg_name, is_var_format=False)
         vcf_reader.read_vcf()
@@ -282,7 +299,6 @@ def extract_pair_candidates(args):
     bed_option = ' -l {}'.format(
         confident_bed_fn) if is_confident_bed_file_given else ""
     flags_option = ' --excl-flags {} '.format(param.SAMTOOLS_VIEW_FILTER_FLAG)
-    # add max-depth cut-off? TODO
     max_depth_option = ' --max-depth {} '.format(args.max_depth) if args.max_depth is not None else " "
     reads_regions_option = ' -r {}'.format(" ".join(reads_regions)) if add_read_regions else ""
     # print (add_read_regions, ctg_start, ctg_end, reference_start)
@@ -301,6 +317,9 @@ def extract_pair_candidates(args):
     is_tumor = alt_fn.split('/')[-2].startswith('tumor') if alt_fn else False
     has_pileup_candidates = len(candidates_pos_set)
     candidates_list = []
+    indel_candidates_list = []
+    snv_candidates_set = set()
+    indel_candidates_set = set()
 
     candidates_dict = defaultdict(str)
     for row in samtools_mpileup_process.stdout:  # chr position N depth seq BQ read_name mapping_quality phasing_info
@@ -315,7 +334,7 @@ def extract_pair_candidates(args):
         is_truth_candidate = pos in truths_variant_dict
         minimum_snv_af_for_candidate = minimum_snv_af_for_truth if is_truth_candidate and minimum_snv_af_for_truth else minimum_snv_af_for_candidate
         minimum_indel_af_for_candidate = minimum_indel_af_for_truth if is_truth_candidate and minimum_indel_af_for_truth else minimum_indel_af_for_candidate
-        base_list, depth, pass_af, af, af_infos, pileup_infos, tumor_pileup_infos, alt_list = decode_pileup_bases(
+        base_list, depth, pass_af, af, af_infos, pileup_infos, tumor_pileup_infos, alt_list, pass_snv_af, pass_indel_af = decode_pileup_bases(
             pileup_bases=pileup_bases,
             reference_base=reference_base,
             min_coverage=min_coverage,
@@ -324,7 +343,8 @@ def extract_pair_candidates(args):
             alternative_base_num=alternative_base_num,
             has_pileup_candidates=has_pileup_candidates,
             read_name_list=read_name_list,
-            is_tumor=is_tumor
+            is_tumor=is_tumor,
+            select_indel_candidates=select_indel_candidates
         )
 
         if pass_af and alt_fn:
@@ -335,6 +355,10 @@ def extract_pair_candidates(args):
         if pass_af:
             candidates_list.append(pos)
             candidates_dict[pos] = (alt_list, depth)
+            if pass_snv_af:
+                snv_candidates_set.add(pos)
+            if select_indel_candidates and pass_indel_af:
+                indel_candidates_set.add(pos)
 
     # scan the normal_bam
     bed_path = os.path.join(candidates_folder, "bed", '{}_{}.bed'.format(ctg_name, chunk_id))
@@ -365,7 +389,7 @@ def extract_pair_candidates(args):
         is_truth_candidate = pos in truths_variant_dict
         minimum_snv_af_for_candidate = minimum_snv_af_for_truth if is_truth_candidate and minimum_snv_af_for_truth else minimum_snv_af_for_candidate
         minimum_indel_af_for_candidate = minimum_indel_af_for_truth if is_truth_candidate and minimum_indel_af_for_truth else minimum_indel_af_for_candidate
-        base_list, depth, pass_af, af, af_infos, pileup_infos, normal_pileup_infos, normal_alt_list = decode_pileup_bases(
+        base_list, depth, pass_af, af, af_infos, pileup_infos, normal_pileup_infos, normal_alt_list, pass_snv_af, pass_indel_af = decode_pileup_bases(
             pileup_bases=pileup_bases,
             reference_base=reference_base,
             min_coverage=min_coverage,
@@ -378,28 +402,48 @@ def extract_pair_candidates(args):
         )
 
         tumor_alt_list, tumor_depth = candidates_dict[pos]
-        tumor_info = [item for item in tumor_alt_list if item[0] in "ACGT"]
-        if len(tumor_info) == 0:
-            candidates_set.remove(pos)
-            continue
-        alt_base, tumor_af = tumor_info[0]
-        normal_info = [item for item in normal_alt_list if item[0] == alt_base]
-        tumor_af = float(tumor_af)
-        if depth <= min_coverage:
-            continue
-        if len(normal_info) == 0:
-            continue
-        normal_af = float(normal_info[0][1])
-        if normal_af > 0 and tumor_af > 0:
-            if normal_af >= normal_snv_max_af:
-                if not (tumor_af >= normal_af * 6):
-                    candidates_set.remove(pos)
-                    high_normal_af_set.add(pos)
-            elif tumor_af <= normal_af * 4 and tumor_af != 0:
-                candidates_set.remove(pos)
-                high_af_gap_set.add(pos)
+        if pos in snv_candidates_set:
+            tumor_info = [item for item in tumor_alt_list if item[0] in "ACGT"]
+            if len(tumor_info) == 0:
+                snv_candidates_set.remove(pos)
+            elif len(tumor_info) > 0:
+                alt_base, tumor_af = tumor_info[0]
+                normal_info = [item for item in normal_alt_list if item[0] == alt_base]
+                tumor_af = float(tumor_af)
+                if len(normal_info) > 0 and depth > min_coverage:
+                    normal_af = float(normal_info[0][1])
+                    if normal_af > 0 and tumor_af > 0:
+                        if normal_af >= normal_snv_max_af:
+                            if not (tumor_af >= normal_af * 6):
+                                snv_candidates_set.remove(pos)
+                                high_normal_af_set.add(pos)
+                        elif tumor_af <= normal_af * 4 and tumor_af != 0:
+                            snv_candidates_set.remove(pos)
+                            high_af_gap_set.add(pos)
 
-    candidates_list = [pos for pos in candidates_list if pos in candidates_set]
+        #indel candidate check
+        if select_indel_candidates and pos in indel_candidates_set:
+            tumor_info = [item for item in tumor_alt_list if '+' in item[0] or '-' in item[0]]
+            if len(tumor_info) == 0:
+                indel_candidates_set.remove(pos)
+            elif len(tumor_info) > 0:
+                alt_base, tumor_af = tumor_info[0]
+                normal_info = [item for item in normal_alt_list if item[0] == alt_base]
+                tumor_af = float(tumor_af)
+                if len(normal_info) > 0 and depth > min_coverage:
+                    normal_af = float(normal_info[0][1])
+                    if normal_af > 0 and tumor_af > 0:
+                        if normal_af >= normal_snv_max_af:
+                            if not (tumor_af >= normal_af * 6):
+                                indel_candidates_set.remove(pos)
+                                high_normal_af_set.add(pos)
+                        elif tumor_af <= normal_af * 4 and tumor_af != 0:
+                            indel_candidates_set.remove(pos)
+                            high_af_gap_set.add(pos)
+
+    snv_candidates_list = [pos for pos in candidates_list if pos in snv_candidates_set]
+    if select_indel_candidates:
+        indel_candidates_list = [pos for pos in candidates_list if pos in indel_candidates_set]
 
     gen_vcf = False
     if gen_vcf:
@@ -411,7 +455,7 @@ def extract_pair_candidates(args):
 
         vcf_writer = VcfWriter(vcf_fn=os.path.join(candidates_folder, "{}_{}.vcf".format(ctg_name, chunk_id)),
                                ref_fn=fasta_file_path, ctg_name=ctg_name, show_ref_calls=True)
-        for pos in candidates_list:
+        for pos in snv_candidates_list:
             genotype = '1/1'
             ref_base, alt_base = "A", "A"
             if pos in truth_variant_dict:
@@ -435,16 +479,25 @@ def extract_pair_candidates(args):
                                  AF=float(tumor_af))
         vcf_writer.close()
 
-    print("[INFO] {} chunk {}/{}: Total candidates found: {}".format(ctg_name, chunk_id, chunk_num, len(candidates_list)))
-
-    if candidates_folder is not None and len(candidates_list):
+    if select_indel_candidates:
+        print("[INFO] {} chunk {}/{}: Total snv candidates found: {}, total indel candidates found: {}".format(ctg_name, \
+                                                                                                               chunk_id,
+                                                                                                               chunk_num,
+                                                                                                               len(snv_candidates_list),
+                                                                                                               len(indel_candidates_list)))
+    else:
+        print("[INFO] {} chunk {}/{}: Total candidates found: {}".format(ctg_name,
+                                                                         chunk_id,
+                                                                         chunk_num,
+                                                                         len(snv_candidates_list)))
+    if candidates_folder is not None and len(snv_candidates_list):
         all_candidates_regions = []
-        region_num = len(candidates_list) // split_bed_size + 1 if len(
-            candidates_list) % split_bed_size else len(candidates_list) // split_bed_size
+        region_num = len(snv_candidates_list) // split_bed_size + 1 if len(
+            snv_candidates_list) % split_bed_size else len(snv_candidates_list) // split_bed_size
 
         for idx in range(region_num):
             # a windows region for create tensor # samtools mpileup not include last position
-            split_output = candidates_list[idx * split_bed_size: (idx + 1) * split_bed_size]
+            split_output = snv_candidates_list[idx * split_bed_size: (idx + 1) * split_bed_size]
             output_path = os.path.join(candidates_folder, '{}.{}_{}_{}'.format(ctg_name, chunk_id, idx, region_num))
             all_candidates_regions.append(output_path)
             with open(output_path, 'w') as output_file:
@@ -454,6 +507,26 @@ def extract_pair_candidates(args):
 
         all_candidates_regions_path = os.path.join(candidates_folder,
                                                    'CANDIDATES_FILE_{}_{}'.format(ctg_name, chunk_id))
+        with open(all_candidates_regions_path, 'w') as output_file:
+            output_file.write('\n'.join(all_candidates_regions) + '\n')
+
+    if select_indel_candidates and candidates_folder is not None and len(indel_candidates_list):
+        all_candidates_regions = []
+        region_num = len(indel_candidates_list) // split_bed_size + 1 if len(
+            indel_candidates_list) % split_bed_size else len(indel_candidates_list) // split_bed_size
+
+        for idx in range(region_num):
+            # a windows region for create tensor # samtools mpileup not include last position
+            split_output = indel_candidates_list[idx * split_bed_size: (idx + 1) * split_bed_size]
+            output_path = os.path.join(candidates_folder, '{}.{}_{}_{}_indel'.format(ctg_name, chunk_id, idx, region_num))
+            all_candidates_regions.append(output_path)
+            with open(output_path, 'w') as output_file:
+                output_file.write('\n'.join(
+                    ['\t'.join([ctg_name, str(x - flankingBaseNum - 1), str(x + flankingBaseNum + 1)]) for x in
+                     split_output]) + '\n')  # bed format
+
+        all_candidates_regions_path = os.path.join(candidates_folder,
+                                                   'INDEL_CANDIDATES_FILE_{}_{}'.format(ctg_name, chunk_id))
         with open(all_candidates_regions_path, 'w') as output_file:
             output_file.write('\n'.join(all_candidates_regions) + '\n')
 
@@ -521,6 +594,9 @@ def main():
 
     parser.add_argument('--alternative_base_num', type=int, default=param.alternative_base_num,
                         help="EXPERIMENTAL: Minimum alternative base number to process a candidate. default: %(default)s")
+
+    parser.add_argument('--select_indel_candidates', type=str2bool, default=0,
+                        help="EXPERIMENTAL: Get Indel candidates instead of SNV candidates")
 
     # options for debug purpose
     parser.add_argument('--output_depth', type=str2bool, default=False,

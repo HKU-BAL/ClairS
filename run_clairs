@@ -588,7 +588,10 @@ def check_args(args):
     if args.snv_min_af is None:
         args.snv_min_af = param.snv_min_af
     if args.indel_min_af is None:
-        args.indel_min_af = 1.0
+        if args.enable_indel_calling:
+            args.indel_min_af = 0.05
+        else:
+            args.indel_min_af = 1.0
     if args.min_coverage is None:
         args.min_coverage = param.min_coverage
     if args.chunk_size is None:
@@ -664,7 +667,14 @@ def print_args(args):
     logging("[INFO] PARALLEL BINARY PATH: {}".format(args.parallel))
     logging("[INFO] CHUNK SIZE: {}".format(args.chunk_size))
     logging("[INFO] SNV MINIMUM AF: {}".format(args.snv_min_af))
+    if args.enable_indel_calling:
+        logging("[INFO] INDEL MINIMUM AF: {}".format(args.indel_min_af))
+        logging("[INFO] INDEL PILEUP MODEL PATH: {}".format(args.indel_pileup_model_path))
+        logging("[INFO] INDEL FULL-ALIGNMENT MODEL PATH: {}".format(args.indel_full_alignment_model_path))
+    logging("[INFO] NORMAL VCF FILE PATH: {}".format(args.normal_vcf_fn))
+    logging("[INFO] DISABLE PHASING: {}".format(args.disable_phasing))
     logging("[INFO] ENABLE DRY RUN: {}".format(args.dry_run))
+    logging("[INFO] ENABLE INDEL CALLING: {}".format(args.enable_indel_calling))
     logging("[INFO] ENABLE PRINTING REFERENCE CALLS: {}".format(args.print_ref_calls))
     logging("[INFO] ENABLE PRINTING GERMLINE CALLS: {}".format(args.print_germline_calls))
     logging("[INFO] ENABLE INCLUDING ALL CTGS FOR CALLING: {}".format(args.include_all_ctgs))
@@ -896,6 +906,7 @@ def somatic_calling(args):
     ec_command += ' --bed_fn ' + os.path.join(args.output_dir, 'tmp', 'split_beds', '{1}')
     ec_command += ' --candidates_folder ' + args.output_dir + '/tmp/candidates'
     ec_command += ' --output_depth True '
+    ec_command += ' --select_indel_candidates ' + str(args.enable_indel_calling)
     ec_command += ' :::: ' + os.path.join(args.output_dir, 'tmp', 'CHUNK_LIST')
     ec_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/1_EC.log'
     ec_command += ' && cat {}/tmp/candidates/CANDIDATES_FILE_* > {}/tmp/candidates/CANDIDATES_FILES '.format(args.output_dir, args.output_dir)
@@ -1044,6 +1055,7 @@ def somatic_calling(args):
     sort_vcf_command += ' --platform ' + args.platform
     sort_vcf_command += ' --qual ' + str(args.qual)
     sort_vcf_command += ' --sample_name ' + str(args.sample_name)
+    sort_vcf_command += ' --enable_indel_calling ' + str(args.enable_indel_calling)
     sort_vcf_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/5_MV.log'
     commands_list += [sort_vcf_command]
 
@@ -1057,6 +1069,125 @@ def somatic_calling(args):
         genotyping_command += ' 2>&1 | tee ' + args.output_dir + '/logs/6_GT.log'
         commands_list += [genotyping_command]
 
+    if args.enable_indel_calling:
+        ##STEP 2: CREATE PAIR TENSOR
+        echo_list.append("[INFO] STEP 6: Indel Pileup Model Calling\n")
+        echo_list[-1] += ("[INFO] Create Paired Tensors")
+        indel_cpt_command = 'cat {}/tmp/candidates/INDEL_CANDIDATES_FILE_* > {}/tmp/candidates/INDEL_CANDIDATES_FILES'.format(args.output_dir, args.output_dir)
+        indel_cpt_command += ' && ( ' + time + args.parallel
+        indel_cpt_command += ' --joblog ' + args.output_dir + '/logs/parallel_6-1_create_pair_tensor_indel.log'
+        indel_cpt_command += ' -j ' + str(args.threads)
+        indel_cpt_command += ' ' + args.pypy + ' ' + main_entry + ' create_pair_tensor_pileup'
+        indel_cpt_command += ' --normal_bam_fn ' + args.normal_bam_fn
+        indel_cpt_command += ' --tumor_bam_fn ' + args.tumor_bam_fn
+        indel_cpt_command += ' --ref_fn ' + args.ref_fn
+        indel_cpt_command += ' --ctg_name {1/.}'
+        indel_cpt_command += ' --samtools ' + args.samtools
+        indel_cpt_command += ' --candidates_bed_regions {1}'
+        indel_cpt_command += ' --tensor_can_fn ' + args.output_dir + '/tmp/pileup_tensor_can/indel_{1/} '
+        indel_cpt_command += ' --platform ' + args.platform
+        indel_cpt_command += ' :::: ' + args.output_dir + '/tmp/candidates/INDEL_CANDIDATES_FILES'
+        indel_cpt_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/6-1_CPTI.log'
+        commands_list += [indel_cpt_command]
+
+        ## INDEL PREDICT
+        echo_list.append("[INFO] Indel Pileup Model Prediction")
+        indel_p_predict_command = '( ' + time + args.parallel
+        indel_p_predict_command += ' --joblog ' + args.output_dir + '/logs/parallel_6-2_predict_indel.log'
+        indel_p_predict_command += ' -j ' + str(args.threads)
+        indel_p_predict_command += ' ' + args.python + ' ' + main_entry + ' predict'
+        indel_p_predict_command += ' --tensor_fn ' + args.output_dir + '/tmp/pileup_tensor_can/indel_{1/} '
+        indel_p_predict_command += ' --call_fn ' + args.output_dir + '/tmp/vcf_output/indel_p_{1/}.vcf'
+        indel_p_predict_command += ' --chkpnt_fn ' + args.pileup_model_path
+        indel_p_predict_command += ' --use_gpu ' + str(args.use_gpu)
+        indel_p_predict_command += ' --platform ' + args.platform
+        indel_p_predict_command += ' --ctg_name {1/.}'
+        indel_p_predict_command += ' --pileup '
+        indel_p_predict_command += ' --show_ref ' if args.print_ref_calls else ""
+        indel_p_predict_command += ' --show_germline ' if args.print_germline_calls else ""
+        indel_p_predict_command += ' :::: ' + args.output_dir + '/tmp/candidates/INDEL_CANDIDATES_FILES'
+        indel_p_predict_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/6-2_PREDICT_INDEL.log'
+        commands_list += [indel_p_predict_command]
+
+        # MERGE INDEL VCF
+        echo_list.append("[INFO] Merge Pileup VCFs")
+        indel_p_mv_command = args.pypy + ' ' + main_entry + ' sort_vcf'
+        indel_p_mv_command += ' --ref_fn ' + args.ref_fn
+        indel_p_mv_command += ' --contigs_fn ' + os.path.join(args.output_dir, 'tmp', 'CONTIGS')
+        indel_p_mv_command += ' --input_dir ' + args.output_dir + '/tmp/vcf_output'
+        indel_p_mv_command += ' --vcf_fn_prefix ' + 'indel_p_'
+        indel_p_mv_command += ' --output_fn ' + args.output_dir + '/tmp/vcf_output/indel_pileup.vcf'
+        commands_list += [indel_p_mv_command]
+
+        echo_list.append("[INFO] STEP 7: Indel Full-alignment Model Calling\n")
+        echo_list[-1] += "[INFO] Create Full-alignment Paired Tensors"
+        indel_cpt_fa_command = '( ' + time + args.parallel
+        indel_cpt_fa_command += ' --joblog ' + args.output_dir + '/logs/parallel_7-1_create_pair_tensor_fa_indel.log'
+        indel_cpt_fa_command += ' -j ' + str(args.threads)
+        indel_cpt_fa_command += ' ' + args.pypy + ' ' + main_entry + ' create_pair_tensor'
+        indel_cpt_fa_command += ' --normal_bam_fn ' + normal_bam_fn
+        indel_cpt_fa_command += ' --tumor_bam_fn ' + tumor_bam_fn
+        indel_cpt_fa_command += ' --ref_fn ' + args.ref_fn
+        indel_cpt_fa_command += ' --ctg_name {1/.}'
+        indel_cpt_fa_command += ' --samtools ' + args.samtools
+        indel_cpt_fa_command += ' --candidates_bed_regions {1}'
+        indel_cpt_fa_command += ' --tensor_can_fn ' + args.output_dir + '/tmp/fa_tensor_can/indel_{1/} '
+        indel_cpt_fa_command += ' --platform ' + args.platform
+        indel_cpt_fa_command += ' :::: ' + args.output_dir + '/tmp/candidates/INDEL_CANDIDATES_FILES'
+        indel_cpt_fa_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/7-1_CPTI.log'
+        commands_list += [indel_cpt_fa_command]
+
+        ## STEP 3: INDEL PREDICT
+        echo_list.append("[INFO] Indel Full-alignment Model Prediction")
+        indel_fa_predict_command = '( ' + time + args.parallel
+        indel_fa_predict_command += ' --joblog ' + args.output_dir + '/logs/parallel_7-2_predict.log'
+        indel_fa_predict_command += ' -j ' + str(args.threads)
+        indel_fa_predict_command += ' ' + args.python + ' ' + main_entry + ' predict'
+        indel_fa_predict_command += ' --tensor_fn ' + args.output_dir + '/tmp/fa_tensor_can/indel_{1/} '
+        indel_fa_predict_command += ' --call_fn ' + args.output_dir + '/tmp/vcf_output/indel_fa_{1/}.vcf'
+        indel_fa_predict_command += ' --chkpnt_fn ' + args.full_alignment_model_path
+        indel_fa_predict_command += ' --use_gpu ' + str(args.use_gpu)
+        indel_fa_predict_command += ' --platform ' + args.platform
+        indel_fa_predict_command += ' --ctg_name {1/.}'
+        indel_fa_predict_command += ' --show_ref ' if args.print_ref_calls else ""
+        indel_fa_predict_command += ' --show_germline ' if args.print_germline_calls else ""
+        indel_fa_predict_command += ' :::: ' + args.output_dir + '/tmp/candidates/INDEL_CANDIDATES_FILES'
+        indel_fa_predict_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/7-2_PREDICT_INDEL.log'
+        commands_list += [indel_fa_predict_command]
+
+        ## STEP 4: MERGE INDEL VCF
+        echo_list.append("[INFO] Merge Full-alignment VCFs")
+        indel_fa_mv_command = args.pypy + ' ' + main_entry + ' sort_vcf'
+        indel_fa_mv_command += ' --ref_fn ' + args.ref_fn
+        indel_fa_mv_command += ' --contigs_fn ' + os.path.join(args.output_dir, 'tmp', 'CONTIGS')
+        indel_fa_mv_command += ' --input_dir ' + args.output_dir + '/tmp/vcf_output'
+        indel_fa_mv_command += ' --vcf_fn_prefix ' + 'indel_fa_'
+        indel_fa_mv_command += ' --output_fn ' + args.output_dir + '/tmp/vcf_output/indel_full_alignment.vcf'
+        commands_list += [indel_fa_mv_command]
+
+        echo_list.append("[INFO] STEP 9: Merge and sort VCF")
+        indel_sort_vcf_command = '( ' + time + args.pypy + ' ' + main_entry + ' merge_vcf'
+        indel_sort_vcf_command += ' --ref_fn ' + args.ref_fn
+        indel_sort_vcf_command += ' --pileup_vcf_fn ' + args.output_dir + '/tmp/vcf_output/indel_pileup.vcf'
+        indel_sort_vcf_command += ' --full_alignment_vcf_fn ' + args.output_dir + '/tmp/vcf_output/indel_full_alignment.vcf'
+        indel_sort_vcf_command += ' --output_fn ' + args.output_dir + '/{}.vcf'.format(args.indel_output_prefix)
+        indel_sort_vcf_command += ' --platform ' + args.platform
+        indel_sort_vcf_command += ' --qual ' + str(args.qual)
+        indel_sort_vcf_command += ' --sample_name ' + str(args.sample_name)
+        indel_sort_vcf_command += ' --enable_indel_calling ' + str(args.enable_indel_calling)
+        indel_sort_vcf_command += ' --indel_calling '
+        indel_sort_vcf_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/9_MVI.log'
+        commands_list += [indel_sort_vcf_command]
+
+        if args.genotyping_mode_vcf_fn is not None or args.hybrid_mode_vcf_fn is not None:
+            echo_list.append("[INFO] Add reference calls to the output VCF output")
+            indel_genotyping_command = args.pypy + ' ' + main_entry + ' add_back_missing_variants_in_genotyping'
+            indel_genotyping_command += ' --genotyping_mode_vcf_fn ' + str(args.genotyping_mode_vcf_fn)
+            indel_genotyping_command += ' --hybrid_mode_vcf_fn ' + str(args.hybrid_mode_vcf_fn)
+            indel_genotyping_command += ' --call_fn ' + args.output_dir + '/{}.vcf.gz'.format(args.indel_output_prefix)
+            indel_genotyping_command += ' --output_fn ' + args.output_dir + '/{}.vcf'.format(args.indel_output_prefix)
+            indel_genotyping_command += ' 2>&1 | tee ' + args.output_dir + '/logs/9_GTI.log'
+            commands_list += [indel_genotyping_command]
 
     # excute commands step by step
     skip_steps = args.skip_steps.rstrip().split(',') if args.skip_steps else None
@@ -1322,7 +1453,34 @@ def somatic_parser():
     ont_params.add_argument(
         "--disable_phasing",
         action='store_true',
-        help="Disable phasing with longphase or whatshap. Usually leads to significant performance loss."
+        help="EXPERIMENTAL: Disable phasing with longphase or whatshap. Usually leads to significant performance loss."
+    )
+
+    ont_params.add_argument(
+        "--enable_indel_calling",
+        action='store_true',
+        help="EXPERIMENTAL: Enable Indel calling, only support ont r10 platform. The calling time would increase significantly. default: disabled."
+    )
+
+    ont_params.add_argument(
+        "--indel_output_prefix",
+        type=str,
+        default="indel",
+        help="Prefix for Indel output VCF filename. Default: indel."
+    )
+
+    ont_params.add_argument(
+        "--indel_pileup_model_path",
+        type=str,
+        default=None,
+        help="Specify the path to your own somatic calling indel pileup model."
+    )
+
+    ont_params.add_argument(
+        "--indel_full_alignment_model_path",
+        type=str,
+        default=None,
+        help="Specify the path to your own somatic calling indel full-alignment model."
     )
 
     clair3_params = parser.add_argument_group('Clair3 parameters')
@@ -1516,6 +1674,9 @@ def main():
     runtime = time() - call_start_time
     logging("[INFO] Total time elapsed: %im%.2fs\n" % (int(runtime/60), int(runtime % 60)))
     logging("[INFO] Finish calling, output file: {}/{}.vcf.gz\n".format(args.output_dir, args.output_prefix))
+    if args.enable_indel_calling:
+        logging("[INFO] Finish calling, snv output file: {}/snv.vcf.gz\n".format(args.output_dir))
+        logging("[INFO] Finish calling, indel output file: {}/{}.vcf.gz\n".format(args.output_dir, args.indel_output_prefix))
 
     if args.tee is not None:
         args.tee.stdin.close()

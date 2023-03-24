@@ -79,7 +79,8 @@ def evc_base_from(base):
         return 'a'
 
 
-def decode_pileup_bases(pos,
+def decode_pileup_bases(args,
+                        pos,
                         pileup_bases,
                         reference_base,
                         minimum_snp_af_for_candidate,
@@ -90,6 +91,7 @@ def decode_pileup_bases(pos,
                         mapping_quality,
                         base_quality,
                         phasing_info=None,
+                        chunk_ref_seq=None,
                         platform="ont"):
     """
     Decode mpileup input string.
@@ -153,6 +155,9 @@ def decode_pileup_bases(pos,
                 pileup_tensor[BASE2INDEX[key]] += count
                 depth += count
         elif key[1] == '+':
+            indel_len = len(key[2:])
+            if indel_len > args.max_indel_length:
+                continue
             pileup_dict['I'] += count
             if is_candidate:
                 alt_info_dict['I' + key[0].upper() + key[2:].upper()] += count
@@ -164,9 +169,13 @@ def decode_pileup_bases(pos,
                 pileup_tensor[BASE2INDEX["i"]] += count
                 max_ins_1 = max(max_ins_1, count)
         elif key[1] == '-':
+            indel_len = len(key[1:])
+            if indel_len > args.max_indel_length:
+                continue
             pileup_dict['D'] += count
             if is_candidate:
-                alt_info_dict['D' + key[0].upper() + key[2:].upper()] += count
+                info = chunk_ref_seq[:len(key[1:])]
+                alt_info_dict['D' + info] += count
             max_del_length = max(max_del_length, len(key[1:]))
             # two strand
             if key[0] in 'N*ACGT':
@@ -322,8 +331,7 @@ def create_tensor(args):
     vcf_fn = args.vcf_fn
     is_known_vcf_file_provided = vcf_fn is not None
     phasing_info_in_bam = args.phase_tumor and args.platform == 'ont'
-    global test_pos
-    test_pos = None
+    args.max_indel_length = param.max_indel_length if args.max_indel_length is None else args.max_indel_length
 
     candidates_pos_set = set()
     candidates_type_dict = defaultdict(str)
@@ -495,17 +503,21 @@ def create_tensor(args):
             else:
                 phasing_info = None
 
-            pileup_tensor, base_list, depth, pass_af, af, alt_info = decode_pileup_bases(pos=pos,
-                                                                pileup_bases=pileup_bases,
-                                                                reference_base=reference_base,
-                                                                minimum_snp_af_for_candidate=minimum_snp_af_for_candidate,
-                                                                minimum_indel_af_for_candidate=minimum_indel_af_for_candidate,
-                                                                has_pileup_candidates=has_pileup_candidates,
-                                                                candidates_type_dict=candidates_type_dict,
-                                                                mapping_quality=mapping_quality,
-                                                                base_quality=base_quality,
-                                                                phasing_info=phasing_info,
-                                                                is_tumor=is_tumor)
+            chunk_ref_seq = reference_sequence[pos - reference_start: pos - reference_start + args.max_indel_length].upper()
+
+            pileup_tensor, base_list, depth, pass_af, af, alt_info = decode_pileup_bases(args=args,
+                                                                                         pos=pos,
+                                                                                         pileup_bases=pileup_bases,
+                                                                                         reference_base=reference_base,
+                                                                                         minimum_snp_af_for_candidate=minimum_snp_af_for_candidate,
+                                                                                         minimum_indel_af_for_candidate=minimum_indel_af_for_candidate,
+                                                                                         has_pileup_candidates=has_pileup_candidates,
+                                                                                         candidates_type_dict=candidates_type_dict,
+                                                                                         mapping_quality=mapping_quality,
+                                                                                         base_quality=base_quality,
+                                                                                         phasing_info=phasing_info,
+                                                                                         chunk_ref_seq=chunk_ref_seq,
+                                                                                         is_tumor=is_tumor)
 
             offset = pos - extend_start
             pileup_tensors[offset] = pileup_tensor
@@ -670,6 +682,9 @@ def main():
                         help=SUPPRESS)
 
     parser.add_argument('--flanking', type=int, default=None,
+                        help=SUPPRESS)
+
+    parser.add_argument('--max_indel_length', type=int, default=None,
                         help=SUPPRESS)
 
     parser.add_argument('--truth_vcf_fn', type=str, default=None,

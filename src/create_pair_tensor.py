@@ -435,7 +435,7 @@ def generate_tensor(args,
         elif alt_type[0] == '-':
             del_bases_num = len(alt_type[1:])
             del_ref_bases = reference_sequence[
-                            center_pos - reference_start + 1:center_pos - reference_start + del_bases_num + 1]
+                            center_pos - reference_start:center_pos - reference_start + del_bases_num + 1]
             alt_info.append(['D' + del_ref_bases, str(alt_count)])
         else:
             alt_info.append(['X' + alt_type, str(alt_count)])
