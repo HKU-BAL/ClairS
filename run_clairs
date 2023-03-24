@@ -490,6 +490,9 @@ def check_clair3_options(args):
         elif args.platform == 'ont_r9':
             # clair3 r9 model in bioconda bin
             args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'r941_prom_sup_g5014')
+        elif args.platform == 'hifi':
+            # clair3 hifi model in bioconda bin
+            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'hifi')
 
     if not os.path.exists(args.clair3_model_path):
         sys.exit(log_error("[ERROR] Cannot find clair3 model path in {}".format(args.clair3_model_path)))
@@ -588,8 +591,8 @@ def check_args(args):
         args.min_coverage = param.min_coverage
     if args.chunk_size is None:
         args.chunk_size = 5000000
-    if args.platform not in {'ont_r10', 'ont_r9', 'ont', 'ilmn'}:
-        logging(log_error('[ERROR] Invalid platform input, optional: {ont, ont_r9, ilmn}'))
+    if args.platform not in {'ont_r10', 'ont_r9', 'ont', 'ilmn', 'hifi'}:
+        logging(log_error('[ERROR] Invalid platform input, optional: {ont, ont_r9, ilmn, hifi}'))
     # default we enable prefer_recall
     if args.prefer_recall is False and args.prefer_balance is False:
         args.prefer_recall = True
@@ -720,7 +723,7 @@ def somatic_calling(args):
         clair3_tumor_command += ' --bam_fn ' + args.tumor_bam_fn
         clair3_tumor_command += ' --ref_fn ' + args.ref_fn
         clair3_tumor_command += ' --model_path ' + args.clair3_model_path
-        clair3_tumor_command += ' --platform ont'
+        clair3_tumor_command += ' --platform ' + args.platform
         clair3_tumor_command += ' --threads ' + str(args.threads)
         clair3_tumor_command += ' --output ' + clair3_output_path + '/clair3_tumor_output'
         clair3_tumor_command += ' --ctg_name=' + args.clair3_option.ctg_name_str
@@ -760,7 +763,7 @@ def somatic_calling(args):
                 pn_command += ' -r ' + args.ref_fn
                 pn_command += ' -t ' + str(args.threads)
                 pn_command += ' -o ' + clair3_output_path + '/phased_output/normal_phased_{1}'
-                pn_command += ' --ont'
+                pn_command += ' --ont' if args.platform == 'ont' else ' --pb'
                 pn_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
                 pn_command += ' && ' + args.parallel
                 pn_command += ' -j ' + str(args.threads)
@@ -820,7 +823,7 @@ def somatic_calling(args):
             pt_command += ' -r ' + args.ref_fn
             pt_command += ' -t ' + str(args.threads)
             pt_command += ' -o ' + clair3_output_path + '/phased_output/tumor_phased_{1}'
-            pt_command += ' --ont'
+            pt_command += ' --ont' if args.platform == 'ont' else ' --pb'
             pt_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
             pt_command += ' && ' + args.parallel
             pt_command += ' -j ' + str(args.threads)
@@ -1011,7 +1014,7 @@ def somatic_calling(args):
         commands_list += [realign_command]
 
     #graph postprocessing
-    elif args.platform == 'ont':
+    else:
         echo_list.append("[INFO] STEP 4: Haplotype filtering")
         hap_g_command = '( ' + time + args.pypy + ' ' + main_entry + ' haplotype_filtering'
         hap_g_command += ' --tumor_bam_fn ' + tumor_bam_prefix
@@ -1021,6 +1024,8 @@ def somatic_calling(args):
         hap_g_command += ' --full_alignment_vcf_fn ' + args.output_dir + '/tmp/vcf_output/full_alignment.vcf'
         hap_g_command += ' --output_dir ' + args.output_dir + '/tmp/vcf_output'
         hap_g_command += ' --samtools ' + args.samtools
+        hap_g_command += ' --pypy3 ' + args.pypy
+        hap_g_command += ' --parallel ' + args.parallel
         hap_g_command += ' --threads ' + str(args.threads)
         hap_g_command += ' --debug ' if args.debug else ''
         hap_g_command += ' --apply_post_processing False' if not args.apply_post_processing else ''
@@ -1135,7 +1140,7 @@ def somatic_parser():
         required=True,
         type=str,
         default=None,
-        help="Select the sequencing platform of the input. Possible options: {ont_r10, ont_r9, ilmn}."
+        help="Select the sequencing platform of the input. Possible options: {ont_r10, ont_r9, ilmn, hifi}."
     )
 
     optional_params = parser.add_argument_group('Optional parameters')
