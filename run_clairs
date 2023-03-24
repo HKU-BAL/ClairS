@@ -249,10 +249,10 @@ def check_threads(args):
         args.threads = num_cpus
     return args
 
-def split_extend_vcf(vcf_fn, output_fn):
+def split_extend_vcf(genotyping_mode_vcf_fn, output_fn):
     expand_region_size = param.no_of_positions
     output_ctg_dict = defaultdict(list)
-    unzip_process = subprocess_popen(shlex.split("gzip -fdc %s" % (vcf_fn)))
+    unzip_process = subprocess_popen(shlex.split("gzip -fdc %s" % (genotyping_mode_vcf_fn)))
 
     for row_id, row in enumerate(unzip_process.stdout):
         if row[0] == '#':
@@ -338,7 +338,7 @@ def check_contigs_intersection(args, fai_fn):
     MAX_CHUNK_LENGTH = 20000000
     is_include_all_contigs = args.include_all_ctgs
     is_bed_file_provided = args.bed_fn is not None or args.region is not None
-    is_known_vcf_file_provided = args.vcf_fn is not None
+    is_known_vcf_file_provided = args.genotyping_mode_vcf_fn is not None
     is_ctg_name_list_provided = args.ctg_name is not None
 
     if args.region is not None:
@@ -346,7 +346,7 @@ def check_contigs_intersection(args, fai_fn):
 
     split_bed_path = os.path.join(args.output_dir, 'tmp', 'split_beds')
     tree = bed_tree_from(bed_file_path=args.bed_fn, region=args.region)
-    know_vcf_contig_set = split_extend_vcf(vcf_fn=args.vcf_fn, output_fn=split_bed_path) if is_known_vcf_file_provided else set()
+    know_vcf_contig_set = split_extend_vcf(genotyping_mode_vcf_fn=args.genotyping_mode_vcf_fn, output_fn=split_bed_path) if is_known_vcf_file_provided else set()
     contig_set = set(args.ctg_name.split(',')) if is_ctg_name_list_provided else set()
 
     if not args.include_all_ctgs:
@@ -358,7 +358,7 @@ def check_contigs_intersection(args, fai_fn):
         logging(log_warning("[WARNING] both --ctg_name and --bed_fn provided, will only proceed with the contigs appeared in both"))
 
     if is_ctg_name_list_provided and is_known_vcf_file_provided:
-        logging(log_warning("[WARNING] both --ctg_name and --vcf_fn provided, will only proceed with the contigs appeared in both"))
+        logging(log_warning("[WARNING] both --ctg_name and --genotyping_mode_vcf_fn provided, will only proceed with the contigs appeared in both"))
 
     if is_ctg_name_list_provided:
         contig_set = contig_set.intersection(
@@ -416,7 +416,7 @@ def check_contigs_intersection(args, fai_fn):
             logging(log_warning("[WARNING] No contig in --bed_fn was found in the reference, contigs in BED {}: {}".format(args.bed_fn, all_contig_in_bed)))
         if is_known_vcf_file_provided:
             all_contig_in_vcf = ' '.join(list(know_vcf_contig_set))
-            logging(log_warning("[WARNING] No contig in --vcf_fn was found in the reference, contigs in VCF {}: {}".format(args.vcf_fn, all_contig_in_vcf)))
+            logging(log_warning("[WARNING] No contig in --genotyping_mode_vcf_fn was found in the reference, contigs in VCF {}: {}".format(args.genotyping_mode_vcf_fn, all_contig_in_vcf)))
         if is_ctg_name_list_provided:
             all_contig_in_ctg_name = ' '.join(args.ctg_name.split(','))
             logging(log_warning("[WARNING] No contig in --ctg_name was found in the reference, contigs in contigs list: {}".format(all_contig_in_ctg_name)))
@@ -543,7 +543,9 @@ def check_args(args):
     args.ref_fn = file_path_from(file_name=args.ref_fn, exit_on_not_found=True)
     fai_fn = file_path_from(file_name=args.ref_fn, suffix=".fai", exit_on_not_found=True, sep='.')
     args.bed_fn = file_path_from(file_name=args.bed_fn, exit_on_not_found=True, allow_none=True)
-    args.vcf_fn = file_path_from(file_name=args.vcf_fn, exit_on_not_found=True, allow_none=True)
+    args.genotyping_mode_vcf_fn = file_path_from(file_name=args.genotyping_mode_vcf_fn, exit_on_not_found=True, allow_none=True)
+    args.hybrid_mode_vcf_fn = file_path_from(file_name=args.hybrid_mode_vcf_fn, exit_on_not_found=True, allow_none=True)
+    args.normal_vcf_fn = file_path_from(file_name=args.normal_vcf_fn, exit_on_not_found=True, allow_none=True)
 
     if normal_bai_fn is None and normal_crai_fn is None and normal_csi_fn is None:
         sys.exit(log_error("[ERROR] Normal BAM index file {} or {} not found. Please run `samtools index $BAM` first.".format(args.normal_bam_fn + '.bai',
@@ -609,9 +611,9 @@ def check_args(args):
     if args.disable_phasing:
         args.phase_tumor = False
     if args.phase_tumor is None:
-        if args.vcf_fn is not None:
+        if args.genotyping_mode_vcf_fn is not None:
             logging(log_warning(
-                "[WARNING] Clair3 HET SNPs based phasing is disabled if `--vcf_fn` is provided, add `--phase_tumor True` if phasing the tumor is still needed. Please ensure you have enough heterozygous variant candidates given in the --vcf_fn file, otherwise the phasing might fail or lead to worse performance."))
+                "[WARNING] Clair3 HET SNPs based phasing is disabled if `--genotyping_mode_vcf_fn` is provided, add `--phase_tumor True` if phasing the tumor is still needed. Please ensure you have enough heterozygous variant candidates given in the --genotyping_mode_vcf_fn file, otherwise the phasing might fail or lead to worse performance."))
         else:
             args.phase_tumor = True if args.platform != 'ilmn' else False
 
@@ -651,7 +653,8 @@ def print_args(args):
     logging("[INFO] PILEUP MODEL PATH: {}".format(args.pileup_model_path))
     logging("[INFO] FULL-ALIGNMENT MODEL PATH: {}".format(args.full_alignment_model_path))
     logging("[INFO] BED FILE PATH: {}".format(args.bed_fn))
-    logging("[INFO] VCF FILE PATH: {}".format(args.vcf_fn))
+    logging("[INFO] GENOTYPING MODE VCF FILE PATH: {}".format(args.genotyping_mode_vcf_fn))
+    logging("[INFO] HYBRID MODE VCF FILE PATH: {}".format(args.hybrid_mode_vcf_fn))
     logging("[INFO] REGION FOR CALLING: {}".format(args.region))
     logging("[INFO] CONTIGS FOR CALLING: {}".format(args.ctg_name))
     logging("[INFO] CONDA BINARY PREFIX: {}".format(args.conda_prefix))
@@ -1044,10 +1047,11 @@ def somatic_calling(args):
     sort_vcf_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/5_MV.log'
     commands_list += [sort_vcf_command]
 
-    if args.vcf_fn is not None:
-        echo_list.append("[INFO] Add reference calls to the output VCF output in the genotyping mode")
+    if args.genotyping_mode_vcf_fn is not None or args.hybrid_mode_vcf_fn is not None:
+        echo_list.append("[INFO] Add reference calls to the output VCF output")
         genotyping_command = args.pypy + ' ' + main_entry + ' add_back_missing_variants_in_genotyping'
-        genotyping_command += ' --vcf_fn ' + args.vcf_fn
+        genotyping_command += ' --genotyping_mode_vcf_fn ' + str(args.genotyping_mode_vcf_fn)
+        genotyping_command += ' --hybrid_mode_vcf_fn ' + str(args.hybrid_mode_vcf_fn)
         genotyping_command += ' --call_fn ' + args.output_dir + '/{}.vcf.gz'.format(args.output_prefix)
         genotyping_command += ' --output_fn ' + args.output_dir + '/{}.vcf'.format(args.output_prefix)
         genotyping_command += ' 2>&1 | tee ' + args.output_dir + '/logs/6_GT.log'
@@ -1187,11 +1191,19 @@ def somatic_parser():
     )
 
     region_group.add_argument(
-        "-V",
-        "--vcf_fn",
+        "-G",
+        "--genotyping_mode_vcf_fn",
         type=str,
         default=None,
         help="VCF file input containing candidate sites to be genotyped. Variants will only be called at the sites in the VCF file if provided."
+    )
+
+    optional_params.add_argument(
+        "-H",
+        "--hybrid_mode_vcf_fn",
+        type=str,
+        default=None,
+        help="Enable hybrid calling mode that combines the de novo calling results and genotyping results at the positions in the VCF file given."
     )
 
     mode_group = optional_params.add_mutually_exclusive_group(required=False)
