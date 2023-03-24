@@ -1,4 +1,4 @@
-# ClairS (early access stage)
+# ClairS
 
 [![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 
@@ -50,7 +50,7 @@ ClairS is now available for early access to interested and experienced users. Yo
 ------
 
 ## Contents
-
+- [Latest Updates](#latest-updates)
 - [Installation](#installation)
   - [Option 1. Docker pre-built image](#option-1--docker-pre-built-image)
   - [Option 2. Singularity](#option-2-singularity)
@@ -62,6 +62,14 @@ ClairS is now available for early access to interested and experienced users. Yo
 - [Disclaimer](#disclaimer)
 
 ------
+
+## Latest Updates
+
+*v0.1.0 (Mar 24)* : 1. Added support for Indel calling. ClairS Indel calling currently only supports ONT R10 data. To enable, use the `--enable_indel_calling` option. The Indel F1-score is ~73% with 50x/50x HCC1395/BL data. 2. Added an experimental `--normal_vcf_fn` to skip germline variant calling on normal BAM ([#7](https://github.com/HKU-BAL/ClairS/pull/7), contributor @[Xingyao](https://github.com/xingyaoc)). 3. Added `--hybrid_mode_vcf_fn` option to enable hybrid calling mode that combines de novo calling results and genotyping results without running the tool twice. Renamed the `--vcf_fn` to `--genotyping_mode_vcf_fn` for clarification. 4. Fixed a memory issue, memory consumption is now sub 100G for high coverage samples. 5. Fixed a conda environment issue in Singularity ([#3](https://github.com/HKU-BAL/ClairS/issues/3)). 6. Fixed zero division when no SNV was found ([#2](https://github.com/HKU-BAL/ClairS/issues/2), [#5](https://github.com/HKU-BAL/ClairS/issues/5)). 7. Added `AD` tag in the output. 8. Added support for PacBio HiFi data SNV calling `-p hifi`.
+
+*v0.0.1 (Jan 29, 2023)*: Initial release for early access.
+
+---
 
 ## Quick Demo
 
@@ -85,13 +93,16 @@ Check [Usage](#Usage) for more options.
 
 ClairS trained both pileup and full-alignment models using GIAB samples, and carry on benchmarking on HCC1395-HCC1395BL pair dataset. All models were trained with chr20 excluded (including only chr1-19, 21, 22). 
 
-| Platform |       Model name       | Chemistry /Instruments | Option (`-p/--platform`) |   Reference   | Aligner  | Included in the docker image | Training samples | Caveats |
-| :------: | :--------------------: | :--------------------: | :----------------------: | :-----------: | :------: | :--------------------------: | :--------------: | :-----: |
-|   ONT    | ont_r104_e81_sup_g5015 |     R10.4/R10.4.1      |        `ont_r10`         | GRCh38_no_alt | Minimap2 |             Yes              |     HG001,2      |         |
-|   ONT    |  r941_prom_sup_g5014   |         R9.4.1         |         `ont_r9`         | GRCh38_no_alt | Minimap2 |             Yes              |     HG003,4      |    1    |
-| Illumina |          ilmn          |     NovaSeq/HiseqX     |          `ilmn`          |    GRCh38     | BWA-MEM  |             Yes              |     HG003,4      |         |
+|  Platform   |       Model name       |    Chemistry /Instruments    | Option (`-p/--platform`) |   Reference   | Aligner  |
+| :---------: | :--------------------: | :--------------------------: | :----------------------: | :-----------: | :------: |
+|     ONT     | ont_r104_e81_sup_g5015 |        R10.4/R10.4.1         |        `ont_r10`         | GRCh38_no_alt | Minimap2 |
+|     ONT     |  r941_prom_sup_g5014   |            R9.4.1            |         `ont_r9`         | GRCh38_no_alt | Minimap2 |
+|  Illumina   |          ilmn          |        NovaSeq/HiseqX        |          `ilmn`          |    GRCh38     | BWA-MEM  |
+| PacBio HiFi |          hifi          | Sequel II with Chemistry 2.0 |          `hifi`          | GRCh38_no_alt | Minimap2 |
 
 **Caveats 1**: Although the r9(`r941_prom_sup_g5014`) model was trained on synthetic samples with r9.4.1 real data, the minimal AF cutoff, minimal coverage, and post-calling filtering parameters for the r9 model are copied from the r10 model, and are not optimized due to lack of real r9 data on a cancer sample with known truths.
+
+**Caveats 2**: The PacBio HiFi model was trained but not tested with any real data with known truths.
 
 
 ------
@@ -115,7 +126,7 @@ docker run -it \
   --normal_bam_fn ${INPUT_DIR}/normal.bam \    ## use your normal bam file name here
   --ref_fn ${INPUT_DIR}/ref.fa \               ## use your reference file name here
   --threads ${THREADS} \                       ## maximum threads to be used
-  --platform ${PLATFORM} \                     ## options: {ont_r10, ont_r9, ilmn}
+  --platform ${PLATFORM} \                     ## options: {ont_r10, ont_r9, ilmn, hifi}
   --output ${OUTPUT_DIR}                       ## output path prefix 
 ```
 
@@ -147,7 +158,7 @@ singularity exec \
   --normal_bam_fn ${INPUT_DIR}/normal.bam \    ## use your normal bam file name here
   --ref_fn ${INPUT_DIR}/ref.fa \               ## use your reference file name here
   --threads ${THREADS} \                       ## maximum threads to be used
-  --platform ${PLATFORM} \                     ## options: {ont_r10, ont_r9, ilmn}
+  --platform ${PLATFORM} \                     ## options: {ont_r10, ont_r9, ilmn, hifi}
   --output ${OUTPUT_DIR} \                     ## output path prefix
   --conda_prefix /opt/conda/envs/clairs
 ```
@@ -215,7 +226,7 @@ docker run -it hkubal/clairs:latest /opt/bin/run_clairs --help
   --normal_bam_fn ${INPUT_DIR}/normal.bam \  ## use your bam file name here
   --ref_fn ${INPUT_DIR}/ref.fa \             ## use your reference file name here
   --threads ${THREADS} \                     ## maximum threads to be used
-  --platform ${PLATFORM} \                   ## options: {ont_r10, ont_r9, ilmn}
+  --platform ${PLATFORM} \                   ## options: {ont_r10, ont_r9, ilmn, hifi}
   --output ${OUTPUT_DIR}                     ## output path prefix
  
 ## Final output file: ${OUTPUT_DIR}/output.vcf.gz
@@ -231,7 +242,7 @@ docker run -it hkubal/clairs:latest /opt/bin/run_clairs --help
   -R, --ref_fn FASTA                Reference file input. The input file must be samtools indexed.
   -o, --output_dir OUTPUT_DIR       VCF output directory.
   -t, --threads THREADS             Max #threads to be used.
-  -p, --platform PLATFORM           Select the sequencing platform of the input. Possible options {ont_r10, ont_r9, ilmn}.
+  -p, --platform PLATFORM           Select the sequencing platform of the input. Possible options {ont_r10, ont_r9, ilmn, hifi}.
 ```
 
 **Miscellaneous parameters:**
@@ -247,8 +258,10 @@ docker run -it hkubal/clairs:latest /opt/bin/run_clairs --help
                         A region to be processed. Format: `ctg_name:start-end` (start is 1-based).
   -b BED_FN, --bed_fn BED_FN
                         Path to a BED file. Call variants only in the provided BED regions.
-  -V VCF_FN, --vcf_fn VCF_FN
+  -G GENOTYPING_MODE_VCF_FN, --genotyping_mode_vcf_fn GENOTYPING_MODE_VCF_FN
                         VCF file input containing candidate sites to be genotyped. Variants will only be called at the sites in the VCF file if provided.
+  -H HYBRID_MODE_VCF_FN, --hybrid_mode_vcf_fn HYBRID_MODE_VCF_FN  
+                        Enable hybrid calling mode that combines the de novo calling results and genotyping results at the positions in the VCF file given.
   -q QUAL, --qual QUAL  If set, variants with >QUAL will be marked as PASS, or LowQual otherwise.
   --snv_min_af SNV_MIN_AF
                         Minimal SNV AF required for a variant to be called. Decrease SNV_MIN_AF might increase a bit of sensitivity, but in trade of precision, speed and accuracy. Default: 0.05.
@@ -271,7 +284,11 @@ docker run -it hkubal/clairs:latest /opt/bin/run_clairs --help
   --pypy PYPY           Absolute path of pypy3, pypy3 >= 3.6 is required.
   --samtools SAMTOOLS   Absolute path of samtools, samtools version >= 1.10 is required.
   --parallel PARALLEL   Absolute path of parallel, parallel >= 20191122 is required.
-  --disable_phasing     Disable phasing with longphase or whatshap. Usually leads to significant performance loss.
+  --disable_phasing     EXPERIMENTAL: Disable phasing with longphase or whatshap. Usually leads to significant performance loss.
+  --normal_vcf_fn NORMAL_VCF_FN
+                        EXPERIMENTAL: Path to normal VCF file. Setting this will skip germline varaint calling on normal BAM file input.
+  --enable_indel_calling
+                        EXPERIMENTAL: Enable Indel calling, only support ont r10 platform. The calling time would increase significantly. default: disabled.
 ```
 
 #### Call SNVs in one or mutiple chromosomes using the `-C/--ctg_name` parameter
@@ -286,10 +303,10 @@ docker run -it hkubal/clairs:latest /opt/bin/run_clairs --help
 ./run_clairs -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont_r10 -r chr20:1000000-2000000
 ```
 
-#### Call SNVs at interested variant sites (genotyping) using the `-V/--vcf_fn` parameter
+#### Call SNVs at interested variant sites (genotyping) using the `-G/--genotyping_mode_vcf_fn` parameter
 
 ```bash
-./run_clairs -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont_r10 -V input.vcf
+./run_clairs -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont_r10 -G input.vcf
 ```
 
 #### Call SNVs in the BED regions using the `-B/--bed_fn` parameter
