@@ -1098,11 +1098,12 @@ def somatic_calling(args):
         indel_p_predict_command += ' ' + args.python + ' ' + main_entry + ' predict'
         indel_p_predict_command += ' --tensor_fn ' + args.output_dir + '/tmp/pileup_tensor_can/indel_{1/} '
         indel_p_predict_command += ' --call_fn ' + args.output_dir + '/tmp/vcf_output/indel_p_{1/}.vcf'
-        indel_p_predict_command += ' --chkpnt_fn ' + args.pileup_model_path
+        indel_p_predict_command += ' --chkpnt_fn ' + args.indel_pileup_model_path
         indel_p_predict_command += ' --use_gpu ' + str(args.use_gpu)
         indel_p_predict_command += ' --platform ' + args.platform
         indel_p_predict_command += ' --ctg_name {1/.}'
         indel_p_predict_command += ' --pileup '
+        indel_p_predict_command += ' --enable_indel_calling True '
         indel_p_predict_command += ' --show_ref ' if args.print_ref_calls else ""
         indel_p_predict_command += ' --show_germline ' if args.print_germline_calls else ""
         indel_p_predict_command += ' :::: ' + args.output_dir + '/tmp/candidates/INDEL_CANDIDATES_FILES'
@@ -1145,10 +1146,11 @@ def somatic_calling(args):
         indel_fa_predict_command += ' ' + args.python + ' ' + main_entry + ' predict'
         indel_fa_predict_command += ' --tensor_fn ' + args.output_dir + '/tmp/fa_tensor_can/indel_{1/} '
         indel_fa_predict_command += ' --call_fn ' + args.output_dir + '/tmp/vcf_output/indel_fa_{1/}.vcf'
-        indel_fa_predict_command += ' --chkpnt_fn ' + args.full_alignment_model_path
+        indel_fa_predict_command += ' --chkpnt_fn ' + args.indel_full_alignment_model_path
         indel_fa_predict_command += ' --use_gpu ' + str(args.use_gpu)
         indel_fa_predict_command += ' --platform ' + args.platform
         indel_fa_predict_command += ' --ctg_name {1/.}'
+        indel_fa_predict_command += ' --enable_indel_calling True '
         indel_fa_predict_command += ' --show_ref ' if args.print_ref_calls else ""
         indel_fa_predict_command += ' --show_germline ' if args.print_germline_calls else ""
         indel_fa_predict_command += ' :::: ' + args.output_dir + '/tmp/candidates/INDEL_CANDIDATES_FILES'
@@ -1165,7 +1167,7 @@ def somatic_calling(args):
         indel_fa_mv_command += ' --output_fn ' + args.output_dir + '/tmp/vcf_output/indel_full_alignment.vcf'
         commands_list += [indel_fa_mv_command]
 
-        echo_list.append("[INFO] STEP 9: Merge and sort VCF")
+        echo_list.append("[INFO] STEP 8: Merge and sort Indel VCF")
         indel_sort_vcf_command = '( ' + time + args.pypy + ' ' + main_entry + ' merge_vcf'
         indel_sort_vcf_command += ' --ref_fn ' + args.ref_fn
         indel_sort_vcf_command += ' --pileup_vcf_fn ' + args.output_dir + '/tmp/vcf_output/indel_pileup.vcf'
@@ -1176,7 +1178,7 @@ def somatic_calling(args):
         indel_sort_vcf_command += ' --sample_name ' + str(args.sample_name)
         indel_sort_vcf_command += ' --enable_indel_calling ' + str(args.enable_indel_calling)
         indel_sort_vcf_command += ' --indel_calling '
-        indel_sort_vcf_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/9_MVI.log'
+        indel_sort_vcf_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/8_MVI.log'
         commands_list += [indel_sort_vcf_command]
 
         if args.genotyping_mode_vcf_fn is not None or args.hybrid_mode_vcf_fn is not None:
