@@ -1,4 +1,6 @@
 import os
+import shlex
+import gc
 import subprocess
 import concurrent.futures
 
@@ -86,11 +88,6 @@ def extract_base(POS):
 
     tumor_samtools_command = samtools_command + tumor_bam_fn
 
-    output = subprocess.run(tumor_samtools_command,
-                            shell=True,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
-                            universal_newlines=True).stdout.rstrip()
 
     reference_sequence = reference_sequence_from(
         samtools_execute_command=samtools,
@@ -109,7 +106,8 @@ def extract_base(POS):
     homo_germline_pos_set = set([item[0] for item in homo_germline_set])
     hetero_germline_pos_set = set([item[0] for item in hetero_germline_set])
 
-    for row in output.rstrip().split('\n'):
+    samtools_mpileup_tumor_process = subprocess_popen(shlex.split(tumor_samtools_command), stderr=subprocess.PIPE,)
+    for row in samtools_mpileup_tumor_process.stdout:
         columns = row.split('\t')
         read_name_list = columns[6].split(',')
 
@@ -154,9 +152,8 @@ def extract_base(POS):
             continue
         pos_counter_dict[p] = base_counter
 
-    # check del
-    nor_del_base = 0
-    del_base = len([key for key, value in pos_dict[pos].items() if ''.join(value) in '#*'])
+    samtools_mpileup_tumor_process.stdout.close()
+    samtools_mpileup_tumor_process.wait()
 
     alt_base_read_name_set = set([key for key, value in pos_dict[pos].items() if ''.join(value) == alt_base])
     # near to read start end and have high overlap
