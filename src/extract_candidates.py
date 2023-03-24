@@ -47,8 +47,17 @@ no_of_positions = param.no_of_positions
 flanking_base_num = param.flankingBaseNum
 
 
-def decode_pileup_bases(pileup_bases, reference_base, min_coverage, minimum_snv_af_for_candidate, minimum_indel_af_for_candidate,
-                        alternative_base_num, has_pileup_candidates, read_name_list, is_tumor, platform="ont"):
+def decode_pileup_bases(pileup_bases,
+                        reference_base,
+                        min_coverage,
+                        minimum_snv_af_for_candidate,
+                        minimum_indel_af_for_candidate,
+                        alternative_base_num,
+                        has_pileup_candidates,
+                        read_name_list,
+                        is_tumor,
+                        select_indel_candidates=False,
+                        platform="ont"):
     """
     Decode mpileup input string.
     pileup_bases: pileup base string for each position, include all mapping information.
@@ -83,6 +92,7 @@ def decode_pileup_bases(pileup_bases, reference_base, min_coverage, minimum_snv_
             base_idx += 1
         # skip $, the end of read
         base_idx += 1
+
     pileup_dict = defaultdict(int)
     base_counter = Counter([''.join(item) for item in base_list])
     alt_dict = dict(Counter([''.join(item).upper() for item in base_list]))
@@ -98,10 +108,15 @@ def decode_pileup_bases(pileup_bases, reference_base, min_coverage, minimum_snv_
         elif key[0] in "#*":
             depth += count
         if len(key) > 1 and key[1] == '+':
-            pileup_dict['I'] += count
+            if select_indel_candidates:
+                pileup_dict['I' + key[0].upper() + key[2:].upper()] += count
+            else:
+                pileup_dict['I'] += count
         elif len(key) > 1 and key[1] == '-':
-            pileup_dict['D'] += count
-
+            if select_indel_candidates:
+                pileup_dict['D' + len(key[2:]) * "N"] += count
+            else:
+                pileup_dict['D'] += count
     denominator = depth if depth > 0 else 1
     pileup_list = sorted(list(pileup_dict.items()), key=lambda x: x[1], reverse=True)
 
@@ -113,7 +128,8 @@ def decode_pileup_bases(pileup_bases, reference_base, min_coverage, minimum_snv_
         if item == reference_base:
             continue
         elif item[0] in 'ID':
-            pass_indel_af = (pass_indel_af or (float(count) / denominator >= minimum_indel_af_for_candidate))
+            pass_indel_af = (pass_indel_af or (float(count) / denominator >= minimum_indel_af_for_candidate and (
+                    alternative_base_num is not None and count >= alternative_base_num)))
             continue
         pass_snv_af = pass_snv_af or (float(count) / denominator >= minimum_snv_af_for_candidate) and (
                     alternative_base_num is not None and count >= alternative_base_num)
@@ -320,7 +336,8 @@ def extract_candidates(args):
             alternative_base_num=alternative_base_num,
             has_pileup_candidates=has_pileup_candidates,
             read_name_list=read_name_list,
-            is_tumor=is_tumor
+            is_tumor=is_tumor,
+            select_indel_candidates=select_indel_candidates
         )
 
         if pass_af and alt_fn:
@@ -409,6 +426,9 @@ def main():
 
     parser.add_argument('--alternative_base_num', type=int, default=param.alternative_base_num,
                         help="EXPERIMENTAL: Minimum alternative base number to process a candidate. default: %(default)s")
+
+    parser.add_argument('--select_indel_candidates', type=str2bool, default=0,
+                        help="EXPERIMENTAL: Get Indel candidates instead of SNV candidates")
 
     # options for debug purpose
     parser.add_argument('--output_depth', type=str2bool, default=False,
