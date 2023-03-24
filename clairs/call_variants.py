@@ -268,6 +268,11 @@ def output_vcf_from_probability(
 
     AU, CU, GU, TU = decode_acgt_count(tumor_alt_type_list[0], reference_base, tumor_read_depth)
 
+    add_ad_tag = True
+    AD = None
+    if add_ad_tag:
+        AD = tumor_supported_reads_count
+
     vcf_writer.write_row(CHROM=chromosome,
                          POS=position,
                          REF=reference_base,
@@ -279,6 +284,7 @@ def output_vcf_from_probability(
                          DP=tumor_read_depth,
                          NDP=normal_read_depth,
                          AF=tumor_allele_frequency,
+                         AD=AD,
                          NAF=normal_allele_frequency,
                          AU=AU,
                          CU=CU,

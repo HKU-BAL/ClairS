@@ -24,6 +24,7 @@ vcf_header = dedent("""\
             ##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype quality">
             ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read depth in the tumor BAM">
             ##FORMAT=<ID=AF,Number=1,Type=Float,Description="Estimated allele frequency in the tumor BAM">
+            ##FORMAT=<ID=AD,Number=1,Type=Integer,Description="Alternate allele depth in the tumor BAM">
             ##FORMAT=<ID=NAF,Number=1,Type=Float,Description="Estimated allele frequency in the normal BAM">
             ##FORMAT=<ID=NDP,Number=1,Type=Integer,Description="Read depth in the normal BAM">
             ##FORMAT=<ID=AU,Number=1,Type=Integer,Description="Count of A in the tumor BAM">
@@ -49,6 +50,7 @@ class VcfWriter(object):
                  ref_fn=None,
                  sample_name="SAMPLE",
                  write_header=True,
+                 header=None,
                  show_ref_calls=False):
         self.vcf_fn = vcf_fn
         self.show_ref_calls = show_ref_calls
@@ -67,7 +69,7 @@ class VcfWriter(object):
             self.ctg_name_list = None
         self.sample_name = sample_name
         if write_header:
-            self.write_header(ref_fn=ref_fn)
+            self.write_header(ref_fn=ref_fn, header=header)
 
     def close(self):
         try:
@@ -99,6 +101,7 @@ class VcfWriter(object):
                   GT='0/0',
                   DP=0,
                   AF=0,
+                  AD=None,
                   CHROM=None,
                   GQ=None,
                   ID='.',
@@ -133,6 +136,9 @@ class VcfWriter(object):
             FILTER,
             INFO
         )
+        if AD is not None and AD != "":
+            FORMAT += ":AD"
+            FORMAT_V += ":%d" % (AD)
         if NAF is not None:
             FORMAT += ":NAF"
             FORMAT_V += ":%.4f" % (NAF)
