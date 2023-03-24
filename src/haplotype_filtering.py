@@ -10,9 +10,7 @@ from collections import defaultdict
 
 import shared.param as param
 from shared.vcf import VcfReader, VcfWriter
-from shared.utils import str2bool, str_none, reference_sequence_from
-
-file_directory = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+from shared.utils import str2bool, str_none, reference_sequence_from, subprocess_popen
 
 HIGH_QUAL = 0.9
 LOW_AF = 0.1
@@ -55,30 +53,39 @@ def get_base_list(columns):
     return upper_base_counter, base_list, read_start_end_set
 
 
-def extract_base(POS):
-    pos = POS.pos
-    alt_base = POS.alternate_bases[0]
+def haplotype_filter_per_pos(args):
+    pos = args.pos
+    ctg_name = args.ctg_name
+    alt_base = args.alt_base
     tumor_bam_fn = args.tumor_bam_fn
     ref_fn = args.ref_fn
     samtools = args.samtools
-    ctg_name = args.ctg_name if args.ctg_name is not None else POS.ctg_name
     min_mq = args.min_mq
     min_bq = args.min_bq
+    debug = args.debug
+    max_co_exist_read_num = args.min_alt_coverage
 
+    pass_hap = True
     pass_hetero = True
     pass_homo = True
     pass_hetero_both_side = True
     pass_read_start_end = True
     pass_bq = True
-    flanking_list = POS.extra_infos
+    pass_co_exist = True
+    match_count, ins_length = 0, 0
     hetero_germline_set = set()
     homo_germline_set = set()
+
+    args.qual = args.qual if args.qual is not None else 1.0
+    args.af = args.af if args.af is not None else 1.0
 
     if not os.path.exists(tumor_bam_fn):
         tumor_bam_fn += ctg_name + '.bam'
 
-    if flanking_list != "" and flanking_list is not None:
-        hetero_germline_set, homo_germline_set = flanking_list
+    if args.hetero_info is not None and args.hetero_info != "":
+        hetero_germline_set = set([tuple(item.split('-')) for item in args.hetero_info.split(',')])
+    if args.homo_info is not None and args.homo_info != "":
+        homo_germline_set = set([tuple(item.split('-')) for item in args.homo_info.split(',')])
 
     flanking = args.flanking
 
@@ -103,8 +110,8 @@ def extract_base(POS):
     ALL_HAP_LIST = [0, 0, 0]
     HAP_LIST = [0, 0, 0]
 
-    homo_germline_pos_set = set([item[0] for item in homo_germline_set])
-    hetero_germline_pos_set = set([item[0] for item in hetero_germline_set])
+    homo_germline_pos_set = set([int(item[0]) for item in homo_germline_set])
+    hetero_germline_pos_set = set([int(item[0]) for item in hetero_germline_set])
 
     samtools_mpileup_tumor_process = subprocess_popen(shlex.split(tumor_samtools_command), stderr=subprocess.PIPE,)
     for row in samtools_mpileup_tumor_process.stdout:
@@ -137,7 +144,7 @@ def extract_base(POS):
             alt_base_bq_set = [bq for key, value, bq in zip(read_name_list, base_list, bq_list) if
                                ''.join(value) == alt_base]
 
-            if len(alt_base_bq_set) > 0 and sum(alt_base_bq_set) / len(alt_base_bq_set) <= average_min_bq and float(POS.qual) < HIGH_QUAL:
+            if len(alt_base_bq_set) > 0 and sum(alt_base_bq_set) / len(alt_base_bq_set) <= average_min_bq and float(args.qual) < HIGH_QUAL:
                 pass_bq = False
 
             for rn in read_name_list:
@@ -165,8 +172,8 @@ def extract_base(POS):
     hp0, hp1, hp2 = alt_hap_counter[0], alt_hap_counter[1], alt_hap_counter[2]
     MAX = max(hp1, hp2)
     MIN = min(hp1, hp2)
-    af = float(POS.af)
-    if af < LOW_AF and float(POS.qual) < HIGH_QUAL:
+    af = float(args.af)
+    if af < LOW_AF and float(args.qual) < HIGH_QUAL:
         if hp1 * hp2 > 0 and MAX / MIN <= 10:
             pass_hetero_both_side = False
 
@@ -220,7 +227,10 @@ def extract_base(POS):
         match_count += 1
 
     if hap_index > 0:
-        for p, rb, ab in hetero_germline_set:
+        for p, ab in hetero_germline_set:
+            p = int(p)
+            rb = reference_sequence[p - pos + flanking]
+
             read_alt_dict = pos_dict[p]
             # snp
             if len(rb) == 1 and len(ab) == 1:
@@ -245,7 +255,9 @@ def extract_base(POS):
                 pass_hetero = False
                 break
 
-    for p, rb, ab in homo_germline_set:
+    for p, ab in homo_germline_set:
+        p = int(p)
+        rb = reference_sequence[p - pos + flanking]
         read_alt_dict = pos_dict[p]
 
         # is the homo confident
@@ -296,21 +308,31 @@ def extract_base(POS):
             pass_homo = False
             break
 
-    key = (ctg_name, pos) if args.ctg_name is None else pos
-    return key, pass_hetero, pass_homo, pass_hetero_both_side, match_count, ins_length, pass_read_start_end, alt_base_read_name_set, (
-        nor_del_base, del_base, all_base_dict, base_dict, alt_base_dict, pass_bq, ALL_HAP_LIST, HAP_LIST)
+    depth = sum(ALL_HAP_LIST) if sum(ALL_HAP_LIST) > 0 else 1
+    if match_count > max_co_exist_read_num or (ins_length / depth > 6 and float(args.qual) < HIGH_QUAL):
+        pass_co_exist = False
 
-def update_filter_info(args, key, row_str, phase_dict, fail_set_list):
+    pass_hap = pass_hap and pass_hetero and pass_homo and pass_hetero_both_side and pass_read_start_end and pass_bq and pass_co_exist
+
+    all_hp0, all_hp1, all_hp2 = ALL_HAP_LIST
+    hp0, hp1, hp2 = HAP_LIST
+    phaseable = all_hp1 * all_hp2 > 0 and hp1 * hp2 == 0 and (int(hp1) > args.min_alt_coverage or int(hp2) > args.min_alt_coverage)
+
+    if debug:
+        info_list = [str(item) for item in [pass_hetero, pass_homo, pass_hetero_both_side, pass_read_start_end, pass_bq, pass_co_exist] + ALL_HAP_LIST + HAP_LIST]
+        print(' '.join([ctg_name, str(pos), str(pass_hap), str(phaseable)] + info_list))
+    else:
+        print(' '.join([ctg_name, str(pos), str(pass_hap), str(phaseable)]))
+
+
+def update_filter_info(args, key, row_str, phasable_set, fail_set_list):
     ctg_name = key[0] if args.ctg_name is None else args.ctg_name
     pos = key[1] if args.ctg_name is None else key
     k = (ctg_name, pos)
     columns = row_str.split('\t')
 
     is_candidate_filtered = 0
-    phaseable = False
-    if k in phase_dict:
-        all_hp0, all_hp1, all_hp2, hp0, hp1, hp2 = [int(h) for h in phase_dict[k]]
-        phaseable = all_hp1 * all_hp2 > 0 and hp1 * hp2 == 0 and (int(hp1) > args.min_alt_coverage or int(hp2) > args.min_alt_coverage)
+    phaseable = k in phasable_set
 
     if phaseable:
         columns[7] = 'H'
@@ -328,11 +350,9 @@ def update_filter_info(args, key, row_str, phase_dict, fail_set_list):
             continue
 
     row_str = '\t'.join(columns)
-    if args.add_phasing_info:
-        phasing_info = ' '.join([str(item) for item in phase_dict[k]]) if k in phase_dict else "0 0 0 0 0 0"
-        row_str += "\t" + phasing_info
 
     return row_str, is_candidate_filtered
+
 
 def haplotype_filter(args):
 
@@ -415,120 +435,87 @@ def haplotype_filter(args):
                              ref_fn=args.ref_fn,
                              show_ref_calls=True)
 
-    for key, POS in input_variant_dict.items():
-        pos = key if args.ctg_name is not None else key[1]
-        hetero_flanking_list = []
-        homo_flanking_list = []
-        for gk, gt in germline_gt_list:
-            p = gk if args.ctg_name is not None else gk[1]
-            if p > pos + flanking:
-                break
-            if p > pos - flanking and p != pos:
-                ref_base = germline_input_variant_dict[gk].reference_bases
-                alt_base = germline_input_variant_dict[gk].alternate_bases[0]
-                if gt == 1:
-                    hetero_flanking_list.append((p, ref_base, alt_base))
-                else:
-                    homo_flanking_list.append((p, ref_base, alt_base))
-        POS.extra_infos = [set(hetero_flanking_list), set(homo_flanking_list)]
+    hap_info_output_path = os.path.join(output_dir, "HAP_INFO")
+    with open(hap_info_output_path, 'w') as f:
+        for key, POS in input_variant_dict.items():
+            ctg_name = args.ctg_name if args.ctg_name is not None else key[0]
+            pos = key if args.ctg_name is not None else key[1]
+            hetero_flanking_list = []
+            homo_flanking_list = []
+            for gk, gt in germline_gt_list:
+                p = gk if args.ctg_name is not None else gk[1]
+                if p > pos + flanking:
+                    break
+                if p > pos - flanking and p != pos:
+                    alt_base = germline_input_variant_dict[gk].alternate_bases[0]
+                    if gt == 1:
+                        hetero_flanking_list.append('-'.join([str(p), str(alt_base)]))
+                    else:
+                        homo_flanking_list.append('-'.join([str(p), str(alt_base)]))
+            POS.extra_infos = [set(hetero_flanking_list), set(homo_flanking_list)]
+            info_list = [ctg_name, str(pos), POS.alternate_bases[0], str(POS.af), str(POS.qual), \
+                         ','.join(hetero_flanking_list), ','.join(homo_flanking_list)]
+            f.write(' '.join(info_list) + '\n')
 
-    co_exist_fail_pos_set = set()
-    complex_indel_fail_pos_set = set()
-    fail_hetero_set = set()
-    fail_homo_set = set()
-    fail_hetero_both_side_set = set()
-    fail_pass_read_start_end_set = set()
-    fail_bq_set = set()
-    phase_dict = defaultdict()
-    fail_rn_set = set()
+    file_directory = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    main_entry = os.path.join(file_directory, "clairs.py")
 
-    ctg_name_list = [ctg_name] if args.ctg_name is not None else set([item[0] for item in input_variant_dict.keys()])
+    parallel_command = "{} -C ' ' -j{} {} {} haplotype_filtering".format(args.parallel, threads_low, args.pypy3, main_entry)
+    parallel_command += " --ctg_name {1}"
+    parallel_command += " --pos {2}"
+    parallel_command += " --alt_base {3}"
+    parallel_command += " --af {4}"
+    parallel_command += " --qual {5}"
+    parallel_command += " --hetero_info {6}"
+    parallel_command += " --homo_info {7}"
+    parallel_command += " --samtools " + str(args.samtools)
+    parallel_command += " --tumor_bam_fn " + str(args.tumor_bam_fn)
+    parallel_command += " --ref_fn " + str(args.ref_fn)
+    parallel_command += " :::: " + str(hap_info_output_path)
+
+    haplotype_filter_process = subprocess_popen(shlex.split(parallel_command))
 
     total_num = 0
-    for ctg in ctg_name_list:
-        POS_list = list([v for k, v in input_variant_dict.items() if
-                         k[0] == ctg]) if args.ctg_name is None else input_variant_dict.values()
+    phasable_set = set()
+    fail_set = set()
 
-        rn_dict = defaultdict(list)
+    for row in haplotype_filter_process.stdout:
+        columns = row.rstrip().split()
+        if len(columns) < 4:
+            continue
+        total_num += 1
+        ctg_name, pos, pass_hap, phasable = columns[:4]
+        pos = int(pos)
+        pass_hap = str2bool(pass_hap)
+        phasable = str2bool(phasable)
+        if not pass_hap:
+            fail_set.add((ctg_name, pos))
+        if phasable:
+            phasable_set.add((ctg_name, pos))
+        if total_num > 0 and total_num % 1000 == 0:
+            print("[INFO] Processing in {}, total processed positions: {}".format(ctg_name, total_num))
 
-        with concurrent.futures.ProcessPoolExecutor(max_workers=threads_low) as exec:
-            for result in exec.map(extract_base, POS_list):
-                total_num += 1
-                key, pass_hetero, pass_homo, pass_hetero_both_side, match_count, indel_length, pass_read_start_end, alt_base_read_name_set, extra = result
-                ctg_name = key[0] if args.ctg_name is None else args.ctg_name
-                pos = key[1] if args.ctg_name is None else key
+    haplotype_filter_process.stdout.close()
+    haplotype_filter_process.wait()
 
-                if match_count > max_co_exist_read_num:
-                    co_exist_fail_pos_set.add((ctg_name, pos))
-
-                nor_del_base, del_base, all_base_dict, base_dict, alt_base_dict, pass_bq, ALL_HAP_LIST, HAP_LIST = extra
-
-                depth = sum(ALL_HAP_LIST) if sum(ALL_HAP_LIST) > 0 else 1
-                if indel_length / depth > 6 and float(input_variant_dict[key].qual) < HIGH_QUAL:
-                    complex_indel_fail_pos_set.add((ctg_name, pos))
-
-                if pass_hetero is False:
-                    fail_hetero_set.add((ctg_name, pos))
-                if pass_homo is False:
-                    fail_homo_set.add((ctg_name, pos))
-
-                if pass_hetero_both_side is False:
-                    fail_hetero_both_side_set.add((ctg_name, pos))
-
-                if pass_read_start_end is False:
-                    fail_pass_read_start_end_set.add((ctg_name, pos))
-
-                if pass_bq is False:
-                    fail_bq_set.add((ctg_name, pos))
-
-                phase_dict[(ctg_name, pos)] = ALL_HAP_LIST + HAP_LIST
-
-            if total_num > 0 and total_num % 1000 == 0:
-                print("[INFO] Processing in {}, total processed positions: {}".format(ctg_name, total_num))
-
-        max_overlap_distance = args.max_overlap_distance
-        key_list = sorted(rn_dict.keys(), key=lambda x: (x[0], int(x[1])))
-
-        for idx, k in enumerate(key_list):
-            ctg, pos = k
-            rn = rn_dict[k]
-            count = 0
-            for i in range(len(key_list)):
-                if i == idx:
-                    continue
-                tmp_key = key_list[i]
-                c, p = tmp_key
-                if c != ctg:
-                    break
-                if int(pos) - int(p) > max_overlap_distance:
-                    continue
-                if int(p) - int(pos) > max_overlap_distance:
-                    break
-                tmp_rn = rn_dict[tmp_key]
-                if len(rn.intersection(tmp_rn)) * 2 >= len(rn):
-                    count += 1
-            if count > 0:
-                fail_rn_set.add(k)
-
-    fail_set_list = [co_exist_fail_pos_set, complex_indel_fail_pos_set, fail_hetero_set, fail_homo_set,\
-        fail_hetero_both_side_set, fail_pass_read_start_end_set, fail_bq_set]
+    fail_set_list = [fail_set]
 
     fail_count = 0
     for key in sorted(fa_variant_dict.keys()):
         row_str = fa_variant_dict[key].row_str.rstrip()
-        row_str, is_candidate_filtered = update_filter_info(args, key, row_str, phase_dict, fail_set_list)
+        row_str, is_candidate_filtered = update_filter_info(args, key, row_str, phasable_set, fail_set_list)
         fail_count += is_candidate_filtered
         f_vcf_writer.vcf_writer.write(row_str + '\n')
 
     for key in sorted(pileup_variant_dict.keys()):
         row_str = pileup_variant_dict[key].row_str.rstrip()
-        row_str, is_candidate_filtered = update_filter_info(args, key, row_str, phase_dict, fail_set_list)
+        row_str, is_candidate_filtered = update_filter_info(args, key, row_str, phasable_set, fail_set_list)
         p_vcf_writer.vcf_writer.write(row_str + '\n')
 
     p_vcf_writer.close()
     f_vcf_writer.close()
 
-    print("Total input calls: {}, filtered by haplotype match {}".format(len(fa_variant_dict), fail_count))
+    print("Total input calls: {}, filtered by haplotype match {}".format(len(fa_variant_dict), len(fail_set)))
 
 
 def main():
@@ -567,9 +554,14 @@ def main():
     parser.add_argument('--input_filter_tag', type=str_none, default=None,
                         help='Filter variants with tag from the input VCF')
 
+    parser.add_argument('--pypy3', type=str, default="pypy3",
+                        help="Absolute path of pypy3, pypy3 >= 3.6 is required")
+
+    parser.add_argument('--parallel', type=str, default="parallel",
+                        help="Absolute path of parallel, parallel >= 20191122 is required")
+
     parser.add_argument('--samtools', type=str, default="samtools",
                         help="Absolute path to the 'samtools', samtools version >= 1.10 is required. Default: %(default)s")
-
     # options for advanced users
     parser.add_argument('--apply_post_processing', type=str2bool, default=True,
                         help="EXPERIMENTAL: Apply post processing to the variant calls")
@@ -600,11 +592,31 @@ def main():
     parser.add_argument('--debug', action='store_true',
                         help=SUPPRESS)
 
+    parser.add_argument('--hetero_info', type=str, default=None,
+                        help=SUPPRESS)
+
+    parser.add_argument('--homo_info', type=str, default=None,
+                        help=SUPPRESS)
+
+    parser.add_argument('--pos', type=int, default=None,
+                        help=SUPPRESS)
+
+    parser.add_argument('--alt_base', type=str, default=None,
+                        help=SUPPRESS)
+
+    parser.add_argument('--af', type=float, default=None,
+                        help=SUPPRESS)
+
+    parser.add_argument('--qual', type=float, default=None,
+                        help=SUPPRESS)
+
     global args
     args = parser.parse_args()
 
-    haplotype_filter(args)
-
+    if args.pos is None:
+        haplotype_filter(args)
+    else:
+        haplotype_filter_per_pos(args)
 
 if __name__ == "__main__":
     main()
