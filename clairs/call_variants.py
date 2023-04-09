@@ -187,6 +187,8 @@ def output_vcf_from_probability(
             reference_base += best_match_alt[2:]
 
     if is_germline and output_config.is_show_germline:
+        if tumor_read_depth <= 0:
+            return
         best_match_alt, tumor_supported_reads_count, normal_supported_reads_count = rank_germline_alt(
             tumor_alt_info_dict, normal_alt_info_dict, tumor_read_depth, normal_read_depth)
         if best_match_alt == "":
@@ -255,7 +257,7 @@ def output_vcf_from_probability(
     if is_reference:
         genotype_string = '0/0'
     elif is_germline:
-        genotype_string = "0/1" if tumor_allele_frequency <= 0.5 else "0/1"
+        genotype_string = "0/1" if tumor_allele_frequency <= 0.75 else "1/1"
     else:
         genotype_string = "0/1" if tumor_allele_frequency < 1.0 else '1/1'
     # quality score
@@ -278,6 +280,11 @@ def output_vcf_from_probability(
     if add_ad_tag:
         AD = tumor_supported_reads_count
 
+    add_nad_tag = True
+    NAD = None
+    if add_nad_tag:
+        NAD = normal_supported_reads_count
+
     vcf_writer.write_row(CHROM=chromosome,
                          POS=position,
                          REF=reference_base,
@@ -290,6 +297,7 @@ def output_vcf_from_probability(
                          NDP=normal_read_depth,
                          AF=tumor_allele_frequency,
                          AD=AD,
+                         NAD=NAD,
                          NAF=normal_allele_frequency,
                          AU=AU,
                          CU=CU,
