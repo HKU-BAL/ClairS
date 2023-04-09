@@ -311,8 +311,10 @@ def output_header(reference_file_path, output_fn=None, sample_name='SAMPLE'):
             ##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype quality">
             ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read depth in the tumor BAM">
             ##FORMAT=<ID=AF,Number=1,Type=Float,Description="Estimated allele frequency in the tumor BAM">
+            ##FORMAT=<ID=AD,Number=1,Type=Integer,Description="Alternate allele depth in the tumor BAM">
             ##FORMAT=<ID=NAF,Number=1,Type=Float,Description="Estimated allele frequency in the normal BAM">
             ##FORMAT=<ID=NDP,Number=1,Type=Integer,Description="Read depth in the normal BAM">
+            ##FORMAT=<ID=NAD,Number=1,Type=Integer,Description="Alternate allele depth in the normal BAM">
             ##FORMAT=<ID=AU,Number=1,Type=Integer,Description="Count of A in the tumor BAM">
             ##FORMAT=<ID=CU,Number=1,Type=Integer,Description="Count of C in the tumor BAM">
             ##FORMAT=<ID=GU,Number=1,Type=Integer,Description="Count of G in the tumor BAM">

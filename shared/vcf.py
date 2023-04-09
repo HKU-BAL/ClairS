@@ -27,6 +27,7 @@ vcf_header = dedent("""\
             ##FORMAT=<ID=AD,Number=1,Type=Integer,Description="Alternate allele depth in the tumor BAM">
             ##FORMAT=<ID=NAF,Number=1,Type=Float,Description="Estimated allele frequency in the normal BAM">
             ##FORMAT=<ID=NDP,Number=1,Type=Integer,Description="Read depth in the normal BAM">
+            ##FORMAT=<ID=NAD,Number=1,Type=Integer,Description="Alternate allele depth in the normal BAM">
             ##FORMAT=<ID=AU,Number=1,Type=Integer,Description="Count of A in the tumor BAM">
             ##FORMAT=<ID=CU,Number=1,Type=Integer,Description="Count of C in the tumor BAM">
             ##FORMAT=<ID=GU,Number=1,Type=Integer,Description="Count of G in the tumor BAM">
@@ -102,6 +103,7 @@ class VcfWriter(object):
                   DP=0,
                   AF=0,
                   AD=None,
+                  NAD=None,
                   CHROM=None,
                   GQ=None,
                   ID='.',
@@ -148,6 +150,9 @@ class VcfWriter(object):
         if NDP is not None:
             FORMAT += ":NDP"
             FORMAT_V += ":%d" % (NDP)
+        if NAD is not None:
+            FORMAT += ":NAD"
+            FORMAT_V += ":%d" % (NAD)
         if TDP is not None:
             FORMAT += ":TDP"
             FORMAT_V += ":%d" % (TDP)
