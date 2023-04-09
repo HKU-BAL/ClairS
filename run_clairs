@@ -907,6 +907,7 @@ def somatic_calling(args):
     ec_command += ' --candidates_folder ' + args.output_dir + '/tmp/candidates'
     ec_command += ' --output_depth True '
     ec_command += ' --select_indel_candidates ' + str(args.enable_indel_calling)
+    ec_command += ' --hybrid_mode_vcf_fn ' + str(args.hybrid_mode_vcf_fn)
     ec_command += ' :::: ' + os.path.join(args.output_dir, 'tmp', 'CHUNK_LIST')
     ec_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/1_EC.log'
     ec_command += ' && cat {}/tmp/candidates/CANDIDATES_FILE_* > {}/tmp/candidates/CANDIDATES_FILES '.format(args.output_dir, args.output_dir)
@@ -1042,6 +1043,7 @@ def somatic_calling(args):
         hap_g_command += ' --parallel ' + args.parallel
         hap_g_command += ' --threads ' + str(args.threads)
         hap_g_command += ' --debug ' if args.debug else ''
+        hap_g_command += ' --show_ref ' if args.print_ref_calls else ''
         hap_g_command += ' --apply_post_processing False' if not args.apply_post_processing else ''
         hap_g_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/4_HAP_FILTER.log'
         commands_list += [hap_g_command]

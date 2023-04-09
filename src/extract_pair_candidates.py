@@ -40,7 +40,7 @@ from collections import Counter, defaultdict
 import shared.param as param
 from shared.vcf import VcfReader, VcfWriter
 from shared.utils import subprocess_popen, file_path_from, region_from, \
-    reference_sequence_from, str2bool
+    reference_sequence_from, str2bool, str_none
 from shared.interval_tree import bed_tree_from, is_region_in
 
 logging.basicConfig(format='%(message)s', level=logging.INFO)
@@ -197,6 +197,8 @@ def extract_pair_candidates(args):
     is_truth_vcf_provided = truth_vcf_fn is not None
     select_indel_candidates = args.select_indel_candidates
 
+    hybrid_mode_vcf_fn = args.hybrid_mode_vcf_fn
+
     truths_variant_dict = {}
     if is_truth_vcf_provided:
         unified_vcf_reader = VcfReader(vcf_fn=truth_vcf_fn, ctg_name=ctg_name, is_var_format=False)
@@ -205,6 +207,20 @@ def extract_pair_candidates(args):
 
     candidates_pos_set = set()
     add_read_regions = True
+
+    hybrid_candidate_set = set()
+    indel_hybrid_candidate_set = set()
+    if hybrid_mode_vcf_fn is not None:
+        vcf_reader = VcfReader(vcf_fn=hybrid_mode_vcf_fn, ctg_name=ctg_name, is_var_format=False)
+        vcf_reader.read_vcf()
+        hybrid_variant_dict = vcf_reader.variant_dict
+        for k, v in hybrid_variant_dict.items():
+            ref_base, alt_base = v.reference_bases, v.alternate_bases[0]
+            if len(ref_base) > 1 or len(alt_base) > 1:
+                if select_indel_candidates:
+                    indel_hybrid_candidate_set.add(k)
+
+            hybrid_candidate_set.add(k)
 
     #deprecated
     if genotyping_mode:
@@ -360,6 +376,12 @@ def extract_pair_candidates(args):
             if select_indel_candidates and pass_indel_af:
                 indel_candidates_set.add(pos)
 
+        if not pass_af and (pos in hybrid_candidate_set and depth >= min_coverage):
+            candidates_list.append(pos)
+            snv_candidates_set.add(pos)
+            if select_indel_candidates:
+                indel_candidates_set.add(pos)
+
     # scan the normal_bam
     bed_path = os.path.join(candidates_folder, "bed", '{}_{}.bed'.format(ctg_name, chunk_id))
     if not os.path.exists(os.path.join(candidates_folder, 'bed')):
@@ -400,6 +422,15 @@ def extract_pair_candidates(args):
             read_name_list=read_name_list,
             is_tumor=is_tumor
         )
+
+        if pos in hybrid_candidate_set:
+            if depth <= min_coverage:
+                if pos in snv_candidates_set:
+                    snv_candidates_set.remove(pos)
+                if select_indel_candidates:
+                    if pos in indel_candidates_set:
+                        indel_candidates_set.remove(pos)
+            continue
 
         tumor_alt_list, tumor_depth = candidates_dict[pos]
         if pos in snv_candidates_set:
@@ -597,6 +628,9 @@ def main():
 
     parser.add_argument('--select_indel_candidates', type=str2bool, default=0,
                         help="EXPERIMENTAL: Get Indel candidates instead of SNV candidates")
+
+    parser.add_argument('--hybrid_mode_vcf_fn', type=str_none, default=None,
+                        help="EXPERIMENTAL: Variants that passed the threshold and additional VCF candidates will both be subjected to variant calling")
 
     # options for debug purpose
     parser.add_argument('--output_depth', type=str2bool, default=False,
