@@ -396,7 +396,7 @@ def haplotype_filter(args):
 
     input_vcf_reader = VcfReader(vcf_fn=pileup_vcf_fn,
                                  ctg_name=ctg_name,
-                                 show_ref=False,
+                                 show_ref=args.show_ref,
                                  keep_row_str=True,
                                  discard_indel=True,
                                  filter_tag=args.input_filter_tag,
@@ -407,7 +407,7 @@ def haplotype_filter(args):
 
     input_vcf_reader = VcfReader(vcf_fn=fa_input_vcf_fn,
                                  ctg_name=ctg_name,
-                                 show_ref=False,
+                                 show_ref=args.show_ref,
                                  keep_row_str=True,
                                  discard_indel=True,
                                  filter_tag=args.input_filter_tag,
@@ -559,6 +559,9 @@ def main():
 
     parser.add_argument('--parallel', type=str, default="parallel",
                         help="Absolute path of parallel, parallel >= 20191122 is required")
+
+    parser.add_argument('--show_ref', action='store_true',
+                        help="Show reference calls (0/0) in VCF file")
 
     parser.add_argument('--samtools', type=str, default="samtools",
                         help="Absolute path to the 'samtools', samtools version >= 1.10 is required. Default: %(default)s")

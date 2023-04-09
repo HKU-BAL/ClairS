@@ -59,7 +59,7 @@ def compress_index_vcf(input_vcf):
                           stderr=subprocess.PIPE)
 
 def mark_low_qual(row, quality_score_for_pass):
-    if row == '':
+    if row == '' or "Germline" in row or "RefCall" in row:
         return row
     columns = row.split('\t')
     qual = float(columns[5])
@@ -149,7 +149,10 @@ def merge_vcf(args):
         if k[0] not in contig_dict or k[1] not in contig_dict[k[0]]:
             row = v.row_str
             columns = row.strip().split()
-            columns[5] = "0.000"
+            if columns[6] != "Germline" and columns[6] != "RefCall":
+                columns[5] = "0.000"
+            else:
+                columns[5] = quality_score_from(columns[5], use_phred_qual=use_phred_qual)
             #update GQ to phred
             columns = update_GQ(columns)
             row = '\t'.join(columns) + '\n'
