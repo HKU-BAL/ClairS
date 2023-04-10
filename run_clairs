@@ -172,7 +172,7 @@ def check_python_version(python):
 def check_tools_version(args):
 
     required_tool_version = {
-        'python': version_parse('3.8.0'),
+        'python': version_parse('3.9.0'),
         'pypy': version_parse('3.6'),
         'samtools': version_parse('1.10'),
         'whatshap': version_parse('1.0'),
