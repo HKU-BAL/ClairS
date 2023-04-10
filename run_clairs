@@ -172,7 +172,7 @@ def check_python_version(python):
 def check_tools_version(args):
 
     required_tool_version = {
-        'python': version_parse('3.9.0'),
+        'python': version_parse('3.8.0'),
         'pypy': version_parse('3.6'),
         'samtools': version_parse('1.10'),
         'whatshap': version_parse('1.0'),
@@ -620,6 +620,10 @@ def check_args(args):
         else:
             args.phase_tumor = True if args.platform != 'ilmn' else False
 
+    if args.genotyping_mode_vcf_fn is not None or args.hybrid_mode_vcf_fn is not None:
+        logging(log_warning("[WARNING] Enable --print_ref_calls and --print_germline_calls options in genotyping mode!"))
+        args.print_ref_calls = True
+        args.print_germline_calls = True
     if args.phase_tumor is False:
         # cannot only phase normal
         args.phase_normal = False
