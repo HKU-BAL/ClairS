@@ -191,7 +191,7 @@ cd ClairS
 # make sure in conda environment
 # download pre-trained models
 echo ${CONDA_PREFIX}
-mkdir -p ${CONDA_PREFIX}/bin/somatic_models
+mkdir -p ${CONDA_PREFIX}/bin/clairs_models
 wget http://www.bio8.cs.hku.hk/clairs/models/clairs_models.tar.gz
 tar -zxvf clairs_models.tar.gz -C ${CONDA_PREFIX}/bin/clairs_models/
 
