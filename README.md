@@ -96,13 +96,13 @@ ClairS trained both pileup and full-alignment models using GIAB samples, and car
 |  Platform   |       Model name       |    Chemistry /Instruments    | Option (`-p/--platform`) |   Reference   | Aligner  |
 | :---------: | :--------------------: | :--------------------------: | :----------------------: | :-----------: | :------: |
 |     ONT     | ont_r104_e81_sup_g5015 |        R10.4/R10.4.1         |        `ont_r10`         | GRCh38_no_alt | Minimap2 |
-|     ONT     |  r941_prom_sup_g5014   |            R9.4.1            |         `ont_r9`         | GRCh38_no_alt | Minimap2 |
+|     ONT <sup>1</sup>    |  r941_prom_sup_g5014   |            R9.4.1            |         `ont_r9`         | GRCh38_no_alt | Minimap2 |
 |  Illumina   |          ilmn          |        NovaSeq/HiseqX        |          `ilmn`          |    GRCh38     | BWA-MEM  |
-| PacBio HiFi |          hifi          | Sequel II with Chemistry 2.0 |          `hifi`          | GRCh38_no_alt | Minimap2 |
+| PacBio HiFi <sup>2</sup> |          hifi          | Sequel II with Chemistry 2.0 |          `hifi`          | GRCh38_no_alt | Minimap2 |
 
-**Caveats 1**: Although the r9(`r941_prom_sup_g5014`) model was trained on synthetic samples with r9.4.1 real data, the minimal AF cutoff, minimal coverage, and post-calling filtering parameters for the r9 model are copied from the r10 model, and are not optimized due to lack of real r9 data on a cancer sample with known truths.
+**Caveats <sup>1</sup>**: Although the r9(`r941_prom_sup_g5014`) model was trained on synthetic samples with r9.4.1 real data, the minimal AF cutoff, minimal coverage, and post-calling filtering parameters for the r9 model are copied from the r10 model, and are not optimized due to lack of real r9 data on a cancer sample with known truths.
 
-**Caveats 2**: The PacBio HiFi model was trained but not tested with any real data with known truths.
+**Caveats <sup>2</sup>**: The PacBio HiFi model is experimental. It was trained but not tested with any real data with known truths. HG003 54x and HG004 52x were used, thus tumor depth coverage higher than 50x may suffer from lower recall rate. For testing, please downsample both tumor and normal to ~40x for the best performance of this experimental model.
 
 
 ------
