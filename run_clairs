@@ -912,6 +912,7 @@ def somatic_calling(args):
     ec_command += ' --output_depth True '
     ec_command += ' --select_indel_candidates ' + str(args.enable_indel_calling)
     ec_command += ' --hybrid_mode_vcf_fn ' + str(args.hybrid_mode_vcf_fn)
+    ec_command += ' --genotyping_mode_vcf_fn ' + str(args.genotyping_mode_vcf_fn)
     ec_command += ' :::: ' + os.path.join(args.output_dir, 'tmp', 'CHUNK_LIST')
     ec_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/1_EC.log'
     ec_command += ' && cat {}/tmp/candidates/CANDIDATES_FILE_* > {}/tmp/candidates/CANDIDATES_FILES '.format(args.output_dir, args.output_dir)
@@ -1072,6 +1073,7 @@ def somatic_calling(args):
         genotyping_command += ' --hybrid_mode_vcf_fn ' + str(args.hybrid_mode_vcf_fn)
         genotyping_command += ' --call_fn ' + args.output_dir + '/{}.vcf.gz'.format(args.output_prefix)
         genotyping_command += ' --output_fn ' + args.output_dir + '/{}.vcf'.format(args.output_prefix)
+        genotyping_command += ' --candidates_folder ' + args.output_dir + '/tmp/candidates'
         genotyping_command += ' 2>&1 | tee ' + args.output_dir + '/logs/6_GT.log'
         commands_list += [genotyping_command]
 
@@ -1194,6 +1196,7 @@ def somatic_calling(args):
             indel_genotyping_command += ' --hybrid_mode_vcf_fn ' + str(args.hybrid_mode_vcf_fn)
             indel_genotyping_command += ' --call_fn ' + args.output_dir + '/{}.vcf.gz'.format(args.indel_output_prefix)
             indel_genotyping_command += ' --output_fn ' + args.output_dir + '/{}.vcf'.format(args.indel_output_prefix)
+            indel_genotyping_command += ' --candidates_folder ' + args.output_dir + '/tmp/candidates'
             indel_genotyping_command += ' 2>&1 | tee ' + args.output_dir + '/logs/9_GTI.log'
             commands_list += [indel_genotyping_command]
 
