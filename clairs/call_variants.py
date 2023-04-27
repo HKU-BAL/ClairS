@@ -275,6 +275,8 @@ def output_vcf_from_probability(
 
     AU, CU, GU, TU = decode_acgt_count(tumor_alt_type_list[0], reference_base, tumor_read_depth)
 
+    NAU, NCU, NGU, NTU = decode_acgt_count(normal_alt_type_list[0], reference_base, normal_read_depth)
+
     add_ad_tag = True
     AD = None
     if add_ad_tag:
@@ -302,7 +304,12 @@ def output_vcf_from_probability(
                          AU=AU,
                          CU=CU,
                          GU=GU,
-                         TU=TU)
+                         TU=TU,
+                         NAU=NAU,
+                         NCU=NCU,
+                         NGU=NGU,
+                         NTU=NTU,
+                         )
 
 
 def call_variants_from_probability(args):

@@ -132,7 +132,26 @@ class VcfReader(object):
                                               pos=position,
                                               row_str=row_str)
 
-def switch_genotype_row(row_str):
+
+def get_alt_info(alt_info):
+
+    if alt_info is None or alt_info == "":
+        return 0, 0, 0, 0, 0
+    try:
+        acgt_count = [0, 0, 0, 0]
+        depth, seqs = alt_info.split('-')
+        seqs = seqs.split(' ')
+        alt_dict = dict(zip(seqs[::2], [int(item) for item in seqs[1::2]])) if len(seqs) else {}
+        for idx, base in enumerate('ACGT'):
+            acgt_count[idx] = alt_dict[base] if base in alt_dict else 0
+        return int(depth), acgt_count[0], acgt_count[1], acgt_count[2], acgt_count[3]
+    except:
+        return 0, 0, 0, 0, 0
+
+
+def switch_genotype_row(row_str, ref_base=None, normal_alt_info=None, tumor_alt_info=None):
+    NDP, NAU, NCU, NGU, NTU = get_alt_info(normal_alt_info)
+    DP, AU, CU, GU, TU = get_alt_info(tumor_alt_info)
     columns = row_str.rstrip().split('\t')
     if len(columns) < 10:
         columns += ['.'] * (10 - len(columns))
@@ -143,8 +162,9 @@ def switch_genotype_row(row_str):
     columns[5] = "."  # QUAL to .
     columns[6] = "."  # FILTER to .
     columns[7] = "."  # INFO to .
-    columns[8] = "GT"  # keep GT tag only
-    columns[9] = './.'
+    columns[8] = "GT:DP:NDP:AU:CU:GU:TU:NAU:NCU:NGU:NTU"
+    columns[9] = './.' + ":%d:%d" % (DP, NDP) + ":%d:%d:%d:%d" % (AU, CU, GU, TU) + \
+                 ":%d:%d:%d:%d" % (NAU, NCU, NGU, NTU)
     row_str = '\t'.join(columns) + '\n'
     return row_str
 

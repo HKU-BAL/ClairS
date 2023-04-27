@@ -32,6 +32,10 @@ vcf_header = dedent("""\
             ##FORMAT=<ID=CU,Number=1,Type=Integer,Description="Count of C in the tumor BAM">
             ##FORMAT=<ID=GU,Number=1,Type=Integer,Description="Count of G in the tumor BAM">
             ##FORMAT=<ID=TU,Number=1,Type=Integer,Description="Count of T in the tumor BAM">
+            ##FORMAT=<ID=NAU,Number=1,Type=Integer,Description="Count of A in the normal BAM">
+            ##FORMAT=<ID=NCU,Number=1,Type=Integer,Description="Count of C in the normal BAM">
+            ##FORMAT=<ID=NGU,Number=1,Type=Integer,Description="Count of G in the normal BAM">
+            ##FORMAT=<ID=NTU,Number=1,Type=Integer,Description="Count of T in the normal BAM">
             """.format(caller_name, version)
                     )
 
@@ -118,6 +122,10 @@ class VcfWriter(object):
                   CU=None,
                   GU=None,
                   TU=None,
+                  NAU=None,
+                  NCU=None,
+                  NGU=None,
+                  NTU=None,
                   row_str=None):
         if row_str is not None:
             self.vcf_writer.write(row_str)
@@ -159,6 +167,10 @@ class VcfWriter(object):
         if AU is not None and CU is not None and GU is not None and TU is not None:
             FORMAT += ":AU:CU:GU:TU"
             FORMAT_V += ":%d:%d:%d:%d" % (AU, CU, GU, TU)
+        if NAU is not None and NCU is not None and NGU is not None and NTU is not None:
+            FORMAT += ":NAU:NCU:NGU:NTU"
+            FORMAT_V += ":%d:%d:%d:%d" % (NAU, NCU, NGU, NTU)
+
         if VT is not None:
             FORMAT += ":VT"
             FORMAT_V += ":%s" % (VT)
