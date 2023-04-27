@@ -127,7 +127,7 @@ docker run -it \
   --ref_fn ${INPUT_DIR}/ref.fa \               ## use your reference file name here
   --threads ${THREADS} \                       ## maximum threads to be used
   --platform ${PLATFORM} \                     ## options: {ont_r10, ont_r9, ilmn, hifi}
-  --output ${OUTPUT_DIR}                       ## output path prefix 
+  --output_dir ${OUTPUT_DIR}                       ## output path prefix 
 ```
 
 Check [Usage](#Usage) for more options.
@@ -159,7 +159,7 @@ singularity exec \
   --ref_fn ${INPUT_DIR}/ref.fa \               ## use your reference file name here
   --threads ${THREADS} \                       ## maximum threads to be used
   --platform ${PLATFORM} \                     ## options: {ont_r10, ont_r9, ilmn, hifi}
-  --output ${OUTPUT_DIR} \                     ## output path prefix
+  --output_dir ${OUTPUT_DIR} \                     ## output path prefix
   --conda_prefix /opt/conda/envs/clairs
 ```
 
@@ -227,7 +227,7 @@ docker run -it hkubal/clairs:latest /opt/bin/run_clairs --help
   --ref_fn ${INPUT_DIR}/ref.fa \             ## use your reference file name here
   --threads ${THREADS} \                     ## maximum threads to be used
   --platform ${PLATFORM} \                   ## options: {ont_r10, ont_r9, ilmn, hifi}
-  --output ${OUTPUT_DIR}                     ## output path prefix
+  --output_dir ${OUTPUT_DIR}                     ## output path prefix
  
 ## Final output file: ${OUTPUT_DIR}/output.vcf.gz
 ```
