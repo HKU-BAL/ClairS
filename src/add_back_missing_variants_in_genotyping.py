@@ -82,6 +82,11 @@ class Position(object):
         self.pos = pos
         self.row_str = row_str
 
+class AltInfo(object):
+    def __init__(self, ref_base='', normal_alt_info="", tumor_alt_info=""):
+        self.ref_base = ref_base
+        self.normal_alt_info = normal_alt_info
+        self.tumor_alt_info = tumor_alt_info
 
 class VcfReader(object):
     def __init__(self, vcf_fn,
@@ -132,6 +137,8 @@ def switch_genotype_row(row_str):
     if len(columns) < 10:
         columns += ['.'] * (10 - len(columns))
     columns[3] = columns[3][0] if len(columns[3]) > 0 else '.'  # Only keep the reference base for REF
+    if ref_base is not None and ref_base != "" and columns[3] != ref_base:
+        columns[3] = ref_base
     columns[4] = '.'  # ALT to 0
     columns[5] = "."  # QUAL to .
     columns[6] = "."  # FILTER to .
@@ -141,13 +148,29 @@ def switch_genotype_row(row_str):
     row_str = '\t'.join(columns) + '\n'
     return row_str
 
+def decode_hybrid_info(candidates_folder):
+    file_list = [item for item in os.listdir(candidates_folder) if item.endswith("hybrid_info")]
+    hybrid_info_dict = defaultdict(AltInfo)
+    for file in file_list:
+        with open(os.path.join(candidates_folder, file)) as f:
+            for row in f:
+                columns = row.rstrip('\n').split('\t') # ctg_name, pos, ref_base, normal_info, tumor_info
+                if len(columns) < 5:
+                    continue
+                ctg_name, pos, ref_base, normal_alt_info, tumor_alt_info = columns[:5]
+                key = (ctg_name, int(pos))
+                hybrid_info_dict[key] = AltInfo(ref_base=ref_base,
+                                                normal_alt_info=normal_alt_info,
+                                                tumor_alt_info=tumor_alt_info)
+    return hybrid_info_dict
+
 def genotype_vcf(args):
     genotyping_mode_vcf_fn = args.genotyping_mode_vcf_fn
     hybrid_mode_vcf_fn = args.hybrid_mode_vcf_fn
     call_fn = args.call_fn
     output_fn = args.output_fn
     switch_genotype = args.switch_genotype
-
+    candidates_folder = args.candidates_folder
     if genotyping_mode_vcf_fn is None and hybrid_mode_vcf_fn is None:
         exit("[ERROR] Both VCF {} and additional VCF is None, exit!".format(genotyping_mode_vcf_fn, hybrid_mode_vcf_fn))
 
@@ -163,6 +186,10 @@ def genotype_vcf(args):
     somatic_vcf_reader.read_vcf()
     somatic_variant_dict = somatic_vcf_reader.variant_dict
     output.write(somatic_vcf_reader.header)
+
+    hybrid_info_dict = defaultdict()
+    if candidates_folder is not None and os.path.exists(candidates_folder):
+        hybrid_info_dict = decode_hybrid_info(candidates_folder)
 
     if genotyping_mode_vcf_fn is not None:
         vcf_reader = VcfReader(vcf_fn=genotyping_mode_vcf_fn,
@@ -187,7 +214,18 @@ def genotype_vcf(args):
                 row_str = variant_dict[k].row_str
                 count += 1
                 if switch_genotype:
-                    row_str = switch_genotype_row(row_str)
+                    ref_base = None
+                    normal_alt_info = None
+                    tumor_alt_info = None
+                    if k in hybrid_info_dict:
+                        ref_base = hybrid_info_dict[k].ref_base
+                        normal_alt_info = hybrid_info_dict[k].normal_alt_info
+                        tumor_alt_info = hybrid_info_dict[k].tumor_alt_info
+
+                    row_str = switch_genotype_row(row_str,
+                                                  ref_base=ref_base,
+                                                  normal_alt_info=normal_alt_info,
+                                                  tumor_alt_info=tumor_alt_info,)
             else:
                 row_str = somatic_variant_dict[k].row_str
 
@@ -229,7 +267,18 @@ def genotype_vcf(args):
                 row_str = variant_dict[k].row_str
                 count += 1
                 if switch_genotype:
-                    row_str = switch_genotype_row(row_str)
+                    ref_base = None
+                    normal_alt_info = None
+                    tumor_alt_info = None
+                    if k in hybrid_info_dict:
+                        ref_base = hybrid_info_dict[k].ref_base
+                        normal_alt_info = hybrid_info_dict[k].normal_alt_info
+                        tumor_alt_info = hybrid_info_dict[k].tumor_alt_info
+
+                    row_str = switch_genotype_row(row_str,
+                                                  ref_base=ref_base,
+                                                  normal_alt_info=normal_alt_info,
+                                                  tumor_alt_info=tumor_alt_info)
 
                 contig_dict[ctg].append((int(pos), row_str))
 
@@ -257,6 +306,9 @@ def main():
 
     parser.add_argument('--hybrid_mode_vcf_fn', type=str_none, default=None,
                         help="Variants that passed the threshold and additional VCF candidates will both be subjected to variant calling")
+
+    parser.add_argument('--candidates_folder', type=str, default=None,
+                        help="Candidate folder to store the genotyped alternative candidate information")
 
     parser.add_argument('--call_fn', type=str, default=None,
                         help="Somatic VCF input")
