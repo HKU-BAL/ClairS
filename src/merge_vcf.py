@@ -97,6 +97,7 @@ def merge_vcf(args):
 
     pass_fa_set = set([k for k, v in fa_input_variant_dict.items() if v.filter == "PASS"])
 
+    pileup_input_variant_dict = defaultdict(str)
     row_count = 0
     contig_dict = defaultdict(defaultdict)
     no_vcf_output = True
@@ -113,6 +114,8 @@ def merge_vcf(args):
         qual = float(columns[5])
         filter = columns[6]
         if filter != 'PASS':
+            k = (ctg_name, int(pos))
+            pileup_input_variant_dict[k] = row
             continue
 
         if max_qual_filter_fa_calls is not None:
@@ -144,10 +147,24 @@ def merge_vcf(args):
             contig_dict[ctg_name][int(pos)] = row
             no_vcf_output = False
 
-    # append all non_pass variant if need to print ref calls
+    # append all non_pass fa variant if need to print ref calls
     for k, v in fa_input_variant_dict.items():
         if k[0] not in contig_dict or k[1] not in contig_dict[k[0]]:
             row = v.row_str
+            columns = row.strip().split()
+            if columns[6] != "Germline" and columns[6] != "RefCall":
+                columns[5] = "0.000"
+            else:
+                columns[5] = quality_score_from(columns[5], use_phred_qual=use_phred_qual)
+            #update GQ to phred
+            columns = update_GQ(columns)
+            row = '\t'.join(columns) + '\n'
+            contig_dict[k[0]][k[1]] = row
+            no_vcf_output = False
+
+    # append all non_pass pileup variant if need to print ref calls
+    for k, row in pileup_input_variant_dict.items():
+        if k[0] not in contig_dict or k[1] not in contig_dict[k[0]]:
             columns = row.strip().split()
             if columns[6] != "Germline" and columns[6] != "RefCall":
                 columns[5] = "0.000"
