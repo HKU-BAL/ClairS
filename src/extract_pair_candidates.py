@@ -410,7 +410,6 @@ def extract_pair_candidates(args):
         )
 
         if pos in hybrid_candidate_set:
-            # if depth <= min_coverage:
             if depth == 0:
                 if pos in snv_candidates_set:
                     snv_candidates_set.remove(pos)
@@ -556,7 +555,7 @@ def extract_pair_candidates(args):
         with open(all_candidates_regions_path, 'w') as output_file:
             output_file.write('\n'.join(all_candidates_regions) + '\n')
 
-    if hybrid_mode_vcf_fn is not None:
+    if hybrid_mode_vcf_fn is not None or genotyping_mode_vcf_fn is not None:
         hybrid_output_path = os.path.join(candidates_folder,
                                    '{}.{}_hybrid_info'.format(ctg_name, chunk_id))
 
