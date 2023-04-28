@@ -6,10 +6,17 @@ from itertools import accumulate
 
 zstd = 'gzip'
 
-clair3_option = {
+clair3_fast_option = {
     'min_coverage': 8,
     'snp_min_af': 0.15,
     'indel_min_af': 0.2,
+    'longphase_for_phasing': True
+}
+
+clair3_default_option = {
+    'min_coverage': 4,
+    'snp_min_af': 0.08,
+    'indel_min_af': 0.15,
     'longphase_for_phasing': True
 }
 
