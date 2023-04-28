@@ -56,6 +56,7 @@ class VcfWriter(object):
                  sample_name="SAMPLE",
                  write_header=True,
                  header=None,
+                 cmdline=None,
                  show_ref_calls=False):
         self.vcf_fn = vcf_fn
         self.show_ref_calls = show_ref_calls
@@ -74,7 +75,7 @@ class VcfWriter(object):
             self.ctg_name_list = None
         self.sample_name = sample_name
         if write_header:
-            self.write_header(ref_fn=ref_fn, header=header)
+            self.write_header(ref_fn=ref_fn, header=header, cmdline=cmdline)
 
     def close(self):
         try:
@@ -82,8 +83,13 @@ class VcfWriter(object):
         except:
             pass
 
-    def write_header(self, ctg_name=None, ref_fn=None, header=None):
+    def write_header(self, ctg_name=None, ref_fn=None, header=None, cmdline=None):
         header = vcf_header if header is None else header
+        if cmdline is not None and cmdline != "":
+            header_list = header.rstrip('\n').split('\n')
+            insert_index = 3 if len(header_list) >= 3 else len(header_list) - 1
+            header_list.insert(insert_index, "##cmdline={}".format(cmdline))
+            header = "\n".join(header_list) + '\n'
         if self.ref_fn is not None:
             reference_index_file_path = file_path_from(self.ref_fn, suffix=".fai", exit_on_not_found=True, sep='.')
             with open(reference_index_file_path, "r") as fai_fp:

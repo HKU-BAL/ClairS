@@ -621,9 +621,14 @@ def check_args(args):
             args.phase_tumor = True if args.platform != 'ilmn' else False
 
     if args.genotyping_mode_vcf_fn is not None or args.hybrid_mode_vcf_fn is not None:
-        logging(log_warning("[WARNING] Enable --print_ref_calls and --print_germline_calls options in genotyping mode!"))
+        logging(log_warning("[INFO] Enable --print_ref_calls and --print_germline_calls options in genotyping mode!"))
         args.print_ref_calls = True
         args.print_germline_calls = True
+        if args.hybrid_mode_vcf_fn is not None and args.platform != 'ilmn':
+            logging(log_warning(
+                "[INFO] Enable --enable_clair3_germline_output option in hybrid calling mode!"))
+            args.enable_clair3_germline_output = True
+
     if args.phase_tumor is False:
         # cannot only phase normal
         args.phase_normal = False
@@ -669,6 +674,7 @@ def print_args(args):
     logging("[INFO] PYTHON BINARY PATH: {}".format(args.python))
     logging("[INFO] PYPY BINARY PATH: {}".format(args.pypy))
     logging("[INFO] PARALLEL BINARY PATH: {}".format(args.parallel))
+    logging("[INFO] LONGPHASE BINARY PATH: {}".format(args.longphase))
     logging("[INFO] CHUNK SIZE: {}".format(args.chunk_size))
     logging("[INFO] SNV MINIMUM AF: {}".format(args.snv_min_af))
     if args.enable_indel_calling:
@@ -688,8 +694,74 @@ def print_args(args):
     if args.platform.startswith('ont'):
         args.platform = 'ont'
 
+    if args.cmdline is not None and args.cmdline != "":
+        with open(args.output_dir + '/tmp/CMD', 'w') as f:
+            f.write(args.cmdline + '\n')
+
     return args
 
+def print_command_line(args):
+
+    try:
+
+        cmdline = os.path.realpath(__file__)
+        cmdline += ' --tumor_bam_fn {} '.format(args.tumor_bam_fn)
+        cmdline += '--normal_bam_fn {} '.format(args.normal_bam_fn)
+        cmdline += '--ref_fn {} '.format(args.ref_fn)
+        cmdline += '--threads {} '.format(args.threads)
+        cmdline += '--platform {} '.format(args.platform)
+        cmdline += '--output_dir {} '.format(args.output_dir)
+        cmdline += '--pileup_model_path {} '.format(args.pileup_model_path) if args.pileup_model_path is not None else ""
+        cmdline += '--full_alignment_model_path {} '.format(args.full_alignment_model_path) if args.full_alignment_model_path is not None else ""
+        cmdline += '--ctg_name {} '.format(args.ctg_name) if args.ctg_name is not None else ""
+        cmdline += '--region {} '.format(args.region) if args.region is not None else ""
+        cmdline += '--bed_fn {} '.format(args.bed_fn) if args.bed_fn is not None else ""
+        cmdline += '--genotyping_mode_vcf_fn {} '.format(args.genotyping_mode_vcf_fn) if args.genotyping_mode_vcf_fn is not None else ""
+        cmdline += '--hybrid_mode_vcf_fn {} '.format(args.hybrid_mode_vcf_fn) if args.hybrid_mode_vcf_fn is not None else ""
+        cmdline += '--qual {} '.format(args.qual) if args.qual is not None else ""
+        cmdline += '--snv_min_af {} '.format(args.snv_min_af) if args.snv_min_af is not None else ""
+        cmdline += '--min_coverage {} '.format(args.min_coverage) if args.min_coverage is not None else ""
+        cmdline += '--chunk_size {} '.format(args.chunk_size) if args.chunk_size is not None else ""
+        cmdline += '--sample_name {} '.format(args.sample_name) if args.sample_name != "SAMPLE" else ""
+        cmdline += '--output_prefix {} '.format(args.output_prefix) if args.output_prefix != "output" else ""
+        cmdline += '--remove_intermediate_dir ' if args.remove_intermediate_dir else ""
+        cmdline += '--include_all_ctgs ' if args.include_all_ctgs else ""
+        cmdline += '--print_ref_calls ' if args.print_ref_calls else ""
+        cmdline += '--print_germline_calls ' if args.print_germline_calls else ""
+        cmdline += '--python {} '.format(args.python) if args.python != "python3" else ""
+        cmdline += '--pypy {} '.format(args.pypy) if args.pypy != "pypy3" else ""
+        cmdline += '--samtools {} '.format(args.samtools) if args.samtools != "samtools" else ""
+        cmdline += '--parallel {} '.format(args.parallel) if args.parallel != "parallel" else ""
+        cmdline += '--normal_vcf_fn {} '.format(args.normal_vcf_fn) if args.normal_vcf_fn is not None else ""
+        cmdline += '--disable_phasing ' if args.disable_phasing else ""
+        cmdline += '--enable_indel_calling ' if args.enable_indel_calling else ""
+        cmdline += '--indel_output_prefix {} '.format(args.indel_output_prefix) if args.indel_output_prefix != "indel" else ""
+        cmdline += '--indel_pileup_model_path {} '.format(args.indel_pileup_model_path) if args.indel_pileup_model_path is not None else ""
+        cmdline += '--indel_full_alignment_model_path {} '.format(args.indel_full_alignment_model_path) if args.indel_full_alignment_model_path is not None else ""
+        cmdline += '--clair3_path {} '.format(args.clair3_path) if args.clair3_path is not None else ""
+        cmdline += '--clair3_model_path {} '.format(args.clair3_model_path) if args.clair3_model_path is not None else ""
+        cmdline += '--longphase {} '.format(args.longphase) if args.longphase is not None else ""
+        cmdline += '--whatshap {} '.format(args.whatshap) if args.whatshap is not None else ""
+        cmdline += '--whatshap_for_phasing {} '.format(args.whatshap_for_phasing) if args.whatshap_for_phasing is not None else ""
+        cmdline += '--prefer_recall ' if args.prefer_recall else ""
+        cmdline += '--prefer_balance ' if args.prefer_balance else ""
+        cmdline += '--phase_normal {} '.format(args.phase_normal) if args.phase_normal is True else ""
+        cmdline += '--phase_tumor {} '.format(args.phase_tumor) if args.phase_tumor is not None else ""
+        cmdline += '--use_gpu ' if args.use_gpu else ""
+        cmdline += '--indel_min_af {} '.format(args.indel_min_af) if args.indel_min_af is not None else ""
+        cmdline += '--enable_realignment False ' if args.enable_realignment is False else ""
+        cmdline += '--apply_post_processing False ' if args.apply_post_processing is False else ""
+        cmdline += '--skip_steps {} '.format(args.skip_steps) if args.skip_steps is not None else ""
+        cmdline += '--clair3_min_coverage {} '.format(args.clair3_min_coverage) if args.clair3_min_coverage is not None else ""
+        cmdline += '--clair3_snp_min_af {} '.format(args.clair3_snp_min_af) if args.clair3_snp_min_af is not None else ""
+        cmdline += '--clair3_indel_min_af {} '.format(args.clair3_indel_min_af) if args.clair3_indel_min_af is not None else ""
+        cmdline += '--enable_clair3_germline_output ' if args.enable_clair3_germline_output else ""
+        cmdline += '--conda_prefix {} '.format(args.conda_prefix) if args.conda_prefix is not None else ""
+        args.cmdline = cmdline
+    except:
+        return args
+    logging("[COMMAND] " + cmdline + '\n')
+    return args
 
 def somatic_calling(args):
 
@@ -1063,6 +1135,7 @@ def somatic_calling(args):
     sort_vcf_command += ' --qual ' + str(args.qual)
     sort_vcf_command += ' --sample_name ' + str(args.sample_name)
     sort_vcf_command += ' --enable_indel_calling ' + str(args.enable_indel_calling)
+    sort_vcf_command += ' --cmdline ' + args.output_dir + '/tmp/CMD'
     sort_vcf_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/5_MV.log'
     commands_list += [sort_vcf_command]
 
@@ -1186,6 +1259,7 @@ def somatic_calling(args):
         indel_sort_vcf_command += ' --sample_name ' + str(args.sample_name)
         indel_sort_vcf_command += ' --enable_indel_calling ' + str(args.enable_indel_calling)
         indel_sort_vcf_command += ' --indel_calling '
+        indel_sort_vcf_command += ' --cmdline ' + args.output_dir + '/tmp/CMD'
         indel_sort_vcf_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/8_MVI.log'
         commands_list += [indel_sort_vcf_command]
 
@@ -1652,6 +1726,13 @@ def somatic_parser():
         help=SUPPRESS
     )
 
+    optional_params.add_argument(
+        "--cmdline",
+        type=str,
+        default=None,
+        help=SUPPRESS
+    )
+
     return parser
 
 def main():
@@ -1678,6 +1759,7 @@ def main():
 
     logging("")
 
+    args = print_command_line(args)
     args = check_args(args)
     args = print_args(args)
     somatic_calling(args)
