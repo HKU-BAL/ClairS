@@ -1,6 +1,6 @@
 # parameters
 caller_name = "clairs"
-version = "0.1.0"
+version = "0.1.1"
 
 from itertools import accumulate
 
