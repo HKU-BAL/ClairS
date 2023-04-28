@@ -500,20 +500,28 @@ def check_clair3_options(args):
     if args.whatshap is None:
         args.whatshap = os.path.join(conda_prefix, 'bin', 'whatshap')
     longphase = os.path.join(args.clair3_path, 'longphase')
-    longphase_for_phasing = False if args.whatshap_for_phasing is True else param.clair3_option['longphase_for_phasing']
+    longphase_for_phasing = False if args.whatshap_for_phasing is True else param.clair3_fast_option['longphase_for_phasing']
     if longphase_for_phasing and not os.path.exists(longphase):
         sys.exit(log_error("[ERROR] Cannot find longphase at {}".format(longphase)))
     if args.whatshap_for_phasing and not os.path.exists(args.whatshap):
         sys.exit(log_error("[ERROR] Cannot find whatshap at {}".format(args.whatshap)))
 
+    clair3_option = param.clair3_fast_option
+    if args.enable_clair3_germline_output:
+        # use clair3 default settings than the fast setting for germline calling
+        clair3_option = param.clair3_default_option
+
+    args.clair3_min_coverage = args.clair3_min_coverage if args.clair3_min_coverage is not None else clair3_option['min_coverage']
+    args.clair3_snp_min_af = args.clair3_snp_min_af if args.clair3_snp_min_af is not None else clair3_option['snp_min_af']
+    args.clair3_indel_min_af = args.clair3_indel_min_af if args.clair3_indel_min_af is not None else clair3_option['indel_min_af']
     args.clair3_option = Clair3Option(
         clair3_path=args.clair3_path,
         model_path=args.clair3_model_path,
         longphase_for_phasing=longphase_for_phasing,
         ctg_name_str=None, # update in check_contigs_intersection
-        min_coverage=str(param.clair3_option['min_coverage']),
-        snp_min_af=str(param.clair3_option['snp_min_af']),
-        indel_min_af=str(param.clair3_option['indel_min_af']),
+        min_coverage=str(args.clair3_min_coverage),
+        snp_min_af=str(args.clair3_snp_min_af),
+        indel_min_af=str(args.clair3_indel_min_af),
         longphase=longphase)
 
     return args
@@ -616,7 +624,7 @@ def check_args(args):
     if args.phase_tumor is None:
         if args.genotyping_mode_vcf_fn is not None:
             logging(log_warning(
-                "[WARNING] Clair3 HET SNPs based phasing is disabled if `--genotyping_mode_vcf_fn` is provided, add `--phase_tumor True` if phasing the tumor is still needed. Please ensure you have enough heterozygous variant candidates given in the --genotyping_mode_vcf_fn file, otherwise the phasing might fail or lead to worse performance."))
+                "[WARNING] Clair3 HET SNPs based phasing is disabled if `--genotyping_mode_vcf_fn` is provided, add `--phase_tumor True` if phasing the tumor is still needed. Please ensure you have sufficient heterozygous variant candidates given in the --genotyping_mode_vcf_fn file, otherwise the phasing step might lead to worse performance."))
         else:
             args.phase_tumor = True if args.platform != 'ilmn' else False
 
@@ -1299,6 +1307,21 @@ def somatic_calling(args):
         logging("[INFO] Removing intermediate files in {}/tmp ...".format(args.output_dir))
         subprocess.run('rm -rf {}/tmp'.format(args.output_dir), shell=True)
 
+    if not args.dry_run and args.enable_clair3_germline_output and args.platform != 'ilmn':
+        print("cp {} {}/clair3_tumor_germline_output.vcf.gz".format(clair3_output_path + '/clair3_tumor_output/merge_output.vcf.gz', args.output_dir))
+        subprocess.run("cp {} {}/clair3_tumor_germline_output.vcf.gz".format(clair3_output_path + '/clair3_tumor_output/merge_output.vcf.gz', args.output_dir), shell=True,
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess.run("cp {} {}/clair3_tumor_germline_output.vcf.gz.tbi".format(clair3_output_path + '/clair3_tumor_output/merge_output.vcf.gz.tbi', args.output_dir), shell=True,
+                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if not args.normal_vcf_fn:
+            subprocess.run("cp {} {}/clair3_normal_germline_output.vcf.gz".format(
+                clair3_output_path + '/clair3_normal_output/merge_output.vcf.gz', args.output_dir), shell=True,
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            subprocess.run("cp {} {}/clair3_normal_germline_output.vcf.gz.tbi".format(
+                clair3_output_path + '/clair3_normal_output/merge_output.vcf.gz.tbi', args.output_dir), shell=True,
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+
 def somatic_parser():
 
     parser = argparse.ArgumentParser(
@@ -1547,6 +1570,12 @@ def somatic_parser():
         help="EXPERIMENTAL: Enable Indel calling, only support ont r10 platform. The calling time would increase significantly. default: disabled."
     )
 
+    optional_params.add_argument(
+        "--enable_clair3_germline_output",
+        action='store_true',
+        help="EXPERIMENTAL: Use Clair3 default calling settings than Clair3 fast calling setting for tumor and normal germline varaint calling. The calling time would increase ~40%, Default: disabled"
+    )
+
     ont_params.add_argument(
         "--indel_output_prefix",
         type=str,
@@ -1644,6 +1673,30 @@ def somatic_parser():
         help=SUPPRESS
     )
 
+    ## Clair3 germline calling minimum coverage
+    optional_params.add_argument(
+        "--clair3_min_coverage",
+        type=int,
+        default=None,
+        help=SUPPRESS
+    )
+    
+    ## Clair3 germline snp minimum allele frequency
+    optional_params.add_argument(
+        "--clair3_snp_min_af",
+        type=float,
+        default=None,
+        help=SUPPRESS
+    )
+    
+    ## Clair3 germline snp minimum allele frequency
+    optional_params.add_argument(
+        "--clair3_indel_min_af",
+        type=float,
+        default=None,
+        help=SUPPRESS
+    )
+    
     ##If set then will use GPUs for inference. CUDA required
     optional_params.add_argument(
         "-g",
@@ -1770,6 +1823,11 @@ def main():
     if args.enable_indel_calling:
         logging("[INFO] Finish calling, snv output file: {}/snv.vcf.gz\n".format(args.output_dir))
         logging("[INFO] Finish calling, indel output file: {}/{}.vcf.gz\n".format(args.output_dir, args.indel_output_prefix))
+
+    if args.enable_clair3_germline_output and args.platform != 'ilmn':
+        logging("[INFO] Finish calling, Clair3 tumor BAM germline output file: {}/clair3_tumor_germline_output.vcf.gz\n".format(args.output_dir))
+        if not args.normal_vcf_fn:
+            logging("[INFO] Finish calling, Clair3 normal BAM germline output file: {}/clair3_normal_germline_output.vcf.gz\n".format(args.output_dir))
 
     if args.tee is not None:
         args.tee.stdin.close()
