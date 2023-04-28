@@ -36,7 +36,7 @@ from collections import defaultdict
 
 from shared.vcf import VcfReader, VcfWriter
 import shared.param as param
-from shared.utils import log_warning, str2bool
+from shared.utils import log_warning, str2bool, str_none
 
 major_contigs_order = ["chr" + str(a) for a in list(range(1, 23)) + ["X", "Y"]] + [str(a) for a in
                                                                                    list(range(1, 23)) + ["X", "Y"]]
@@ -81,6 +81,11 @@ def merge_vcf(args):
     compress_vcf = args.compress_vcf
     platform = args.platform
     use_phred_qual = args.use_phred_qual
+    cmdline_file = args.cmdline
+
+    cmdline = None
+    if cmdline_file is not None and os.path.exists(cmdline_file):
+        cmdline = open(cmdline_file).read().rstrip()
 
     max_qual_filter_fa_calls = args.max_qual_filter_fa_calls if args.max_qual_filter_fa_calls is not None else param.qual_dict[platform]
     quality_score_for_pass = args.qual if args.qual is not None else param.qual_dict[platform]
@@ -191,6 +196,7 @@ def merge_vcf(args):
                                  ctg_name=','.join(list(contig_dict.keys())),
                                  ref_fn=args.ref_fn,
                                  sample_name=args.sample_name,
+                                 cmdline=cmdline,
                                  show_ref_calls=True)
 
     for contig in contigs_order_list:
@@ -237,6 +243,9 @@ def main():
 
     parser.add_argument('--compress_vcf', type=str2bool, default=True,
                         help="Compress and index the output VCF")
+
+    parser.add_argument('--cmdline', type=str_none, default=None,
+                        help="If defined, added command line into VCF header")
 
     # options for advanced users
     parser.add_argument('--qual', type=float, default=None,
