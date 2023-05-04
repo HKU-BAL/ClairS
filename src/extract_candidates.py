@@ -337,7 +337,7 @@ def extract_candidates(args):
             has_pileup_candidates=has_pileup_candidates,
             read_name_list=read_name_list,
             is_tumor=is_tumor,
-            select_indel_candidates=select_indel_candidates
+            select_indel_candidates=args.select_indel_candidates
         )
 
         if pass_af and alt_fn:
