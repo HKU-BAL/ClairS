@@ -118,6 +118,9 @@ def main():
     parser.add_argument('--phase_tumor', type=str2bool, default=False,
                         help=SUPPRESS)
 
+    parser.add_argument('--ref_only', type=str2bool, default=False,
+                        help=SUPPRESS)
+
     args = parser.parse_args()
 
     if len(sys.argv[1:]) == 0:
