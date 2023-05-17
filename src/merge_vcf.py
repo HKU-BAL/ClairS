@@ -82,6 +82,7 @@ def merge_vcf(args):
     platform = args.platform
     use_phred_qual = args.use_phred_qual
     cmdline_file = args.cmdline
+    prefer_recall = args.prefer_recall
 
     cmdline = None
     if cmdline_file is not None and os.path.exists(cmdline_file):
@@ -109,6 +110,7 @@ def merge_vcf(args):
     filter_count = 0
     af_filter_count = 0
     f = open(args.pileup_vcf_fn)
+    recall_count = 0
     for row in f:
         if row[0] == '#':
             continue
@@ -126,7 +128,15 @@ def merge_vcf(args):
         if max_qual_filter_fa_calls is not None:
             if qual <= max_qual_filter_fa_calls:
                 if (ctg_name, int(pos)) not in pass_fa_set:
-                    filter_count += 1
+                    if prefer_recall:
+                        columns[5] = quality_score_from(columns[5], use_phred_qual=use_phred_qual)
+                        columns = update_GQ(columns)
+                        row = '\t'.join(columns) + '\n'
+                        contig_dict[ctg_name][int(pos)] = row
+                        recall_count += 1
+                    # added pileup and fa records into output
+                    else:
+                        filter_count += 1
                     continue
             elif (ctg_name, int(pos)) not in pass_fa_set and platform == 'ilmn':
                 columns[5] = quality_score_from(columns[5], use_phred_qual=use_phred_qual)
@@ -158,7 +168,16 @@ def merge_vcf(args):
             row = v.row_str
             columns = row.strip().split()
             if columns[6] != "Germline" and columns[6] != "RefCall":
-                columns[5] = "0.000"
+                if prefer_recall:
+                    columns[5] = quality_score_from(columns[5], use_phred_qual=use_phred_qual)
+                    columns = update_GQ(columns)
+                    row = '\t'.join(columns) + '\n'
+                    contig_dict[k[0]][k[1]] = row
+                    no_vcf_output = False
+                    recall_count += 1
+                    continue
+                else:
+                    columns[5] = "0.000"
             else:
                 columns[5] = quality_score_from(columns[5], use_phred_qual=use_phred_qual)
             #update GQ to phred
@@ -189,6 +208,8 @@ def merge_vcf(args):
     print("[INFO] Full-alignment variants filtered by pileup: ", filter_count)
     if args.af is not None:
         print("[INFO] Full-alignment variants filtered by AF: ", af_filter_count)
+    if prefer_recall:
+        print("[INFO] --prefer_recall enabled! Total recalled records: ", recall_count)
     contigs_order = major_contigs_order + list(contig_dict.keys())
     contigs_order_list = sorted(contig_dict.keys(), key=lambda x: contigs_order.index(x))
 
@@ -267,6 +288,9 @@ def main():
                         help=SUPPRESS)
 
     parser.add_argument('--indel_calling', action='store_true',
+                        help=SUPPRESS)
+
+    parser.add_argument('--prefer_recall', type=str2bool, default=False,
                         help=SUPPRESS)
 
     args = parser.parse_args()
