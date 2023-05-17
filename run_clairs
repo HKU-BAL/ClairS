@@ -610,10 +610,11 @@ def check_args(args):
         logging(log_error('[ERROR] Invalid platform input, optional: {ont, ont_r9, ilmn, hifi_sequel2, hifi_revio}'))
 
     if args.qual is None:
-        if args.prefer_recall:
-            args.qual = param.min_thred_qual[args.platform] if args.platform == 'ilmn' else param.min_thred_qual['ont']
+        if args.prefer_balance:
+            args.qual = param.best_thred_qual[args.platform]
         else:
-            args.qual = param.best_thred_qual[args.platform] if args.platform == 'ilmn' else param.best_thred_qual['ont']
+            # default we enable min_thred_qual
+            args.qual = param.min_thred_qual[args.platform]
     if args.skip_steps is not None:
         check_skip_steps_legal(args)
     if args.enable_realignment and args.platform != 'ilmn':
