@@ -371,7 +371,7 @@ def generate_tensor(args,
     reference_base = ref_seq[flanking_base_num]
     tensor_depth = len(sorted_read_name_list)
 
-    use_alt_base = False if platform == 'ont' else param.use_alt_base
+    use_alt_base = False if platform != 'ilmn' else param.use_alt_base # need to update in indel
 
     if tensor_depth == 0:
         return None, None
