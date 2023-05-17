@@ -458,6 +458,10 @@ def get_candidates(args):
         random.seed(0)
         hetero_germline = random.sample(hetero_germline, int(len(hetero_germline) * maximum_non_variant_ratio))
 
+    if args.ref_only:
+        homo_germline = []
+        hetero_germline = []
+
     fp_list = homo_germline + references + hetero_germline
 
     homo_somatic_set = sorted(list(tumor_homo_variant_set - normal_variant_set))
@@ -465,6 +469,10 @@ def get_candidates(args):
     homo_somatic = [(item, 'homo_somatic') for item in homo_somatic_set]
     # skip hetero variant here
     hetero_somatic = [(item, 'hetero_somatic') for item in hetero_somatic_set] if add_hetero_pos else []
+
+    if args.ref_only:
+        homo_somatic = []
+        hetero_somatic = []
 
     homo_somatic, homo_low_confident_truths = filter_somatic_candidates(args=args,
                                                                         truths=homo_somatic,
@@ -498,6 +506,9 @@ def get_candidates(args):
                         continue
                     elif all_truth_pos_list[idx] >= end:
                         break
+                    random.seed(pos)
+                    if random.random() > 0.7:
+                        continue
                     exclude_truth_set.add(pos)
             return exclude_truth_set
 
@@ -641,6 +652,9 @@ def main():
                         help="Add hetero candidates into training")
 
     parser.add_argument('--exclude_flanking_truth', type=str2bool, default=1,
+                        help="Exclude truths in a flanking window into training")
+
+    parser.add_argument('--ref_only', type=str2bool, default=0,
                         help="Exclude truths in a flanking window into training")
 
     ## Output VCF path
