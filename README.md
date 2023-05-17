@@ -100,11 +100,12 @@ ClairS trained both pileup and full-alignment models using GIAB samples, and car
 |     ONT     | ont_r104_e81_sup_g5015 |        R10.4/R10.4.1         |        `ont_r10`         | GRCh38_no_alt | Minimap2 |
 |     ONT <sup>1</sup>    |  r941_prom_sup_g5014   |            R9.4.1            |         `ont_r9`         | GRCh38_no_alt | Minimap2 |
 |  Illumina   |          ilmn          |        NovaSeq/HiseqX        |          `ilmn`          |    GRCh38     | BWA-MEM  |
-| PacBio HiFi <sup>2</sup> |          hifi          | Sequel II with Chemistry 2.0 |          `hifi`          | GRCh38_no_alt | Minimap2 |
+| PacBio HiFi <sup>2</sup> |          hifi_sequel2          | Sequel II with Chemistry 2.0 |          `hifi_sequel2`          | GRCh38_no_alt | Minimap2 |
+| PacBio HIFI | hifi_revio | Revio with SMRTbell prep kit 3.0 | `hifi_revio` | GRCh38_no_alt | Minimap2 |
 
 **Caveats <sup>1</sup>**: Although the r9(`r941_prom_sup_g5014`) model was trained on synthetic samples with r9.4.1 real data, the minimal AF cutoff, minimal coverage, and post-calling filtering parameters for the r9 model are copied from the r10 model, and are not optimized due to lack of real r9 data on a cancer sample with known truths.
 
-**Caveats <sup>2</sup>**: The PacBio HiFi model is experimental. It was trained but not tested with any real data with known truths. HG003 54x and HG004 52x were used, thus tumor depth coverage higher than 50x may suffer from lower recall rate. For testing, please downsample both tumor and normal to ~40x for the best performance of this experimental model.
+**Caveats <sup>2</sup>**: The PacBio HiFi Sequel II model is experimental. It was trained but not tested with any real data with known truths. HG003 54x and HG004 52x were used, thus tumor depth coverage higher than 50x may suffer from lower recall rate. For testing, please downsample both tumor and normal to ~40x for the best performance of this experimental model.
 
 
 ------
@@ -128,7 +129,7 @@ docker run -it \
   --normal_bam_fn ${INPUT_DIR}/normal.bam \    ## use your normal bam file name here
   --ref_fn ${INPUT_DIR}/ref.fa \               ## use your reference file name here
   --threads ${THREADS} \                       ## maximum threads to be used
-  --platform ${PLATFORM} \                     ## options: {ont_r10, ont_r9, ilmn, hifi}
+  --platform ${PLATFORM} \                     ## options: {ont_r10, ont_r9, ilmn, hifi_sequel2, hifi_revio}
   --output_dir ${OUTPUT_DIR}                       ## output path prefix 
 ```
 
@@ -160,7 +161,7 @@ singularity exec \
   --normal_bam_fn ${INPUT_DIR}/normal.bam \    ## use your normal bam file name here
   --ref_fn ${INPUT_DIR}/ref.fa \               ## use your reference file name here
   --threads ${THREADS} \                       ## maximum threads to be used
-  --platform ${PLATFORM} \                     ## options: {ont_r10, ont_r9, ilmn, hifi}
+  --platform ${PLATFORM} \                     ## options: {ont_r10, ont_r9, ilmn, hifi_sequel2, hifi_revio}
   --output_dir ${OUTPUT_DIR} \                     ## output path prefix
   --conda_prefix /opt/conda/envs/clairs
 ```
@@ -228,7 +229,7 @@ docker run -it hkubal/clairs:latest /opt/bin/run_clairs --help
   --normal_bam_fn ${INPUT_DIR}/normal.bam \  ## use your bam file name here
   --ref_fn ${INPUT_DIR}/ref.fa \             ## use your reference file name here
   --threads ${THREADS} \                     ## maximum threads to be used
-  --platform ${PLATFORM} \                   ## options: {ont_r10, ont_r9, ilmn, hifi}
+  --platform ${PLATFORM} \                   ## options: {ont_r10, ont_r9, ilmn, hifi_sequel2, hifi_revio}
   --output_dir ${OUTPUT_DIR}                     ## output path prefix
  
 ## Final output file: ${OUTPUT_DIR}/output.vcf.gz
@@ -244,7 +245,7 @@ docker run -it hkubal/clairs:latest /opt/bin/run_clairs --help
   -R, --ref_fn FASTA                Reference file input. The input file must be samtools indexed.
   -o, --output_dir OUTPUT_DIR       VCF output directory.
   -t, --threads THREADS             Max #threads to be used.
-  -p, --platform PLATFORM           Select the sequencing platform of the input. Possible options {ont_r10, ont_r9, ilmn, hifi}.
+  -p, --platform PLATFORM           Select the sequencing platform of the input. Possible options {ont_r10, ont_r9, ilmn, hifi_sequel2, hifi_revio}.
 ```
 
 **Miscellaneous parameters:**
