@@ -504,6 +504,10 @@ def get_training_array(args,
                     label = [0, 1, 0]
                 else:
                     label = [1, 0, 0]
+
+                if args.use_reference_candidates_only and label[0] != 1:
+                    continue
+
                 total_compressed = write_table_dict(table_dict=table_dict,
                                                     normal_matrix=normal_tensor,
                                                     tumor_matrix=tumor_tensor,

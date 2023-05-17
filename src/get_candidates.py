@@ -458,7 +458,7 @@ def get_candidates(args):
         random.seed(0)
         hetero_germline = random.sample(hetero_germline, int(len(hetero_germline) * maximum_non_variant_ratio))
 
-    if args.ref_only:
+    if args.use_reference_candidates_only:
         homo_germline = []
         hetero_germline = []
 
@@ -470,7 +470,7 @@ def get_candidates(args):
     # skip hetero variant here
     hetero_somatic = [(item, 'hetero_somatic') for item in hetero_somatic_set] if add_hetero_pos else []
 
-    if args.ref_only:
+    if args.use_reference_candidates_only:
         homo_somatic = []
         hetero_somatic = []
 
@@ -654,7 +654,7 @@ def main():
     parser.add_argument('--exclude_flanking_truth', type=str2bool, default=1,
                         help="Exclude truths in a flanking window into training")
 
-    parser.add_argument('--ref_only', type=str2bool, default=0,
+    parser.add_argument('--use_reference_candidates_only', type=str2bool, default=0,
                         help="Exclude truths in a flanking window into training")
 
     ## Output VCF path
