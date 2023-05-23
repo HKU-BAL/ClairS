@@ -1,3 +1,7 @@
+<div align="center">
+    <img src="images/clairs_icon.png" width = "200" alt="ClairS">
+</div>
+
 # ClairS
 
 [![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
@@ -12,6 +16,8 @@ Email: rbluo@cs.hku.hk, zxzheng@cs.hku.hk
 ClairS is a somatic variant caller designed for paired samples and primarily ONT long-read. It uses Clair3 to eliminate germline variants. It ensembles the pileup and full-alignment models in Clair3, trusts them equally, and decides on the result using a set of rules and post-processing filters. With 70-fold HCC1395 (tumor) and 45-fold HCC1395BL (normal) of ONT R10.4.1 data, benchmarking against the truth SNVs (Fang et al., 2021) has shown ClairS achieved 91.10% precision and 71.92% recall. Specifically, ClairS achieved 98.12% precision, 99.15% recall on variants with AF≥0.20, and 94.26% precision, 87.46% recall on variants with AF≥0.05. Detailed performance figures are shown below.
 
 ClairS means Clair-Somatic, or the masculine plural of "Clair" in french (thus, 's' is silent).
+
+The logo of ClairS was generated using DALL-E 2 with prompt "A DNA sequence with genetic variant that looks like a letter 'S'".
 
 ClairS is now available for early access to interested and experienced users. Your suggestions and comments are highly appreciated.
 
