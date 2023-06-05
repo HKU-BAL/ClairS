@@ -121,6 +121,11 @@ def output_vcf_from_probability(
         indel_str = alt_info[1] if len(alt_info) > 1 else ''
         seqs = indel_str.split(' ')
         alt_info_dict = dict(zip(seqs[::2], [int(item) for item in seqs[1::2]])) if len(seqs) else {}
+        # calcualte the read depth if all positions was deletion or insertion
+        if read_depth == 0 and len(alt_info_dict) == 1:
+            for k, v in alt_info_dict.items():
+                if k[0] == 'D' or k[0] == 'I':
+                    read_depth = int(v)
         return alt_info_dict, read_depth
 
     normal_alt_info_dict, normal_read_depth = decode_alt_info(normal_alt_info)

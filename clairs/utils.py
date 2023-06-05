@@ -162,10 +162,17 @@ def variant_map_from(var_fn, tree, is_tree_empty):
 
 
 def write_table_dict(table_dict, normal_matrix, tumor_matrix, label, pos, total, normal_alt_info, tumor_alt_info,
-                     tensor_shape, pileup, proportion=None):
+                     tensor_shape, pileup, proportion=None, max_normal_depth=None, max_tumor_depth=None):
     normal_depth = len(normal_matrix) // tensor_shape[1] // tensor_shape[2]
     tumor_depth = len(tumor_matrix) // tensor_shape[1] // tensor_shape[2]
     tensor_depth = normal_depth + tumor_depth
+    if max_normal_depth is not None and normal_depth > max_normal_depth:
+        print("[WARNING] Skip adding high normal coverage data for position {}!".format('-'.join(pos.split(':')[:2])))
+        return total
+    if max_tumor_depth is not None and tumor_depth > max_tumor_depth:
+        print("[WARNING] Skip adding high tumor coverage data for position {}!".format('-'.join(pos.split(':')[:2])))
+        return total
+
     center_padding_depth = param.center_padding_depth
     padding_depth = tensor_shape[0] - tensor_depth - center_padding_depth
     prefix_padding_depth = int(padding_depth / 2)
@@ -207,7 +214,10 @@ def write_table_file(table_file, table_dict, tensor_shape, label_size, float_typ
     time, especially in ont data, here we usually use 1:1 or 1:2 for variant candidate: non variant candidate.
     """
 
-    input_matrix = np.array(table_dict['input_matrix'], np.dtype(float_type)).reshape([-1] + tensor_shape)
+    try:
+        input_matrix = np.array(table_dict['input_matrix'], np.dtype(float_type)).reshape([-1] + tensor_shape)
+    except:
+            return table_dict
     table_file.root.input_matrix.append(input_matrix)
 
     table_file.root.normal_alt_info.append(np.array(table_dict['normal_alt_info']).reshape(-1, 1))
@@ -417,6 +427,8 @@ def get_training_array(args,
         float_type = 'int8'
 
     tensor_shape = param.input_shape_dict[platform]
+    max_normal_depth = param.normal_matrix_depth_dict[platform]
+    max_tumor_depth = param.tumor_matrix_depth_dict[platform]
 
     non_variant_subsample_ratio = maximum_non_variant_ratio if maximum_non_variant_ratio is not None else 1.0
 
@@ -518,7 +530,9 @@ def get_training_array(args,
                                                     tumor_alt_info=tumor_alt_info,
                                                     tensor_shape=tensor_shape,
                                                     pileup=pileup,
-                                                    proportion=proportion
+                                                    proportion=proportion,
+                                                    max_normal_depth=max_normal_depth,
+                                                    max_tumor_depth=max_tumor_depth
                                                     )
 
                 if total_compressed % 500 == 0 and total_compressed > 0:

@@ -521,6 +521,9 @@ def get_training_array(args,
                 else:
                     label = [1, 0, 0]
 
+                if args.use_reference_candidates_only and label[0] != 1:
+                    continue
+                
                 # add af Infos here
                 add_af_in_label = param.add_af_in_label
                 if add_af_in_label:

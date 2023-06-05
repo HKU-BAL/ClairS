@@ -1,6 +1,6 @@
 import os
 
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from os.path import abspath
 from sys import exit, stderr
 from subprocess import check_output, PIPE, Popen
@@ -123,6 +123,16 @@ def str2bool(v):
         return False
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
+
+def clair3_option_type(v):
+    if v is None:
+        return None
+    if v.upper() == "NONE":
+        return None
+    if isinstance(v, str):
+        return v
+    if isinstance(v, namedtuple):
+        return v
 
 def region_from(ctg_name, ctg_start=None, ctg_end=None):
     """

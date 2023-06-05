@@ -47,7 +47,6 @@ best_thred_qual = {'ont': 16, 'ont_r10': 16, 'ont_r9': 16, 'ilmn': 4, 'hifi': 4,
 ont_max_normal_depth = int(ont_tensor_max_depth * normal_pro)
 ont_max_tumor_depth = ont_tensor_max_depth - ont_max_normal_depth
 
-support_platform = {'ont', 'ilmn'}
 matrix_depth_dict = {'ont': ont_max_depth, 'ilmn': max_depth, 'hifi': 130}
 normal_matrix_depth_dict = {'ont': ont_max_normal_depth, 'ilmn': max_normal_depth, 'hifi': 64}
 tumor_matrix_depth_dict = {'ont': ont_max_tumor_depth, 'ilmn': max_tumor_depth, 'hifi': 64}
