@@ -141,7 +141,7 @@ def decode_pileup_bases(pileup_bases,
     pass_af = (pass_snv_af or pass_indel_af) and pass_depth
 
     if not pass_af:
-        return base_list, depth, pass_af, af, "", "", ""
+        return base_list, depth, pass_snv_af, pass_indel_af, af, "", "", ""
 
     pileup_list = [[item[0], str(round(item[1] / denominator, 3))] for item in pileup_list]
     af_infos = ','.join([item[1] for item in pileup_list if item[0] != reference_base])
@@ -157,7 +157,7 @@ def decode_pileup_bases(pileup_bases,
     else:
         tumor_pileup_infos = ""
 
-    return base_list, depth, pass_af, af, af_infos, pileup_infos, tumor_pileup_infos
+    return base_list, depth, pass_snv_af, pass_indel_af, af, af_infos, pileup_infos, tumor_pileup_infos
 
 
 def extract_candidates(args):
@@ -327,7 +327,7 @@ def extract_candidates(args):
         is_truth_candidate = pos in truths_variant_dict
         minimum_snv_af_for_candidate = minimum_snv_af_for_truth if is_truth_candidate and minimum_snv_af_for_truth else minimum_snv_af_for_candidate
         minimum_indel_af_for_candidate = minimum_indel_af_for_truth if is_truth_candidate and minimum_indel_af_for_truth else minimum_indel_af_for_candidate
-        base_list, depth, pass_af, af, af_infos, pileup_infos, tumor_pileup_infos = decode_pileup_bases(
+        base_list, depth, pass_snv_af, pass_indel_af, af, af_infos, pileup_infos, tumor_pileup_infos = decode_pileup_bases(
             pileup_bases=pileup_bases,
             reference_base=reference_base,
             min_coverage=min_coverage,
@@ -340,10 +340,18 @@ def extract_candidates(args):
             select_indel_candidates=args.select_indel_candidates
         )
 
+        pass_depth = depth > min_coverage
+        pass_af = (pass_snv_af or pass_indel_af) and pass_depth
+        pass_tag = []
+        if pass_snv_af:
+            pass_tag.append('snv')
+        if pass_indel_af:
+            pass_tag.append('indel')
+        pass_tag_str = [','.join(pass_tag)]
         if pass_af and alt_fn:
             depth_list = [str(depth)] if output_depth else []
             alt_info_list = [af_infos, pileup_infos, tumor_pileup_infos] if output_alt_info else []
-            alt_fp.write('\t'.join([ctg_name, str(pos), reference_base] + depth_list + alt_info_list) + '\n')
+            alt_fp.write('\t'.join([ctg_name, str(pos), reference_base] + depth_list + alt_info_list + pass_tag_str) + '\n')
 
         if pass_af:
             candidates_list.append(pos)

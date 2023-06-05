@@ -63,8 +63,10 @@ def mix_bin(args):
     tumor_bin_num = int(int(tumor_bam_coverage) / int(min_bin_coverage))
 
     if normal_coverage_proportion is not None and ctg_name is not None and type(int(ctg_name[3:])) == int:
-        if int(ctg_name[3:]) <= 8:
+        if int(ctg_name[3:]) <= 6:
             normal_coverage_proportion = 1.0
+        elif int(ctg_name[3:]) <= 8:
+            normal_coverage_proportion = 1.25
         elif int(ctg_name[3:]) > 16:
             normal_coverage_proportion = 0.5
         else:
@@ -130,7 +132,7 @@ def mix_bin(args):
 
     normal_coverage_in_normal = len(pair_normal_bam_list) * min_bin_coverage
     normal_coverage_in_tumor = sampled_normal_bin_num * min_bin_coverage
-    tumor_coverage_in_tumor =  sampled_tumor_bin_num * min_bin_coverage
+    tumor_coverage_in_tumor = sampled_tumor_bin_num * min_bin_coverage
     print(
         "[INFO] Raw normal BAM coverage/Raw tumor BAM coverage: {}x/{}x, normal sampled bins/tumor sampled bins:{}/{}".format(
             normal_bam_coverage, tumor_bam_coverage, sampled_normal_bin_num, sampled_tumor_bin_num))
@@ -147,8 +149,6 @@ def mix_bin(args):
         synthetic_proportion, normal_coverage_proportion, set(
         pair_normal_bam_list).intersection(set(sampled_normal_bam_list + sampled_tumor_bam_list))))
 
-    print(tumor_bam_fn is not None and synthetic_proportion == 1.0 and len(sampled_normal_bam_list + sampled_tumor_bam_list) == tumor_bin_num \
-            and len(sampled_normal_bam_list) == 0)
 
     if args.dry_run:
         return
