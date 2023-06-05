@@ -96,7 +96,7 @@ def vcf_reader(vcf_fn, contig_name, bed_tree=None, add_hetero_pos=False):
     return homo_variant_set, homo_variant_info, hetero_variant_set, hetero_variant_info, variant_set, variant_info
 
 
-def get_ref_candidates(fn, contig_name=None, bed_tree=None, variant_info=None):
+def get_ref_candidates(fn, contig_name=None, bed_tree=None, variant_info=None, select_indel_candidates=False):
     ref_cans_dict = defaultdict(AltInfos)
     if os.path.exists(fn):
         fn_list = [fn]
@@ -122,7 +122,13 @@ def get_ref_candidates(fn, contig_name=None, bed_tree=None, variant_info=None):
 
             ref_base, depth, af_infos, alt_infos = columns[2:6]
             tumor_infos = columns[6] if len(columns) > 6 else ""
-
+            pass_info_tag = columns[7] if len(columns) > 7 else ""
+            if select_indel_candidates:
+                if 'indel' not in pass_info_tag:
+                    continue
+            else:
+                if 'snv' not in pass_info_tag:
+                    continue
             af_list = af_infos.split(',')
             alt_dict = dict([[item.split(':')[0], float(item.split(':')[1])] for item in alt_infos.split(' ')])
             tumor_alt_dict = dict(
@@ -575,18 +581,27 @@ def get_candidates(args):
 
         split_output = [(item[0] - flanking_base_num, item[0] + flanking_base_num + 2, item[1]) for item in
                         split_output]
-
-        output_path = os.path.join(split_folder,
-                                   '{}.{}_{}_por{}_cov{}'.format(contig_name, idx, region_num, int(proportion * 100),
-                                                                 int(synthetic_coverage)))
+        if args.select_indel_candidates:
+            output_path = os.path.join(split_folder,
+                                       '{}.{}_{}_por{}_cov{}_indel'.format(contig_name, idx, region_num,
+                                                                     int(proportion * 100),
+                                                                     int(synthetic_coverage)))
+        else:
+            output_path = os.path.join(split_folder,
+                                       '{}.{}_{}_por{}_cov{}'.format(contig_name, idx, region_num, int(proportion * 100),
+                                                                     int(synthetic_coverage)))
         all_candidates_regions.append(output_path + ' ' + str(proportion) + ' ' + str(synthetic_coverage))
         with open(output_path, 'w') as output_file:
             output_file.write('\n'.join(
                 ['\t'.join([contig_name, str(x[0] - 1), str(x[1] - 1), x[2]]) for x in
                  split_output]) + '\n')  # bed format
 
-    all_candidate_path = os.path.join(split_folder,
-                                      'CANDIDATES_FILE_{}_{}_{}'.format(contig_name, proportion, synthetic_coverage))
+    if args.select_indel_candidates:
+        all_candidate_path = os.path.join(split_folder,
+                                          'INDEL_CANDIDATES_FILE_{}_{}_{}'.format(contig_name, proportion, synthetic_coverage))
+    else:
+        all_candidate_path = os.path.join(split_folder,
+                                          'CANDIDATES_FILE_{}_{}_{}'.format(contig_name, proportion, synthetic_coverage))
     with open(all_candidate_path, 'w') as output_file:
         output_file.write('\n'.join(all_candidates_regions) + '\n')
 
@@ -648,7 +663,7 @@ def main():
                         help="Synthetic coverage in training")
 
     # options for debug purpose
-    parser.add_argument('--add_hetero_pos', type=str2bool, default=0,
+    parser.add_argument('--add_hetero_pos', type=str2bool, default=1,
                         help="Add hetero candidates into training")
 
     parser.add_argument('--exclude_flanking_truth', type=str2bool, default=1,
