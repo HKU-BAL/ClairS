@@ -48,7 +48,7 @@ from time import time
 import shared.param as param
 from shared.interval_tree import bed_tree_from
 from shared.utils import file_path_from, folder_path_from, subprocess_popen, str2bool, str_none, \
-    legal_range_from, log_error, log_warning
+    legal_range_from, log_error, log_warning, clair3_option_type
 
 
 major_contigs = {"chr" + str(a) for a in list(range(1, 23))}.union(
@@ -82,6 +82,8 @@ Clair3Option = namedtuple('Clair3Option', [
     'indel_min_af',
     'longphase'
 ])
+
+
 
 
 class Tee(object):
@@ -565,8 +567,8 @@ def check_args(args):
         sys.exit(log_error("[ERROR] Tumor BAM index file {} or {} not found. Please run `samtools index $BAM` first.".format(args.tumor_bam_fn + '.bai',
                                                                                       args.tumor_bam_fn + '.crai')))
 
-    if args.enable_indel_calling and args.platform not in {'ont_r10', 'ont'}:
-        sys.exit(log_error("[ERROR] Indel calling only support 'ont_r10' platform"))
+    if args.enable_indel_calling and args.platform not in {'ont_r10', 'ont', 'hifi_revio'}:
+        sys.exit(log_error("[ERROR] Indel calling only support 'ont_r10' and 'hifi_revio' platform"))
 
     if args.genotyping_mode_vcf_fn is not None and args.hybrid_mode_vcf_fn is not None:
         sys.exit(log_error("[ERROR] Please provide either --genotyping_mode_vcf_fn or --hybrid_mode_vcf_fn only"))
@@ -1674,7 +1676,7 @@ def somatic_parser():
     ##Clair3 options used in calling
     clair3_params.add_argument(
         "--clair3_option",
-        type=namedtuple,
+        type=clair3_option_type,
         default=None,
         help=SUPPRESS
     )
