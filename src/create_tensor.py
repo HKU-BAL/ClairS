@@ -1071,7 +1071,7 @@ def main():
                         help=SUPPRESS)
 
     ## apply tensor sample mode in training
-    parser.add_argument('--tensor_sample_mode', type=str2bool, default=0,
+    parser.add_argument('--tensor_sample_mode', type=str2bool, default=1,
                         help=SUPPRESS)
 
     parser.add_argument('--mask_low_bq', type=str2bool, default=0,
@@ -1080,6 +1080,9 @@ def main():
     parser.add_argument('--training_mode', type=str2bool, default=0,
                         help=SUPPRESS)
 
+    parser.add_argument('--add_phasing_info', type=str2bool, default=0,
+                        help=SUPPRESS)
+    
     parser.add_argument('--proportion', type=float, default=1.0,
                         help=SUPPRESS)
 

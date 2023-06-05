@@ -158,6 +158,7 @@ def decode_pileup_bases(args,
             indel_len = len(key[2:])
             if indel_len > args.max_indel_length:
                 continue
+            depth += count
             pileup_dict['I'] += count
             if is_candidate:
                 alt_info_dict['I' + key[0].upper() + key[2:].upper()] += count
@@ -172,6 +173,7 @@ def decode_pileup_bases(args,
             indel_len = len(key[1:])
             if indel_len > args.max_indel_length:
                 continue
+            depth += count
             pileup_dict['D'] += count
             if is_candidate:
                 info = chunk_ref_seq[:len(key[1:])]

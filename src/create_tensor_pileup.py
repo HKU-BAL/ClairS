@@ -301,7 +301,7 @@ def create_tensor(args):
     candidates_pos_set = set()
     candidates_type_dict = defaultdict(str)
     add_read_regions = True
-    training_mode = args.training_mode
+    training_mode = args.add_phasing_info or args.training_mode
     truth_vcf_fn = args.truth_vcf_fn
     is_truth_vcf_provided = truth_vcf_fn is not None
     truths_variant_dict = {}
@@ -784,7 +784,7 @@ def main():
     parser.add_argument('--candidates_bed_regions', type=str, default=None,
                         help=SUPPRESS)
 
-    parser.add_argument('--tensor_sample_mode', type=str2bool, default=0,
+    parser.add_argument('--tensor_sample_mode', type=str2bool, default=1,
                         help=SUPPRESS)
 
     parser.add_argument('--phase_tumor', type=str2bool, default=0,
@@ -793,6 +793,8 @@ def main():
     parser.add_argument('--training_mode', type=str2bool, default=0,
                         help=SUPPRESS)
 
+    parser.add_argument('--add_phasing_info', type=str2bool, default=0,
+                        help=SUPPRESS)
     parser.add_argument('--proportion', type=float, default=1.0,
                         help=SUPPRESS)
 
