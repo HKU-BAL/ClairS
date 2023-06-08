@@ -96,7 +96,7 @@ def vcf_reader(vcf_fn, contig_name, bed_tree=None, add_hetero_pos=False):
     return homo_variant_set, homo_variant_info, hetero_variant_set, hetero_variant_info, variant_set, variant_info
 
 
-def get_ref_candidates(fn, contig_name=None, bed_tree=None, variant_info=None, select_indel_candidates=False):
+def get_ref_candidates(args, fn, contig_name=None, bed_tree=None, variant_info=None, select_indel_candidates=False):
     ref_cans_dict = defaultdict(AltInfos)
     if os.path.exists(fn):
         fn_list = [fn]
@@ -390,10 +390,18 @@ def get_candidates(args):
         vcf_fn=normal_vcf_fn, contig_name=contig_name, bed_tree=bed_tree, add_hetero_pos=add_hetero_pos)
     tumor_homo_variant_set, tumor_homo_variant_info, tumor_hetero_variant_set, tumor_hetero_variant_info, tumor_variant_set, tumor_variant_info = vcf_reader(
         vcf_fn=tumor_vcf_fn, contig_name=contig_name, bed_tree=bed_tree, add_hetero_pos=add_hetero_pos)
-    tumor_alt_dict = get_ref_candidates(fn=tumor_reference_cans_fn, contig_name=contig_name, bed_tree=bed_tree,
-                                        variant_info=tumor_variant_info)
-    normal_alt_dict = get_ref_candidates(fn=normal_reference_cans_fn, contig_name=contig_name, bed_tree=bed_tree,
-                                         variant_info=tumor_variant_info)
+    tumor_alt_dict = get_ref_candidates(args=args,
+                                        fn=tumor_reference_cans_fn,
+                                        contig_name=contig_name,
+                                        bed_tree=bed_tree,
+                                        variant_info=tumor_variant_info,
+                                        select_indel_candidates=args.select_indel_candidates)
+    normal_alt_dict = get_ref_candidates(args=args,
+                                         fn=normal_reference_cans_fn,
+                                         contig_name=contig_name,
+                                         bed_tree=bed_tree,
+                                         variant_info=tumor_variant_info,
+                                         select_indel_candidates=args.select_indel_candidates)
 
     normal_ref_cans_list = [pos for pos in normal_alt_dict if
                             pos not in tumor_variant_set and pos not in normal_variant_set]
