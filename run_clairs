@@ -487,9 +487,9 @@ def check_clair3_options(args):
             sys.exit(log_error("[ERROR] Cannot find clair3 main entry in {}".format(args.clair3_path)))
 
     if args.clair3_model_path is None:
-        if args.platform == 'ont_r10' or args.platform == 'ont':
+        if args.platform == 'ont_r10' or args.platform == 'ont' or args.platform == 'ont_r10_guppy':
             args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'clairs_models', 'clair3_models', 'ont_r104_e81_sup_g5015')
-        elif args.platform == 'ont_r9':
+        elif args.platform == 'ont_r9' or args.platform == 'ont_r9_guppy':
             # clair3 r9 model in bioconda bin
             args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'r941_prom_sup_g5014')
         elif args.platform == 'hifi' or args.platform == 'hifi_sequel2':
@@ -571,7 +571,7 @@ def check_args(args):
         sys.exit(log_error("[ERROR] Tumor BAM index file {} or {} not found. Please run `samtools index $BAM` first.".format(args.tumor_bam_fn + '.bai',
                                                                                       args.tumor_bam_fn + '.crai')))
 
-    if args.enable_indel_calling and args.platform not in {'ont_r10', 'ont', 'hifi_revio'}:
+    if args.enable_indel_calling and args.platform not in {'ont_r10_guppy', 'ont_r10', 'ont', 'hifi_revio'}:
         sys.exit(log_error("[ERROR] Indel calling only support 'ont_r10' and 'hifi_revio' platform"))
 
     if args.genotyping_mode_vcf_fn is not None and args.hybrid_mode_vcf_fn is not None:
