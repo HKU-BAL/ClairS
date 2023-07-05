@@ -497,6 +497,10 @@ def check_clair3_options(args):
             args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'hifi')
         elif args.platform == "hifi_revio":
             args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'clairs_models', 'clair3_models', 'hifi_revio')
+        elif args.platform == "ont_r10_dorado_4khz":
+            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'clairs_models', 'clair3_models', 'r1041_e82_400bps_sup_v410')
+        elif args.platform == "ont_r10_dorado_5khz":
+            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'clairs_models', 'clair3_models', 'r1041_e82_400bps_sup_v420')
 
     if not os.path.exists(args.clair3_model_path):
         sys.exit(log_error("[ERROR] Cannot find clair3 model path in {}".format(args.clair3_model_path)))
@@ -608,15 +612,15 @@ def check_args(args):
         args.min_coverage = param.min_coverage
     if args.chunk_size is None:
         args.chunk_size = 5000000
-    if args.platform not in {'ont_r10', 'ont_r9', 'ont', 'ilmn', 'hifi_sequel2', 'hifi_revio'}:
-        logging(log_error('[ERROR] Invalid platform input, optional: {ont, ont_r9, ilmn, hifi_sequel2, hifi_revio}'))
+    if args.platform not in {'ont_r10', 'ont_r9', 'ont_r10_guppy', 'ont_r9_guppy', 'ont', 'ilmn', 'hifi_sequel2', 'hifi_revio', 'ont_r10_dorado_4khz', 'ont_r10_dorado_5khz'}:
+        logging(log_error('[ERROR] Invalid platform input, optional: {ont_r10_dorado_4khz, ont_r10_dorado_5khz, ont_r10_guppy, ont_r9_guppy, ilmn, hifi_sequel2, hifi_revio}'))
 
     if args.qual is None:
         if args.prefer_balance:
-            args.qual = param.best_thred_qual[args.platform]
+            args.qual = param.best_thred_qual[args.platform] if args.platform in param.best_thred_qual else param.best_thred_qual['ont']
         else:
             # default we enable min_thred_qual
-            args.qual = param.min_thred_qual[args.platform]
+            args.qual = param.min_thred_qual[args.platform] if args.platform in param.min_thred_qual else param.min_thred_qual['ont']
     if args.skip_steps is not None:
         check_skip_steps_legal(args)
     if args.enable_realignment and args.platform != 'ilmn':
@@ -1391,7 +1395,7 @@ def somatic_parser():
         required=True,
         type=str,
         default=None,
-        help="Select the sequencing platform of the input. Possible options: {ont_r10, ont_r9, ilmn, hifi_sequel2, hifi_revio}."
+        help="Select the sequencing platform of the input. Possible options: {ont_r10_dorado_4khz, ont_r10_dorado_5khz, ont_r10_guppy, ont_r9_guppy, ilmn, hifi_sequel2, hifi_revio}."
     )
 
     optional_params = parser.add_argument_group('Optional parameters')
