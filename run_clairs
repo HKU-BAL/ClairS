@@ -1579,7 +1579,7 @@ def somatic_parser():
     ont_params.add_argument(
         "--enable_indel_calling",
         action='store_true',
-        help="EXPERIMENTAL: Enable Indel calling, only support ont r10 platform. The calling time would increase significantly. default: disabled."
+        help="EXPERIMENTAL: Enable Indel calling, only support `ont_r10_guppy` and `hifi_revio` platforms. The calling time would increase significantly. default: disabled."
     )
 
     optional_params.add_argument(
