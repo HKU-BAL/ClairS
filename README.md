@@ -70,6 +70,7 @@ ClairS is now available for early access to interested and experienced users. Yo
 ------
 
 ## Latest Updates
+*v0.1.4 (Jul 15)* : 1. Added reference depth in AD tag. 2. Added HiFi Sequel II Indel model.
 
 *v0.1.3 (Jul 5)* : Added ONT Dorado 4khz (`-p ont_r10_dorado_4khz`) and 5khz (`-p ont_r10_dorado_5khz`) models, check [here](#pre-trained-models) for more details. Renamed platform options `ont_r10` to `ont_r10_guppy` and `ont_r9` to `ont_r9_guppy`.
 
