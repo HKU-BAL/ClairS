@@ -56,6 +56,7 @@ def get_base_list(columns):
 def haplotype_filter_per_pos(args):
     pos = args.pos
     ctg_name = args.ctg_name
+    ref_base = args.ref_base
     alt_base = args.alt_base
     tumor_bam_fn = args.tumor_bam_fn
     ref_fn = args.ref_fn
@@ -65,6 +66,9 @@ def haplotype_filter_per_pos(args):
     debug = args.debug
     max_co_exist_read_num = args.min_alt_coverage
 
+    is_snp = len(ref_base) == 1 and len(alt_base) == 1
+    is_ins = len(ref_base) == 1 and len(alt_base) >= 1
+    is_del = len(ref_base) >= 1 and len(alt_base) == 1
     pass_hap = True
     pass_hetero = True
     pass_homo = True
@@ -366,6 +370,8 @@ def haplotype_filter(args):
     flanking = args.flanking
     output_dir = args.output_dir
     max_co_exist_read_num = args.min_alt_coverage
+    is_indel = args.is_indel
+
     if not os.path.exists(output_dir):
         subprocess.run("mkdir -p {}".format(output_dir), shell=True)
 
@@ -453,7 +459,7 @@ def haplotype_filter(args):
                     else:
                         homo_flanking_list.append('-'.join([str(p), str(alt_base)]))
             POS.extra_infos = [set(hetero_flanking_list), set(homo_flanking_list)]
-            info_list = [ctg_name, str(pos), POS.alternate_bases[0], str(POS.af), str(POS.qual), \
+            info_list = [ctg_name, str(pos), POS.reference_bases, POS.alternate_bases[0], str(POS.af), str(POS.qual), \
                          ','.join(hetero_flanking_list), ','.join(homo_flanking_list)]
             f.write(' '.join(info_list) + '\n')
 
@@ -463,11 +469,12 @@ def haplotype_filter(args):
     parallel_command = "{} -C ' ' -j{} {} {} haplotype_filtering".format(args.parallel, threads_low, args.pypy3, main_entry)
     parallel_command += " --ctg_name {1}"
     parallel_command += " --pos {2}"
-    parallel_command += " --alt_base {3}"
-    parallel_command += " --af {4}"
-    parallel_command += " --qual {5}"
-    parallel_command += " --hetero_info {6}"
-    parallel_command += " --homo_info {7}"
+    parallel_command += " --ref_base {3}"
+    parallel_command += " --alt_base {4}"
+    parallel_command += " --af {5}"
+    parallel_command += " --qual {6}"
+    parallel_command += " --hetero_info {7}"
+    parallel_command += " --homo_info {8}"
     parallel_command += " --samtools " + str(args.samtools)
     parallel_command += " --tumor_bam_fn " + str(args.tumor_bam_fn)
     parallel_command += " --ref_fn " + str(args.ref_fn)
@@ -605,6 +612,9 @@ def main():
                         help=SUPPRESS)
 
     parser.add_argument('--alt_base', type=str, default=None,
+                        help=SUPPRESS)
+
+    parser.add_argument('--ref_base', type=str, default=None,
                         help=SUPPRESS)
 
     parser.add_argument('--af', type=float, default=None,
