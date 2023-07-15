@@ -571,7 +571,7 @@ def check_args(args):
         sys.exit(log_error("[ERROR] Tumor BAM index file {} or {} not found. Please run `samtools index $BAM` first.".format(args.tumor_bam_fn + '.bai',
                                                                                       args.tumor_bam_fn + '.crai')))
 
-    if args.enable_indel_calling and args.platform not in {'ont_r10_guppy', 'ont_r10', 'ont', 'hifi_revio'}:
+    if args.enable_indel_calling and args.platform not in {'ont_r10_guppy', 'ont_r10', 'ont', 'hifi_revio', 'hifi_sequel2'}:
         sys.exit(log_error("[ERROR] Indel calling only support 'ont_r10' and 'hifi_revio' platform"))
 
     if args.genotyping_mode_vcf_fn is not None and args.hybrid_mode_vcf_fn is not None:
@@ -1267,11 +1267,36 @@ def somatic_calling(args):
         indel_fa_mv_command += ' --output_fn ' + args.output_dir + '/tmp/vcf_output/indel_full_alignment.vcf'
         commands_list += [indel_fa_mv_command]
 
+        indel_pileup_fn = args.output_dir + '/tmp/vcf_output/indel_pileup.vcf'
+        indel_fa_fn = args.output_dir + '/tmp/vcf_output/indel_full_alignment.vcf'
+        if args.platform == 'hifi':
+            echo_list.append("[INFO] Indel Haplotype filtering")
+            indel_hap_g_command = '( ' + time + args.pypy + ' ' + main_entry + ' haplotype_filtering_bak_indel'
+            indel_hap_g_command += ' --tumor_bam_fn ' + tumor_bam_prefix
+            indel_hap_g_command += ' --ref_fn ' + args.ref_fn
+            indel_hap_g_command += ' --germline_vcf_fn ' + clair3_output_path + '/clair3_tumor_output/merge_output.vcf.gz'
+            indel_hap_g_command += ' --pileup_vcf_fn ' + args.output_dir + '/tmp/vcf_output/indel_pileup.vcf'
+            indel_hap_g_command += ' --full_alignment_vcf_fn ' + args.output_dir + '/tmp/vcf_output/indel_full_alignment.vcf'
+            indel_hap_g_command += ' --output_dir ' + args.output_dir + '/tmp/vcf_output'
+            indel_hap_g_command += ' --samtools ' + args.samtools
+            indel_hap_g_command += ' --pypy3 ' + args.pypy
+            indel_hap_g_command += ' --parallel ' + args.parallel
+            indel_hap_g_command += ' --threads ' + str(args.threads)
+            indel_hap_g_command += ' --debug ' if args.debug else ''
+            indel_hap_g_command += ' --show_ref ' if args.print_ref_calls else ''
+            indel_hap_g_command += ' --is_indel '
+            indel_hap_g_command += ' --apply_post_processing False' if not args.apply_post_processing else ''
+            indel_hap_g_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/8_INDEL_HAP_FILTER.log'
+            commands_list += [indel_hap_g_command]
+
+            indel_pileup_fn = args.output_dir + '/tmp/vcf_output/indel_pileup_filter.vcf'
+            indel_fa_fn = args.output_dir + '/tmp/vcf_output/indel_full_alignment_filter.vcf'
+
         echo_list.append("[INFO] STEP 8: Merge and sort Indel VCF")
         indel_sort_vcf_command = '( ' + time + args.pypy + ' ' + main_entry + ' merge_vcf'
         indel_sort_vcf_command += ' --ref_fn ' + args.ref_fn
-        indel_sort_vcf_command += ' --pileup_vcf_fn ' + args.output_dir + '/tmp/vcf_output/indel_pileup.vcf'
-        indel_sort_vcf_command += ' --full_alignment_vcf_fn ' + args.output_dir + '/tmp/vcf_output/indel_full_alignment.vcf'
+        indel_sort_vcf_command += ' --pileup_vcf_fn ' + indel_pileup_fn
+        indel_sort_vcf_command += ' --full_alignment_vcf_fn ' + indel_fa_fn
         indel_sort_vcf_command += ' --output_fn ' + args.output_dir + '/{}.vcf'.format(args.indel_output_prefix)
         indel_sort_vcf_command += ' --platform ' + args.platform
         indel_sort_vcf_command += ' --qual ' + str(args.qual)
