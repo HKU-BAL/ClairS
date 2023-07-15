@@ -285,12 +285,12 @@ def output_vcf_from_probability(
     add_ad_tag = True
     AD = None
     if add_ad_tag:
-        AD = tumor_supported_reads_count
+        AD = str(tumor_supported_reads_count) if is_reference else str(tumor_ref_num) + ',' + str(tumor_supported_reads_count)
 
     add_nad_tag = True
     NAD = None
     if add_nad_tag:
-        NAD = normal_supported_reads_count
+        NAD = str(normal_supported_reads_count) if is_reference else str(normal_ref_num) + ',' + str(normal_supported_reads_count)
 
     vcf_writer.write_row(CHROM=chromosome,
                          POS=position,

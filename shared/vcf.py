@@ -24,10 +24,10 @@ vcf_header = dedent("""\
             ##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype quality">
             ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read depth in the tumor BAM">
             ##FORMAT=<ID=AF,Number=1,Type=Float,Description="Estimated allele frequency in the tumor BAM">
-            ##FORMAT=<ID=AD,Number=1,Type=Integer,Description="Alternate allele depth in the tumor BAM">
+            ##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed in the tumor BAM">
             ##FORMAT=<ID=NAF,Number=1,Type=Float,Description="Estimated allele frequency in the normal BAM">
             ##FORMAT=<ID=NDP,Number=1,Type=Integer,Description="Read depth in the normal BAM">
-            ##FORMAT=<ID=NAD,Number=1,Type=Integer,Description="Alternate allele depth in the normal BAM">
+            ##FORMAT=<ID=NAD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed in the normal BAM">
             ##FORMAT=<ID=AU,Number=1,Type=Integer,Description="Count of A in the tumor BAM">
             ##FORMAT=<ID=CU,Number=1,Type=Integer,Description="Count of C in the tumor BAM">
             ##FORMAT=<ID=GU,Number=1,Type=Integer,Description="Count of G in the tumor BAM">
@@ -154,7 +154,7 @@ class VcfWriter(object):
         )
         if AD is not None and AD != "":
             FORMAT += ":AD"
-            FORMAT_V += ":%d" % (AD)
+            FORMAT_V += ":%s" % (AD)
         if NAF is not None:
             FORMAT += ":NAF"
             FORMAT_V += ":%.4f" % (NAF)
@@ -166,7 +166,7 @@ class VcfWriter(object):
             FORMAT_V += ":%d" % (NDP)
         if NAD is not None:
             FORMAT += ":NAD"
-            FORMAT_V += ":%d" % (NAD)
+            FORMAT_V += ":%s" % (NAD)
         if TDP is not None:
             FORMAT += ":TDP"
             FORMAT_V += ":%d" % (TDP)
