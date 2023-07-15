@@ -113,7 +113,7 @@ def haplotype_filter_per_pos(args):
     all_read_start_end_set = set()
     ALL_HAP_LIST = [0, 0, 0]
     HAP_LIST = [0, 0, 0]
-
+    alt_base_read_name_set = set()
     homo_germline_pos_set = set([int(item[0]) for item in homo_germline_set])
     hetero_germline_pos_set = set([int(item[0]) for item in hetero_germline_set])
 
@@ -139,27 +139,41 @@ def haplotype_filter_per_pos(args):
                 set([read_name_list[r_idx] for r_idx in read_start_end_set]))
 
         pos_dict[p] = dict(zip(read_name_list, base_list))
-        ref_base = reference_sequence[p - pos + flanking]
+        center_ref_base = reference_sequence[p - pos + flanking]
 
         # discard low BQ variants
         average_min_bq = param.ont_min_bq
         if p == pos:
             bq_list = [ord(qual) - 33 for qual in columns[5]]
-            alt_base_bq_set = [bq for key, value, bq in zip(read_name_list, base_list, bq_list) if
-                               ''.join(value) == alt_base]
+            if is_snp:
 
+                alt_base_bq_set = [bq for key, value, bq in zip(read_name_list, base_list, bq_list) if
+                                   ''.join(value) == alt_base]
+            elif is_ins:
+                alt_base_bq_set = [bq for key, value, bq in zip(read_name_list, base_list, bq_list) if
+                                   ''.join(value).replace('+', '').upper() == alt_base and '+' in ''.join(value)]
+            elif is_del:
+                alt_base_bq_set = [bq for key, value, bq in zip(read_name_list, base_list, bq_list) if
+                                   len(ref_base) == len(value[1]) and '-' in value[1]]
             if len(alt_base_bq_set) > 0 and sum(alt_base_bq_set) / len(alt_base_bq_set) <= average_min_bq and float(args.qual) < HIGH_QUAL:
                 pass_bq = False
 
             for rn in read_name_list:
                 ALL_HAP_LIST[hap_dict[rn]] += 1
+            if is_snp:
+                alt_base_read_name_set = set(
+                    [key for key, value in zip(read_name_list, base_list) if ''.join(value) == alt_base])
+            elif is_ins:
+                alt_base_read_name_set = set(
+                    [key for key, value in zip(read_name_list, base_list) if ''.join(value).replace('+', '').upper() == alt_base and '+' in ''.join(value)])
+            elif is_del:
+                alt_base_read_name_set = set(
+                    [key for key, value in zip(read_name_list, base_list) if len(ref_base) == len(value[1]) and '-' in value[1]])
 
-            alt_base_read_name_set = set(
-                [key for key, value in zip(read_name_list, base_list) if ''.join(value) == alt_base])
             for rn in alt_base_read_name_set:
                 HAP_LIST[hap_dict[rn]] += 1
 
-        if len(base_counter) == 1 and base_counter[ref_base] > 0:
+        if len(base_counter) == 1 and base_counter[center_ref_base] > 0:
             continue
         pos_counter_dict[p] = base_counter
 
@@ -375,8 +389,8 @@ def haplotype_filter(args):
     if not os.path.exists(output_dir):
         subprocess.run("mkdir -p {}".format(output_dir), shell=True)
 
-    pileup_output_vcf_fn = os.path.join(output_dir, "pileup_filter.vcf")
-    fa_output_vcf_fn = os.path.join(output_dir, "full_alignment_filter.vcf")
+    pileup_output_vcf_fn = os.path.join(output_dir, "indel_pileup_filter.vcf" if is_indel else "pileup_filter.vcf")
+    fa_output_vcf_fn = os.path.join(output_dir, "indel_full_alignment_filter.vcf" if is_indel else "full_alignment_filter.vcf")
     if not apply_post_processing:
         subprocess.run("ln -sf {} {}".format(pileup_vcf_fn, pileup_output_vcf_fn), shell=True)
         subprocess.run("ln -sf {} {}".format(fa_input_vcf_fn, fa_output_vcf_fn), shell=True)
@@ -404,7 +418,7 @@ def haplotype_filter(args):
                                  ctg_name=ctg_name,
                                  show_ref=args.show_ref,
                                  keep_row_str=True,
-                                 discard_indel=True,
+                                 discard_indel=False if is_indel else True,
                                  filter_tag=args.input_filter_tag,
                                  save_header=True,
                                  keep_af=True)
@@ -415,7 +429,7 @@ def haplotype_filter(args):
                                  ctg_name=ctg_name,
                                  show_ref=args.show_ref,
                                  keep_row_str=True,
-                                 discard_indel=True,
+                                 discard_indel=False if is_indel else True,
                                  filter_tag=args.input_filter_tag,
                                  save_header=True,
                                  keep_af=True)
@@ -587,6 +601,10 @@ def main():
 
     parser.add_argument('--max_overlap_distance', type=int, default=100000,
                         help="EXPERIMENTAL: The largest window size for two somatic variants to be considered together for haplotype filtering. Default: %(default)d")
+
+    ## filtering for Indel candidates
+    parser.add_argument('--is_indel', action='store_true',
+                        help=SUPPRESS)
 
     ## test using one position
     parser.add_argument('--test_pos', type=int, default=None,
