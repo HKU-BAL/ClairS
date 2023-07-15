@@ -115,7 +115,7 @@ ClairS trained both pileup and full-alignment models using GIAB samples, and car
 | PacBio HiFi <sup>3</sup> |          hifi_sequel2          | Sequel II with Chemistry 2.0 | - |          `hifi_sequel2`          | GRCh38_no_alt | Minimap2 |
 | PacBio HIFI | hifi_revio | Revio with SMRTbell prep kit 3.0 | - | `hifi_revio` | GRCh38_no_alt | Minimap2 |
 
-**Caveats <sup>1</sup>**:  Both `ont_r10_dorado_4khz` and `ont_r10_dorado_5khz` models are trained in HG003+HG004 synthetic dataset, a multiple-samples pre-trained model is coming soon.
+**Caveats <sup>1</sup>**:  Both `ont_r10_dorado_4khz` and `ont_r10_dorado_5khz` models are trained with synthetic samples generated from the HG003 and HG004 samples, a multiple-samples pre-trained model is coming soon.
 
 **Caveats <sup>2</sup>**: Although the r9(`r941_prom_sup_g5014`) model was trained on synthetic samples with r9.4.1 real data, the minimal AF cutoff, minimal coverage, and post-calling filtering parameters for the r9 model are copied from the r10 model, and are not optimized due to lack of real r9 data on a cancer sample with known truths.
 
