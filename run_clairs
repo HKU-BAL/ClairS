@@ -1604,13 +1604,13 @@ def somatic_parser():
     ont_params.add_argument(
         "--enable_indel_calling",
         action='store_true',
-        help="EXPERIMENTAL: Enable Indel calling, only support `ont_r10_guppy` and `hifi_revio` platforms. The calling time would increase significantly. default: disabled."
+        help="EXPERIMENTAL: Enable Indel calling, only support 'ont_r10_guppy' and 'hifi_revio' platforms. The calling time would increase significantly. default: disabled."
     )
 
     optional_params.add_argument(
         "--enable_clair3_germline_output",
         action='store_true',
-        help="EXPERIMENTAL: Use Clair3 default calling settings than Clair3 fast calling setting for tumor and normal germline varaint calling. The calling time would increase ~40%, Default: disabled"
+        help="EXPERIMENTAL:  Use Clair3 default calling settings than Clair3 fast calling setting for tumor and normal germline varaint calling. The calling time would increase ~40 percent, Default: disabled"
     )
 
     ont_params.add_argument(
