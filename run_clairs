@@ -1271,7 +1271,7 @@ def somatic_calling(args):
         indel_fa_fn = args.output_dir + '/tmp/vcf_output/indel_full_alignment.vcf'
         if args.platform == 'hifi':
             echo_list.append("[INFO] Indel Haplotype filtering")
-            indel_hap_g_command = '( ' + time + args.pypy + ' ' + main_entry + ' haplotype_filtering_bak_indel'
+            indel_hap_g_command = '( ' + time + args.pypy + ' ' + main_entry + ' haplotype_filtering'
             indel_hap_g_command += ' --tumor_bam_fn ' + tumor_bam_prefix
             indel_hap_g_command += ' --ref_fn ' + args.ref_fn
             indel_hap_g_command += ' --germline_vcf_fn ' + clair3_output_path + '/clair3_tumor_output/merge_output.vcf.gz'

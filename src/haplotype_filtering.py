@@ -180,7 +180,6 @@ def haplotype_filter_per_pos(args):
     samtools_mpileup_tumor_process.stdout.close()
     samtools_mpileup_tumor_process.wait()
 
-    alt_base_read_name_set = set([key for key, value in pos_dict[pos].items() if ''.join(value) == alt_base])
     # near to read start end and have high overlap
     if len(all_read_start_end_set.intersection(alt_base_read_name_set)) >= 0.3 * len(alt_base_read_name_set):
         pass_read_start_end = False
