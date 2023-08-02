@@ -563,6 +563,11 @@ def check_args(args):
     args.hybrid_mode_vcf_fn = file_path_from(file_name=args.hybrid_mode_vcf_fn, exit_on_not_found=True, allow_none=True)
     args.normal_vcf_fn = file_path_from(file_name=args.normal_vcf_fn, exit_on_not_found=True, allow_none=True)
 
+    if args.platform in param.model_name_platform_dict:
+        updated_platform = param.model_name_platform_dict['args.platform']
+        logging("[INFO] Platform parameter is using ONT model name format, change --platform {} to --platform {}".format(args.platform, updated_platform))
+        args.platform = updated_platform
+
     if normal_bai_fn is None and normal_crai_fn is None and normal_csi_fn is None:
         sys.exit(log_error("[ERROR] Normal BAM index file {} or {} not found. Please run `samtools index $BAM` first.".format(args.normal_bam_fn + '.bai',
                                                                                       args.normal_bam_fn + '.crai')))
@@ -571,7 +576,7 @@ def check_args(args):
         sys.exit(log_error("[ERROR] Tumor BAM index file {} or {} not found. Please run `samtools index $BAM` first.".format(args.tumor_bam_fn + '.bai',
                                                                                       args.tumor_bam_fn + '.crai')))
 
-    if args.enable_indel_calling and args.platform not in {'ont_r10_guppy', 'ont_r10', 'ont', 'hifi_revio', 'hifi_sequel2'}:
+    if args.enable_indel_calling and args.platform not in {'ont_r10_guppy', 'ont_r10', 'ont', 'hifi_revio', 'hifi_sequel2', 'ont_r10_dorado_5khz', 'ont_r10_dorado_4khz'}:
         sys.exit(log_error("[ERROR] Indel calling only support 'ont_r10' and 'hifi_revio' platform"))
 
     if args.genotyping_mode_vcf_fn is not None and args.hybrid_mode_vcf_fn is not None:
@@ -1269,7 +1274,7 @@ def somatic_calling(args):
 
         indel_pileup_fn = args.output_dir + '/tmp/vcf_output/indel_pileup.vcf'
         indel_fa_fn = args.output_dir + '/tmp/vcf_output/indel_full_alignment.vcf'
-        if args.platform == 'hifi':
+        if args.platform != 'ilmn':
             echo_list.append("[INFO] Indel Haplotype filtering")
             indel_hap_g_command = '( ' + time + args.pypy + ' ' + main_entry + ' haplotype_filtering'
             indel_hap_g_command += ' --tumor_bam_fn ' + tumor_bam_prefix
@@ -1610,7 +1615,7 @@ def somatic_parser():
     optional_params.add_argument(
         "--enable_clair3_germline_output",
         action='store_true',
-        help="EXPERIMENTAL:  Use Clair3 default calling settings than Clair3 fast calling setting for tumor and normal germline varaint calling. The calling time would increase ~40 percent, Default: disabled"
+        help="EXPERIMENTAL: Use Clair3 default calling settings than Clair3 fast calling setting for tumor and normal germline varaint calling. The calling time would increase ~40 percent, Default: disabled"
     )
 
     ont_params.add_argument(
