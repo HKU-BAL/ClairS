@@ -70,6 +70,8 @@ ClairS is now available for early access to interested and experienced users. Yo
 ------
 
 ## Latest Updates
+*v0.1.5 (Aug 2)* : 1. Updated SNV calling using ONT Dorado 4kHz data with a new model trained using multiple-sample pairs (HG003/4); 2. Updated SNV calling using ONT Dorado 5kHz data with a new model trained using multiple-sample pairs (HG001/HG002, HG003/4); 3.  Support somatic indel calling using ONT Dorado 4kHz data. 4. Support somatic indel calling using ONT Dorado 5kHz data.
+
 *v0.1.4 (Jul 15)* : 1. Added reference depth in AD tag. 2. Added HiFi Sequel II Indel model.
 
 *v0.1.3 (Jul 5)* : Added ONT Dorado 4khz (`-p ont_r10_dorado_4khz`) and 5khz (`-p ont_r10_dorado_5khz`) models, check [here](#pre-trained-models) for more details. Renamed platform options `ont_r10` to `ont_r10_guppy` and `ont_r9` to `ont_r9_guppy`.
@@ -108,19 +110,17 @@ ClairS trained both pileup and full-alignment models using GIAB samples, and car
 
 |  Platform   |       Model name       |    Chemistry /Instruments    |    Basecaller    | Option (`-p/--platform`) |   Reference   | Aligner  |
 | :---------: | :--------------------: | :--------------------------: | :----------------------: | :-----------: | :------: | ----------- |
-| ONT<sup>1</sup> | r1041_e82_400bps_sup_v420 | R10.4.1, 5khz | Dorado | `ont_r10_dorado_5khz` | GRCh38_no_alt | Minimap2 |
-| ONT<sup>1</sup> | r1041_e82_400bps_sup_v410 | R10.4.1, 4khz | Dorado | `ont_r10_dorado_4khz` | GRCh38_no_alt | Minimap2 |
+| ONT | r1041_e82_400bps_sup_v420 | R10.4.1, 5khz | Dorado | `ont_r10_dorado_5khz` | GRCh38_no_alt | Minimap2 |
+| ONT | r1041_e82_400bps_sup_v410 | R10.4.1, 4khz | Dorado | `ont_r10_dorado_4khz` | GRCh38_no_alt | Minimap2 |
 |     ONT     | r104_e81_sup_g5015 |        R10.4/R10.4.1         |        Guppy5        |   `ont_r10_guppy` | GRCh38_no_alt | Minimap2 |
-|    ONT <sup>2</sup>    |  r941_prom_sup_g5014   |            R9.4.1            |            Guppy5            |         `ont_r9_guppy`         | GRCh38_no_alt | Minimap2 |
+|    ONT <sup>1</sup>    |  r941_prom_sup_g5014   |            R9.4.1            |            Guppy5            |         `ont_r9_guppy`         | GRCh38_no_alt | Minimap2 |
 |  Illumina   |          ilmn          |        NovaSeq/HiseqX        |        -        |          `ilmn`          |    GRCh38     | BWA-MEM  |
-| PacBio HiFi <sup>3</sup> |          hifi_sequel2          | Sequel II with Chemistry 2.0 | - |          `hifi_sequel2`          | GRCh38_no_alt | Minimap2 |
+| PacBio HiFi <sup>2</sup> |          hifi_sequel2          | Sequel II with Chemistry 2.0 | - |          `hifi_sequel2`          | GRCh38_no_alt | Minimap2 |
 | PacBio HIFI | hifi_revio | Revio with SMRTbell prep kit 3.0 | - | `hifi_revio` | GRCh38_no_alt | Minimap2 |
 
-**Caveats <sup>1</sup>**:  Both `ont_r10_dorado_4khz` and `ont_r10_dorado_5khz` models are trained with synthetic samples generated from the HG003 and HG004 samples, a multiple-samples pre-trained model is coming soon.
+**Caveats <sup>1</sup>**: Although the r9(`r941_prom_sup_g5014`) model was trained on synthetic samples with r9.4.1 real data, the minimal AF cutoff, minimal coverage, and post-calling filtering parameters for the r9 model are copied from the r10 model, and are not optimized due to lack of real r9 data on a cancer sample with known truths.
 
-**Caveats <sup>2</sup>**: Although the r9(`r941_prom_sup_g5014`) model was trained on synthetic samples with r9.4.1 real data, the minimal AF cutoff, minimal coverage, and post-calling filtering parameters for the r9 model are copied from the r10 model, and are not optimized due to lack of real r9 data on a cancer sample with known truths.
-
-**Caveats <sup>3</sup>**: The PacBio HiFi Sequel II model is experimental. It was trained but not tested with any real data with known truths. HG003 54x and HG004 52x were used, thus tumor depth coverage higher than 50x may suffer from lower recall rate. For testing, please downsample both tumor and normal to ~40x for the best performance of this experimental model.
+**Caveats <sup>2</sup>**: The PacBio HiFi Sequel II model is experimental. It was trained but not tested with any real data with known truths. HG003 54x and HG004 52x were used, thus tumor depth coverage higher than 50x may suffer from lower recall rate. For testing, please downsample both tumor and normal to ~40x for the best performance of this experimental model.
 
 
 ------
@@ -306,7 +306,15 @@ docker run -it hkubal/clairs:latest /opt/bin/run_clairs --help
   --normal_vcf_fn NORMAL_VCF_FN
                         EXPERIMENTAL: Path to normal VCF file. Setting this will skip germline varaint calling on normal BAM file input.
   --enable_indel_calling
-                        EXPERIMENTAL: Enable Indel calling, only support only support `ont_r10_guppy` and `hifi_revio` platforms. The calling time would increase significantly. default: disabled.
+                        EXPERIMENTAL: Enable Indel calling, 'ont_r9_guppy' and 'ilmn' platforms are not supported. The calling time would increase significantly. default: disabled.
+  --enable_clair3_germline_output
+                        EXPERIMENTAL: Use Clair3 default calling settings than Clair3 fast calling setting for tumor and normal germline varaint calling. The calling time would increase ~40 percent, Default: disabled.
+  --indel_output_prefix INDEL_OUTPUT_PREFIX
+                        Prefix for Indel output VCF filename. Default: indel.
+  --indel_pileup_model_path INDEL_PILEUP_MODEL_PATH
+                        Specify the path to your own somatic calling indel pileup model.
+  --indel_full_alignment_model_path INDEL_FULL_ALIGNMENT_MODEL_PATH
+                        Specify the path to your own somatic calling indel full-alignment model.
 ```
 
 #### Call SNVs in one or mutiple chromosomes using the `-C/--ctg_name` parameter
