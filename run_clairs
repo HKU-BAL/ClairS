@@ -564,7 +564,7 @@ def check_args(args):
     args.normal_vcf_fn = file_path_from(file_name=args.normal_vcf_fn, exit_on_not_found=True, allow_none=True)
 
     if args.platform in param.model_name_platform_dict:
-        updated_platform = param.model_name_platform_dict['args.platform']
+        updated_platform = param.model_name_platform_dict[args.platform]
         logging("[INFO] Platform parameter is using ONT model name format, change --platform {} to --platform {}".format(args.platform, updated_platform))
         args.platform = updated_platform
 
@@ -604,7 +604,6 @@ def check_args(args):
                                                 is_directory=False, allow_none=False)
         args.indel_full_alignment_model_path = file_path_from(file_name=args.indel_full_alignment_model_path,
                                                         exit_on_not_found=True, is_directory=False, allow_none=False)
-
 
     if args.snv_min_af is None:
         args.snv_min_af = param.snv_min_af
@@ -1609,7 +1608,7 @@ def somatic_parser():
     ont_params.add_argument(
         "--enable_indel_calling",
         action='store_true',
-        help="EXPERIMENTAL: Enable Indel calling, only support 'ont_r10_guppy' and 'hifi_revio' platforms. The calling time would increase significantly. default: disabled."
+        help="EXPERIMENTAL: Enable Indel calling, 'ont_r9_guppy' and 'ilmn' platforms are not supported. The calling time would increase significantly. default: disabled."
     )
 
     optional_params.add_argument(
