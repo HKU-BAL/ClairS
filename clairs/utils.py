@@ -475,7 +475,10 @@ def get_training_array(args,
         normal_subprocess_process = subprocess_popen(shlex.split("{} -fdc {}".format(param.zstd, normal_tensor_fn)))
         tumor_subprocess_process = subprocess_popen(shlex.split("{} -fdc {}".format(param.zstd, tumor_tensor_fn)))
 
-        proportion = float(tumor_tensor_fn.split("_")[-1])
+        try:
+            proportion = float(tumor_tensor_fn.split("_")[3])
+        except:
+            proportion = 1.0
         normal_bin_reader_generator = bin_reader_generator_from(subprocess_process=normal_subprocess_process,
                                                                 Y=Y,
                                                                 is_tree_empty=is_tree_empty,
