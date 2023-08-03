@@ -158,6 +158,32 @@ def find_most_frequent_candidate(args, alt_info_dict, ref_base):
     return None, None
 
 
+def find_candidate_match_with_ref(alt_info_dict, ref_base, alt_base):
+    # alt_base = alt_base[0]
+    alt_list = sorted(list(alt_info_dict.items()), key=lambda x: x[1], reverse=True)
+    max_af = alt_list[0][1] if len(alt_info_dict) > 0 else None
+    # snp
+    if len(ref_base) == 1 and len(alt_base) == 1:
+        if alt_base in alt_info_dict:
+            return alt_info_dict[alt_base], 'snp', max_af
+    # insertion
+    if "+" in alt_base:
+        if alt_base in alt_info_dict:
+            total_ins_af = sum([alt_info_dict[item] for item in alt_info_dict if '+' in item])
+            return alt_info_dict[alt_base], 'ins', total_ins_af
+    # deletion
+    if "-" in alt_base:
+        if alt_base in alt_info_dict:
+            #cal all deletions:
+            total_del_af = sum([alt_info_dict[item] for item in alt_info_dict if '-' in item])
+
+            return alt_info_dict[alt_base], 'del', total_del_af
+
+    if len(alt_info_dict) > 0:
+        return None, 'signal', max_af
+    return None, "", None
+
+
 def find_candidate_match(alt_info_dict, ref_base, alt_base):
     # alt_base = alt_base[0]
     alt_list = sorted(list(alt_info_dict.items()), key=lambda x: x[1], reverse=True)
@@ -189,8 +215,8 @@ def filter_germline_candidates(args, truths, variant_info, alt_dict, paired_alt_
     low_confident_germline_truths = []
     truth_not_pass_af = 0
     germline_filtered_by_af_distance = 0
-    germline_af_gap = 0.1 if platform == 'ont' else 0.1
-    min_germline_af = 0.1 if platform == 'ont' else None
+    germline_af_gap = 0.1
+    min_germline_af = 0.1
     select_indel_candidates = args.select_indel_candidates
     for pos, variant_type in truths:
         if pos not in alt_dict:
@@ -256,13 +282,14 @@ def filter_reference_candidates(args, truths, alt_dict, paired_alt_dict, gen_vcf
                                                                         alt_info_dict=alt_dict[pos].alt_dict,
                                                                         ref_base=ref_base)
 
+        is_indel = '-' in most_frequent_alt_base or '+' in most_frequent_alt_base
         if most_frequent_alt_base is None or tumor_af is None:
             continue
         tumor_af = float(tumor_af)
         if pos not in paired_alt_dict:
             filtered_truths.append([pos, variant_type])
         else:
-            pair_af, vt, pair_max_af = find_candidate_match(alt_info_dict=paired_alt_dict[pos].alt_dict,
+            pair_af, vt, total_indel_af = find_candidate_match_with_ref(alt_info_dict=paired_alt_dict[pos].alt_dict,
                                                             ref_base=ref_base, alt_base=most_frequent_alt_base)
             if pair_af is None:
                 filtered_truths.append([pos, variant_type])
@@ -385,6 +412,11 @@ def get_candidates(args):
     output_bed_fn = args.output_bed_fn
     output_fp_bed_regions = output_bed_fn is not None
     exclude_flanking_truth = args.exclude_flanking_truth
+    normal_output_bam_prefix = args.normal_output_bam_prefix
+    tumor_output_bam_prefix = args.tumor_output_bam_prefix
+    sample_prefix = normal_output_bam_prefix + '_' + tumor_output_bam_prefix
+    maximum_germline_somatic_ratio = args.maximum_germline_somatic_ratio
+    maximum_reference_somatic_ratio = args.maximum_reference_somatic_ratio
 
     normal_homo_variant_set, normal_homo_variant_info, normal_hetero_variant_set, normal_hetero_variant_info, normal_variant_set, normal_variant_info = vcf_reader(
         vcf_fn=normal_vcf_fn, contig_name=contig_name, bed_tree=bed_tree, add_hetero_pos=add_hetero_pos)
@@ -476,8 +508,6 @@ def get_candidates(args):
         homo_germline = []
         hetero_germline = []
 
-    fp_list = homo_germline + references + hetero_germline
-
     homo_somatic_set = sorted(list(tumor_homo_variant_set - normal_variant_set))
     hetero_somatic_set = sorted(list(tumor_hetero_variant_set - normal_variant_set))
     homo_somatic = [(item, 'homo_somatic') for item in homo_somatic_set]
@@ -505,7 +535,7 @@ def get_candidates(args):
 
     # exclude nearby truth in training
     if exclude_flanking_truth:
-        all_truth_pos_list = sorted([item[0] for item in homo_somatic + hetero_somatic + fp_list])
+        all_truth_pos_list = sorted([item[0] for item in homo_somatic + hetero_somatic + homo_germline + references + hetero_germline])
 
         def exclude_flanking(pos_list):
             exclude_truth_set = set()
@@ -533,6 +563,20 @@ def get_candidates(args):
 
     tp_list = homo_somatic + hetero_somatic
 
+    if maximum_germline_somatic_ratio is not None:
+        if len(references) > int(maximum_germline_somatic_ratio * len(tp_list)):
+            random.seed(0)
+            print("[INFO] Sampled germline candidates from {} to {}".format(len(homo_germline + hetero_germline), int(maximum_germline_somatic_ratio * len(tp_list))))
+            germlines = random.sample(homo_germline + hetero_germline, int(maximum_germline_somatic_ratio * len(tp_list)))
+    else:
+        germlines = homo_germline + hetero_germline
+
+    if maximum_reference_somatic_ratio is not None:
+        if len(references) > int(maximum_reference_somatic_ratio * len(tp_list)):
+            random.seed(0)
+            print("[INFO] Sampled reference candidates from {} to {}".format(len(references), int(maximum_reference_somatic_ratio * len(tp_list))))
+            references = random.sample(references, int(maximum_reference_somatic_ratio * len(tp_list)))
+    fp_list = germlines + references
     pos_list = sorted(fp_list + tp_list, key=lambda x: x[0])
 
     if gen_vcf:
@@ -591,14 +635,17 @@ def get_candidates(args):
                         split_output]
         if args.select_indel_candidates:
             output_path = os.path.join(split_folder,
-                                       '{}.{}_{}_por{}_cov{}_indel'.format(contig_name, idx, region_num,
+                                       '{}.{}_{}_por{}_cov{}_{}_indel'.format(contig_name, idx, region_num,
                                                                      int(proportion * 100),
-                                                                     int(synthetic_coverage)))
+                                                                     int(synthetic_coverage),
+                                                                     sample_prefix))
         else:
             output_path = os.path.join(split_folder,
-                                       '{}.{}_{}_por{}_cov{}'.format(contig_name, idx, region_num, int(proportion * 100),
-                                                                     int(synthetic_coverage)))
-        all_candidates_regions.append(output_path + ' ' + str(proportion) + ' ' + str(synthetic_coverage))
+                                       '{}.{}_{}_por{}_cov{}_{}'.format(contig_name, idx, region_num, int(proportion * 100),
+                                                                     int(synthetic_coverage),
+                                                                       sample_prefix))
+        all_candidates_regions.append(output_path + ' ' + str(proportion) + ' ' + str(synthetic_coverage) +
+                                      ' ' + contig_name + ' ' + normal_output_bam_prefix + ' ' + tumor_output_bam_prefix)
         with open(output_path, 'w') as output_file:
             output_file.write('\n'.join(
                 ['\t'.join([contig_name, str(x[0] - 1), str(x[1] - 1), x[2]]) for x in
@@ -606,14 +653,14 @@ def get_candidates(args):
 
     if args.select_indel_candidates:
         all_candidate_path = os.path.join(split_folder,
-                                          'INDEL_CANDIDATES_FILE_{}_{}_{}'.format(contig_name, proportion, synthetic_coverage))
+                                          'INDEL_CANDIDATES_FILE_{}_{}_{}_{}'.format(contig_name, proportion, synthetic_coverage, sample_prefix))
     else:
         all_candidate_path = os.path.join(split_folder,
-                                          'CANDIDATES_FILE_{}_{}_{}'.format(contig_name, proportion, synthetic_coverage))
+                                          'CANDIDATES_FILE_{}_{}_{}_{}'.format(contig_name, proportion, synthetic_coverage, sample_prefix))
     with open(all_candidate_path, 'w') as output_file:
         output_file.write('\n'.join(all_candidates_regions) + '\n')
 
-    extra_info = "homo/hetetro somatic exclude by flanking position:{}/{}".format(len(homo_exclude_truth_set), len(
+    extra_info = "homo/hetero somatic exclude by flanking position:{}/{}".format(len(homo_exclude_truth_set), len(
         hetero_exclude_truth_set)) if exclude_flanking_truth else ""
     print(
         '[INFO] {}-{} homo germline:{} hetero germline:{} references:{} homo somatic:{} hetero somatic:{} {}\n'.format(
@@ -622,7 +669,7 @@ def get_candidates(args):
 
 
 def main():
-    parser = ArgumentParser(description="Get pair cofident candidates for model training")
+    parser = ArgumentParser(description="Get pair confident candidates for model training")
 
     parser.add_argument('--platform', type=str, default='ont',
                         help="Select the sequencing platform of the input. Default: %(default)s")
@@ -679,6 +726,18 @@ def main():
 
     parser.add_argument('--use_reference_candidates_only', type=str2bool, default=0,
                         help="Exclude truths in a flanking window into training")
+
+    parser.add_argument('--normal_output_bam_prefix', type=str, default='normal',
+                        help="Normal output BAM prefix")
+
+    parser.add_argument('--tumor_output_bam_prefix', type=str, default='tumor',
+                        help="Tumor output BAM prefix")
+
+    parser.add_argument('--maximum_germline_somatic_ratio', type=float, default=None,
+                        help="DEBUG: Sample a proportion of normal candidates")
+
+    parser.add_argument('--maximum_reference_somatic_ratio', type=float, default=None,
+                        help="DEBUG: Sample a proportion of normal candidates")
 
     ## Output VCF path
     parser.add_argument('--output_vcf_fn', type=str, default=None,
