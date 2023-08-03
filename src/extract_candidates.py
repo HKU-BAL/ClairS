@@ -57,6 +57,7 @@ def decode_pileup_bases(pileup_bases,
                         read_name_list,
                         is_tumor,
                         select_indel_candidates=False,
+                        tumor_output_bam_prefix='t',
                         platform="ont"):
     """
     Decode mpileup input string.
@@ -98,7 +99,7 @@ def decode_pileup_bases(pileup_bases,
     alt_dict = dict(Counter([''.join(item).upper() for item in base_list]))
 
     tumor_alt_dict = dict(Counter([''.join(item).upper() for item, read_name in zip(base_list, read_name_list) if
-                                   read_name.startswith('t')])) if is_tumor else None
+                                   read_name.startswith(tumor_output_bam_prefix)])) if is_tumor else None
     depth = 0
 
     for key, count in base_counter.items():
@@ -193,6 +194,7 @@ def extract_candidates(args):
     genotyping_mode = vcf_fn is not None
     truth_vcf_fn = args.truth_vcf_fn
     is_truth_vcf_provided = truth_vcf_fn is not None
+    tumor_output_bam_prefix = args.tumor_output_bam_prefix
 
     truths_variant_dict = {}
     if is_truth_vcf_provided:
@@ -337,6 +339,7 @@ def extract_candidates(args):
             has_pileup_candidates=has_pileup_candidates,
             read_name_list=read_name_list,
             is_tumor=is_tumor,
+            tumor_output_bam_prefix=tumor_output_bam_prefix,
             select_indel_candidates=args.select_indel_candidates
         )
 
@@ -483,6 +486,9 @@ def main():
     ## Store tumor INFOs in training
     parser.add_argument('--store_tumor_infos', type=str2bool, default=False,
                         help=SUPPRESS)
+
+    parser.add_argument('--tumor_output_bam_prefix', type=str, default='t',
+                        help="Tumor output BAM prefix")
 
 
     args = parser.parse_args()

@@ -231,14 +231,21 @@ def decode_pileup_bases(pos, pileup_bases, reference_base,  minimum_snp_af_for_c
     return pileup_tensor, base_list, depth, pass_af, af, alt_info
 
 
-def find_tumor_alt_match(center_pos, sorted_read_name_list, read_name_dict, all_nearby_read_name, truths_variant_dict, proportion=None):
+def find_tumor_alt_match(center_pos,
+                         sorted_read_name_list,
+                         read_name_dict,
+                         all_nearby_read_name,
+                         truths_variant_dict,
+                         normal_output_bam_prefix= 'n',
+                         tumor_output_bam_prefix='t',
+                         proportion=None):
     # if proportion is not None and float(proportion) == 1.0:
     #     # all reads are from tumor reads
     #     tumor_reads = all_nearby_read_name
     #     normal_reads = []
     # else:
-    tumor_reads = [read_name for read_name in all_nearby_read_name if read_name.startswith('t')]
-    normal_reads = [read_name for read_name in all_nearby_read_name if read_name.startswith('n')]
+    tumor_reads = [read_name for read_name in all_nearby_read_name if read_name.startswith(tumor_output_bam_prefix)]
+    normal_reads = [read_name for read_name in all_nearby_read_name if read_name.startswith(normal_output_bam_prefix)]
     ref_base, alt_base = truths_variant_dict[center_pos].reference_bases, truths_variant_dict[center_pos].alternate_bases[0]
     is_ins = len(alt_base) > 1 and len(ref_base) == 1
     is_del = len(ref_base) > 1 and len(alt_base) == 1
@@ -306,6 +313,10 @@ def create_tensor(args):
     is_truth_vcf_provided = truth_vcf_fn is not None
     truths_variant_dict = {}
     proportion = args.proportion
+
+    normal_output_bam_prefix = args.normal_output_bam_prefix
+    tumor_output_bam_prefix = args.tumor_output_bam_prefix
+
     if is_truth_vcf_provided:
         from shared.vcf import VcfReader
         unified_vcf_reader = VcfReader(vcf_fn=truth_vcf_fn, ctg_name=ctg_name, is_var_format=False)
@@ -554,6 +565,8 @@ def create_tensor(args):
                                                                                                             read_name_dict,
                                                                                                             all_nearby_read_name,
                                                                                                             truths_variant_dict,
+                                                                                                            normal_output_bam_prefix=normal_output_bam_prefix,
+                                                                                                            tumor_output_bam_prefix=tumor_output_bam_prefix,
                                                                                                             proportion=proportion)
 
             if len(tumor_reads_meet_alt_info_set) == 0:
@@ -797,6 +810,12 @@ def main():
                         help=SUPPRESS)
     parser.add_argument('--proportion', type=float, default=1.0,
                         help=SUPPRESS)
+
+    parser.add_argument('--normal_output_bam_prefix', type=str, default='n',
+                        help="Normal output BAM prefix")
+
+    parser.add_argument('--tumor_output_bam_prefix', type=str, default='t',
+                        help="Tumor output BAM prefix")
 
     parser.add_argument('--truth_vcf_fn', type=str, default=None,
                         help=SUPPRESS)

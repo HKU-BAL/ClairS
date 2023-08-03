@@ -65,9 +65,10 @@ def split_bam(args):
     samtools_output_threads = args.samtools_output_threads
     min_bin_coverage = args.min_bin_coverage if args.min_bin_coverage > 0 else 4
     cov_dir = args.cov_dir
-
-    normal_coverage_log = os.path.join(cov_dir, 'raw_normal_' + ctg_name + cov_suffix)
-    tumor_coverage_log = os.path.join(cov_dir, 'raw_tumor_' + ctg_name + cov_suffix)
+    normal_output_bam_prefix = args.normal_output_bam_prefix
+    tumor_output_bam_prefix = args.tumor_output_bam_prefix
+    normal_coverage_log = os.path.join(cov_dir, 'raw_{}_'.format(normal_output_bam_prefix) + ctg_name + cov_suffix)
+    tumor_coverage_log = os.path.join(cov_dir, 'raw_{}_'.format(tumor_output_bam_prefix) + ctg_name + cov_suffix)
     normal_bam_coverage = get_coverage(normal_coverage_log)
     tumor_bam_coverage = get_coverage(tumor_coverage_log)
 
@@ -75,7 +76,7 @@ def split_bam(args):
     tumor_bin_num = int(int(tumor_bam_coverage) / int(min_bin_coverage))
 
     for bam_fn, bin_num, prefix in zip((normal_bam_fn, tumor_bam_fn), (normal_bin_num, tumor_bin_num),
-                                       ("normal", 'tumor')):
+                                       (normal_output_bam_prefix, tumor_output_bam_prefix)):
         subprocess_list = []
         for bin_idx in range(bin_num):
             output_fn = os.path.join(output_dir, '_'.join([prefix, ctg_name, str(bin_idx)]) + '.bam')
@@ -100,7 +101,7 @@ def split_bam(args):
             # bin_id = int(random.random() * 100) % bin_num
             bin_id = row_id % bin_num
             # add prefix  for each normal and tumor reads
-            subprocess_list[bin_id].stdin.write(prefix[0] + row)
+            subprocess_list[bin_id].stdin.write(prefix + row)
 
         samtools_view_process.stdout.close()
         samtools_view_process.wait()
@@ -132,6 +133,12 @@ def main():
 
     parser.add_argument('--tumor_bam_coverage', type=int, default=None,
                         help="Tumor BAM coverage calculated using mosdepth")
+
+    parser.add_argument('--normal_output_bam_prefix', type=str, default='normal',
+                        help="Normal output BAM prefix")
+
+    parser.add_argument('--tumor_output_bam_prefix', type=str, default='tumor',
+                        help="Normal output BAM prefix")
 
     parser.add_argument('--samtools', type=str, default="samtools",
                         help="Path to the 'samtools', samtools version >= 1.10 is required")

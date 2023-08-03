@@ -54,8 +54,11 @@ def mix_bin(args):
     synthetic_proportion = args.synthetic_proportion
     synthetic_coverage = args.synthetic_coverage
     normal_coverage_proportion = args.normal_coverage_proportion
-    normal_coverage_log = os.path.join(cov_dir, 'raw_normal_' + ctg_name + cov_suffix)
-    tumor_coverage_log = os.path.join(cov_dir, 'raw_tumor_' + ctg_name + cov_suffix)
+    normal_output_bam_prefix = args.normal_output_bam_prefix
+    tumor_output_bam_prefix = args.tumor_output_bam_prefix
+
+    normal_coverage_log = os.path.join(cov_dir, 'raw_{}_'.format(normal_output_bam_prefix) + ctg_name + cov_suffix)
+    tumor_coverage_log = os.path.join(cov_dir, 'raw_{}_'.format(tumor_output_bam_prefix) + ctg_name + cov_suffix)
     normal_bam_coverage = args.normal_bam_coverage if args.normal_bam_coverage else get_coverage(normal_coverage_log)
     tumor_bam_coverage = args.tumor_bam_coverage if args.tumor_bam_coverage else get_coverage(tumor_coverage_log)
 
@@ -74,11 +77,11 @@ def mix_bin(args):
 
     bam_list = os.listdir(input_dir)
     if args.dry_run:
-        normal_bam_list = ['normal_' + str(idx) for idx in range(normal_bin_num)]
-        tumor_bam_list = ['tumor_' + str(idx) for idx in range(tumor_bin_num)]
+        normal_bam_list = [normal_output_bam_prefix + '_' + str(idx) for idx in range(normal_bin_num)]
+        tumor_bam_list = [tumor_output_bam_prefix + '_' + str(idx) for idx in range(tumor_bin_num)]
     else:
-        normal_bam_list = [bam for bam in bam_list if bam.startswith('normal_' + ctg_name + '_')]
-        tumor_bam_list = [bam for bam in bam_list if bam.startswith('tumor_' + ctg_name + '_')]
+        normal_bam_list = [bam for bam in bam_list if bam.startswith(normal_output_bam_prefix + '_' + ctg_name + '_')]
+        tumor_bam_list = [bam for bam in bam_list if bam.startswith(tumor_output_bam_prefix + '_' + ctg_name + '_')]
     assert len(normal_bam_list) == normal_bin_num
     assert len(tumor_bam_list) == tumor_bin_num
 
@@ -133,6 +136,7 @@ def mix_bin(args):
     normal_coverage_in_normal = len(pair_normal_bam_list) * min_bin_coverage
     normal_coverage_in_tumor = sampled_normal_bin_num * min_bin_coverage
     tumor_coverage_in_tumor = sampled_tumor_bin_num * min_bin_coverage
+
     print(
         "[INFO] Raw normal BAM coverage/Raw tumor BAM coverage: {}x/{}x, normal sampled bins/tumor sampled bins:{}/{}".format(
             normal_bam_coverage, tumor_bam_coverage, sampled_normal_bin_num, sampled_tumor_bin_num))
@@ -208,6 +212,12 @@ def main():
 
     parser.add_argument('--cov_dir', type=str, default=None,
                         help="Directory of mosdepth coverage summary")
+
+    parser.add_argument('--normal_output_bam_prefix', type=str, default='normal',
+                        help="Normal output BAM prefix")
+
+    parser.add_argument('--tumor_output_bam_prefix', type=str, default='tumor',
+                        help="Tumor output BAM prefix")
 
     # options for advanced users
     parser.add_argument('--synthetic_proportion', type=float, default=0.25,

@@ -302,14 +302,20 @@ def decode_pileup_bases(pos, pileup_bases, reference_base, minimum_snv_af_for_ca
     return base_list, depth, pass_af, af
 
 
-def find_tumor_alt_match(center_pos, sorted_read_name_list, pileup_dict, truths_variant_dict, proportion=None):
+def find_tumor_alt_match(center_pos,
+                         sorted_read_name_list,
+                         pileup_dict,
+                         truths_variant_dict,
+                         proportion=None,
+                         normal_output_bam_prefix='n',
+                         tumor_output_bam_prefix='t'):
     if proportion is not None and float(proportion) == 1.0:
         # all reads are from tumor reads
         tumor_reads = [read_name for (hap, _, read_name) in sorted_read_name_list]
         normal_reads = []
     else:
-        tumor_reads = [read_name for (hap, _, read_name) in sorted_read_name_list if read_name.startswith('t')]
-        normal_reads = [read_name for (hap, _, read_name) in sorted_read_name_list if read_name.startswith('n')]
+        tumor_reads = [read_name for (hap, _, read_name) in sorted_read_name_list if read_name.startswith(tumor_output_bam_prefix)]
+        normal_reads = [read_name for (hap, _, read_name) in sorted_read_name_list if read_name.startswith(normal_output_bam_prefix)]
     ref_base, alt_base = truths_variant_dict[center_pos].reference_bases, \
                          truths_variant_dict[center_pos].alternate_bases[0]
     is_ins = len(alt_base) > 1 and len(ref_base) == 1
@@ -423,7 +429,9 @@ def generate_tensor(args,
                                                                                                         sorted_read_name_list,
                                                                                                         pileup_dict,
                                                                                                         truths_variant_dict,
-                                                                                                        proportion=proportion)
+                                                                                                        proportion=proportion,
+                                                                                                        normal_output_bam_prefix=args.normal_output_bam_prefix,
+                                                                                                        tumor_output_bam_prefix=args.tumor_output_bam_prefix)
         if len(tumor_reads_meet_alt_info_set) == 0:
             print("No reads support tumor alternative in pos:{}".format(center_pos))
             return None, None
@@ -694,6 +702,7 @@ def create_tensor(args):
     vcf_fn = args.vcf_fn
     is_known_vcf_file_provided = vcf_fn is not None
     tensor_sample_mode = args.tensor_sample_mode
+    is_tumor = args.is_tumor_sample
     global test_pos
     test_pos = None
     candidates_pos_set = set()
@@ -815,8 +824,6 @@ def create_tensor(args):
     samtools_mpileup_process = subprocess_popen(
         shlex.split(samtools_command), stdin=stdin)
 
-    is_tumor = "tumor_" in bam_file_path or tensor_sample_mode != 0
-
     if tensor_can_output_path != "PIPE":
         tensor_can_fpo = open(tensor_can_output_path, "wb")
         tensor_can_fp = subprocess_popen(shlex.split("{} -c".format(args.zstd)), stdin=PIPE, stdout=tensor_can_fpo)
@@ -932,7 +939,7 @@ def create_tensor(args):
         if pos not in pileup_dict:
             continue
 
-        use_tensor_sample_mode = tensor_sample_mode and (
+        use_tensor_sample_mode = is_tumor and tensor_sample_mode and (
                 candidates_type_dict[pos] == 'homo_somatic' or candidates_type_dict[
             pos] == 'hetero_somatic') and pos in truths_variant_dict
         max_depth = param.tumor_matrix_depth_dict[platform] if is_tumor else param.normal_matrix_depth_dict[platform]
@@ -1037,6 +1044,7 @@ def main():
     parser.add_argument('--alt_fn', type=str, default=None,
                         help="DEBUG: Output all alternative indel cigar for debug purpose")
 
+
     # options for internal process control
     ## Minimum indel allele frequency for a site to be considered as a candidate site
     parser.add_argument('--indel_min_af', type=float, default=1.0,
@@ -1073,6 +1081,16 @@ def main():
     ## apply tensor sample mode in training
     parser.add_argument('--tensor_sample_mode', type=str2bool, default=1,
                         help=SUPPRESS)
+
+    ## apply tensor sample mode in training
+    parser.add_argument('--is_tumor_sample', type=str2bool, default=0,
+                        help=SUPPRESS)
+
+    parser.add_argument('--normal_output_bam_prefix', type=str, default='n',
+                        help="Normal output BAM prefix")
+
+    parser.add_argument('--tumor_output_bam_prefix', type=str, default='t',
+                        help="Tumor output BAM prefix")
 
     parser.add_argument('--mask_low_bq', type=str2bool, default=0,
                         help=SUPPRESS)
