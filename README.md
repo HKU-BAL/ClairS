@@ -2,7 +2,7 @@
     <img src="images/clairs_icon.png" width = "200" alt="ClairS">
 </div>
 
-# ClairS
+# ClairS - a deep-learning method for long-read somatic small variant calling
 
 [![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 
@@ -13,7 +13,7 @@ Email: rbluo@cs.hku.hk, zxzheng@cs.hku.hk
 
 ## Introduction
 
-ClairS is a somatic variant caller designed for paired samples and primarily ONT long-read. It uses Clair3 to eliminate germline variants. It ensembles the pileup and full-alignment models in Clair3, trusts them equally, and decides on the result using a set of rules and post-processing filters. With 70-fold HCC1395 (tumor) and 45-fold HCC1395BL (normal) of ONT R10.4.1 data, benchmarking against the truth SNVs (Fang et al., 2021) has shown ClairS achieved 91.10% precision and 71.92% recall. Specifically, ClairS achieved 98.12% precision, 99.15% recall on variants with AF≥0.20, and 94.26% precision, 87.46% recall on variants with AF≥0.05. Detailed performance figures are shown below.
+ClairS is a somatic variant caller designed for paired samples and primarily ONT long-read. It uses Clair3 to eliminate germline variants. It ensembles the pileup and full-alignment models in Clair3, trusts them equally, and decides on the result using a set of rules and post-processing filters. With 70-fold HCC1395 (tumor) and 45-fold HCC1395BL (normal) of ONT R10.4.1 data, benchmarking against the truth SNVs (Fang et al., 2021) has shown ClairS achieved 91.10% precision and 71.92% recall. Specifically, with 50-fold/25-fold of tumor/normal, ClairS achieved 86.86%/93.01% recall/precision rate SNVs when targeting VAF ≥0.05. For variants with VAF ≥0.2, the numbers go up to 94.65%/96.63% for SNVs, and 73.22%/77.35% for somatic Indels.. Detailed performance figures are shown below.
 
 ClairS means Clair-Somatic, or the masculine plural of "Clair" in french (thus, 's' is silent).
 
@@ -27,29 +27,27 @@ ClairS is now available for early access to interested and experienced users. Yo
 
 ### ONT Q20+ chemistry SNV performance
 
-* 70-fold HCC1395 (tumor) and 45-fold HCC1395BL (normal) of ONT R10.4.1 data
-* Truth: 31,444 high confidence (HighConf) and medium confidence (MedConf) SNV from the SEQC2 HCC1395/BL truths (Fang et al., 2021), the TVAF (tumor variant allele frequency) of which is ≥0.05 in the above dataset
+- HCC1395/HCC1395BL tumor/normal of ONT R10.4.1 data
+- Truth:High confidence (HighConf) and medium confidence (MedConf) SNV from the SEQC2 HCC1395/BL truths ([Fang et al., 2021](https://www.nature.com/articles/s41587-021-00993-6)), the TVAF (tumor variant allele frequency) of which is ≥0.05 in the above dataset
 
-| Caller | QUAL<br>cutoff | Precision | Recall | F1-score |   TP   |   FP   |  FN   |
-| :----: | :------------: | :-------: | :----: | :------: | :----: | :----: | :---: |
-| ClairS |      8         |  65.99%   | 97.11% |  78.58%  | 30,535 | 15,736 |  909  |
-| ClairS |     16         |  94.26%   | 87.50% |  90.75%  | 27,512 | 1,676  | 3,932 |
-| Clair3 |      2         |  33.36%   | 65.36% |  44.17%  | 20,552 | 41,055 | 10,892|
+#### The precision-recall curve of different combinations of tumor and normal coverages
 
-![](./images/ont_result.png)
+![](./images/ont_pr_curve_result.png)
 
-### Illumina NovaSeq 6000 SNV performance
+#### The precision-recall curve of different tumor/normal purity combinations with tumor coverage fixed at 50x and normal coverage fixed at 25x
 
-* 50-fold HCC1395 (tumor) and 40-fold HCC1395BL (normal) of Illumina NovaSeq 6000 data
-* Truth: 39,447 high confidence (HighConf) and medium confidence (MedConf) SNV from the SEQC2 HCC1395/BL truths (Fang et al., 2021), the TVAF (tumor variant allele frequency) of which is ≥0.05 in the above dataset
+![](./images/ont_tumor_purity_result.png)
 
-| Caller   | QUAL<br>cutoff | Precision | Recall | F1-score | TP     | FP    | FN    |
-| :------: | :------------: | :-------: | :----: | :------: | :----: | :---: | :---: |
-| ClairS   | 7              | 98.00%    | 91.78% | 94.79%   | 36,203 | 737   | 3,244 |
-| Strelka2 | PASS           | 94.60%    | 91.73% | 93.14%   | 36,183 | 2,064 | 3,264 |
-| Mutect2  | PASS           | 97.32%    | 87.74% | 92.28%   | 34,609 | 953   | 4,838 |
 
-![](./images/illumina_result.png)
+
+### Illumina SNV performance
+
+- HCC1395/HCC1395BL tumor/normal of of Illumina NovaSeq 6000 and HiSeq 4000 data
+- Truth:High confidence (HighConf) and medium confidence (MedConf) SNV from the SEQC2 HCC1395/BL truths ([Fang et al., 2021](https://www.nature.com/articles/s41587-021-00993-6)), the TVAF (tumor variant allele frequency) of which is ≥0.05 in the above dataset
+
+#### The precision-recall curve of different tumor/normal purity combinations with tumor coverage fixed at 50x and normal coverage fixed at 25x
+
+![](./images/illumina_pr_curve_result.png)
 
 
 
