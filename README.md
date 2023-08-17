@@ -34,9 +34,13 @@ ClairS is now available for early access to interested and experienced users. Yo
 
 ![](./images/ont_pr_curve_result.png)
 
-#### The precision-recall curve of different tumor/normal purity combinations with tumor coverage fixed at 50x and normal coverage fixed at 25x
+#### The performance of ClairS at multiple VAF ranges and multiple tumor coverages with the normal coverage fixed at 25x
 
-![](./images/ont_tumor_purity_result.png)
+![](./images/ont_vaf_1_result.png)
+
+#### The performance of ClairS at multiple VAF ranges and multiple normal coverages with the tumor coverage fixed at 50x
+
+![](./images/ont_vaf_2_result.png)
 
 
 
