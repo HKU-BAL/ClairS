@@ -176,6 +176,9 @@ def cal_af(args, truth_variant_dict=None, input_variant_dict=None):
     variant_dict = defaultdict()
 
     if output_path is not None:
+        output_dir = os.path.dirname(output_path)
+        if not os.path.exists(output_dir):
+            subprocess.run("mkdir -p {}".format(output_dir), shell=True)
         output_file = open(output_path, 'w')
     for k, v in truth_variant_dict.items():
         if k not in input_variant_dict:

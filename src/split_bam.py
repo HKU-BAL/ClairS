@@ -56,6 +56,57 @@ def get_coverage(coverage_log, ctg_name=None):
 
 
 def split_bam(args):
+    bam_fn = args.bam_fn
+    output_dir = args.output_dir
+    ctg_name = args.ctg_name
+    samtools_execute_command = args.samtools
+    samtools_threads = args.samtools_threads
+    samtools_output_threads = args.samtools_output_threads
+    min_bin_coverage = args.min_bin_coverage if args.min_bin_coverage > 0 else 4
+    cov_dir = args.cov_dir
+    output_bam_prefix = args.output_bam_prefix
+    coverage_log = os.path.join(cov_dir, 'raw_{}_'.format(output_bam_prefix) + ctg_name + cov_suffix)
+    bam_coverage = get_coverage(coverage_log)
+
+    bin_num = int(int(bam_coverage) / int(min_bin_coverage))
+    prefix = output_bam_prefix
+
+    subprocess_list = []
+    for bin_idx in range(bin_num):
+        output_fn = os.path.join(output_dir, '_'.join([prefix, ctg_name, str(bin_idx)]) + '.bam')
+        save_file_fp = subprocess_popen(
+            shlex.split(
+                "{} view -bh -@ {} - -o {}".format(samtools_execute_command, samtools_output_threads, output_fn)),
+            stdin=PIPE,
+            stdout=PIPE)
+        subprocess_list.append(save_file_fp)
+
+    samtools_view_command = "{} view -@ {} -h {} {}".format(samtools_execute_command, samtools_threads, bam_fn,
+                                                            ctg_name if ctg_name else "")
+
+    samtools_view_process = subprocess_popen(shlex.split(samtools_view_command))
+
+    for row_id, row in enumerate(samtools_view_process.stdout):
+        if row[0] == '@':
+            for subprocess in subprocess_list:
+                subprocess.stdin.write(row)
+            continue
+        # replace random shuffle to partition for reproducibility
+        # bin_id = int(random.random() * 100) % bin_num
+        bin_id = row_id % bin_num
+        # add prefix  for each normal and tumor reads
+        subprocess_list[bin_id].stdin.write(prefix + row)
+
+    samtools_view_process.stdout.close()
+    samtools_view_process.wait()
+    for save_file_fp in subprocess_list:
+        save_file_fp.stdin.close()
+        save_file_fp.wait()
+
+    print("[INFO] Prefix/Contig/Coverage/: {}/{}/{}".format(output_bam_prefix, ctg_name, bam_coverage,))
+
+
+def split_bam_tumor_normal(args):
     normal_bam_fn = args.normal_bam_fn
     tumor_bam_fn = args.tumor_bam_fn
     output_dir = args.output_dir
@@ -119,11 +170,17 @@ def main():
     parser.add_argument('--output_dir', type=str, default=None,
                         help="Sorted chunked BAM file output directory, required")
 
+    parser.add_argument('--bam_fn', type=str, default=None,
+                        help="Sorted BAM file input")
+
+    parser.add_argument('--output_bam_prefix', type=str, default=None,
+                        help="Normal output BAM prefix")
+
     parser.add_argument('--normal_bam_fn', type=str, default=None,
-                        help="Sorted normal BAM file input, required")
+                        help="Sorted normal BAM file input")
 
     parser.add_argument('--tumor_bam_fn', type=str, default=None,
-                        help="Sorted tumor BAM file input, required")
+                        help="Sorted tumor BAM file input")
 
     parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of sequence to be processed")
@@ -157,7 +214,12 @@ def main():
 
     args = parser.parse_args()
 
-    split_bam(args)
+    if args.bam_fn is not None and os.path.exists(args.bam_fn):
+        # work for multiple samples training
+        split_bam(args)
+    else:
+        # need to input both tumor and normal bam, work for single sample training
+        split_bam_tumor_normal(args)
 
 
 if __name__ == "__main__":
