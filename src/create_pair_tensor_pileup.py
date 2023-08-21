@@ -143,12 +143,15 @@ def decode_pileup_bases(args,
     depth, max_ins_0, max_del_0, max_ins_1, max_del_1 = 0, 0, 0, 0, 0
     max_del_length = 0
     alt_info_dict = defaultdict(int)
+    ref_count = 0
     for key, count in base_counter.items():
         if len(key) == 1:
             if key.upper() in 'ACGT':
                 pileup_dict[key.upper()] += count
                 if is_candidate and key.upper() != reference_base:
                     alt_info_dict['X' + key.upper()] += count
+                if is_candidate and key.upper() == reference_base:
+                    ref_count += count
                 depth += count
                 pileup_tensor[BASE2INDEX[key]] += count
             elif key in '#*':
@@ -186,6 +189,9 @@ def decode_pileup_bases(args,
             else:
                 pileup_tensor[BASE2INDEX["d"]] += count
                 max_del_1 = max(max_del_1, count)
+    if is_candidate and ref_count > 0:
+        alt_info_dict['R' + reference_base] = ref_count
+
     alt_info = str(depth) + '-' + ' '.join(
                 [' '.join([item[0], str(item[1])]) for item in alt_info_dict.items()]) + '-'
     pileup_tensor[BASE2INDEX['I1']] = max_ins_0
