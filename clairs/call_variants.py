@@ -228,7 +228,7 @@ def output_vcf_from_probability(
 
     def decode_alt_info(alt_info_dict, read_depth):
         alt_type_list = [{}, {}, {}]  # SNP I D
-        snp_num, ins_num, del_num = 0, 0, 0
+        ref_num, snp_num, ins_num, del_num = 0, 0, 0, 0
         for alt_type, count in alt_info_dict.items():
             count = int(count)
             if alt_type[0] == 'X':
@@ -240,7 +240,9 @@ def output_vcf_from_probability(
             elif alt_type[0] == 'D':
                 alt_type_list[2][alt_type[1:]] = count
                 del_num += count
-        ref_num = max(0, read_depth - snp_num - ins_num - del_num)
+            elif alt_type[0] == 'R':
+                ref_num = count
+
         return alt_type_list, ref_num, snp_num, ins_num, del_num
 
     normal_alt_type_list, normal_ref_num, normal_snp_num, normal_ins_num, normal_del_num = decode_alt_info(
