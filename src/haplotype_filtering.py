@@ -342,9 +342,9 @@ def haplotype_filter_per_pos(args):
         print(' '.join([ctg_name, str(pos), str(pass_hap), str(phaseable)]))
 
 
-def update_filter_info(args, key, row_str, phasable_set, fail_set_list):
+def update_filter_info(args, key, row_str, phasable_set, fail_set_list, fail_dict=None):
     ctg_name = key[0] if args.ctg_name is None else args.ctg_name
-    pos = key[1] if args.ctg_name is None else key
+    pos = int(key[1]) if args.ctg_name is None else key
     k = (ctg_name, pos)
     columns = row_str.split('\t')
 
@@ -405,13 +405,19 @@ def haplotype_filter(args):
     germine_input_vcf_reader.read_vcf()
     germline_input_variant_dict = germine_input_vcf_reader.variant_dict
 
-    germline_gt_list = []
+    germline_gt_dict = defaultdict(list)
     # only keep homo germline
     for key in list(germline_input_variant_dict.keys()):
+        ctg = args.ctg_name if args.ctg_name is not None else key[0]
+        pos = key if args.ctg_name is not None else key[1]
+        alt_base = germline_input_variant_dict[key].alternate_bases[0]
         if sum(germline_input_variant_dict[key].genotype) == 1:
-            germline_gt_list.append((key, 1))
+            germline_gt_dict[ctg].append((pos, 1, alt_base))
         elif sum(germline_input_variant_dict[key].genotype) == 2:
-            germline_gt_list.append((key, 2))
+            germline_gt_dict[ctg].append((pos, 2, alt_base))
+
+    for k, v in germline_gt_dict.items():
+        germline_gt_dict[k] = list(sorted(v, key=lambda x: x[0]))
 
     input_vcf_reader = VcfReader(vcf_fn=pileup_vcf_fn,
                                  ctg_name=ctg_name,
@@ -461,12 +467,11 @@ def haplotype_filter(args):
             pos = key if args.ctg_name is not None else key[1]
             hetero_flanking_list = []
             homo_flanking_list = []
-            for gk, gt in germline_gt_list:
-                p = gk if args.ctg_name is not None else gk[1]
+            germline_gt_list = germline_gt_dict[ctg_name] if ctg_name in germline_gt_dict else []
+            for p, gt, alt_base in germline_gt_list:
                 if p > pos + flanking:
                     break
                 if p > pos - flanking and p != pos:
-                    alt_base = germline_input_variant_dict[gk].alternate_bases[0]
                     if gt == 1:
                         hetero_flanking_list.append('-'.join([str(p), str(alt_base)]))
                     else:
@@ -491,6 +496,8 @@ def haplotype_filter(args):
     parallel_command += " --samtools " + str(args.samtools)
     parallel_command += " --tumor_bam_fn " + str(args.tumor_bam_fn)
     parallel_command += " --ref_fn " + str(args.ref_fn)
+    parallel_command += " --debug " if args.debug else ""
+    parallel_command += " --flanking " + str(args.flanking) if args.flanking is not None else ""
     parallel_command += " :::: " + str(hap_info_output_path)
 
     haplotype_filter_process = subprocess_popen(shlex.split(parallel_command))
@@ -498,6 +505,7 @@ def haplotype_filter(args):
     total_num = 0
     phasable_set = set()
     fail_set = set()
+    fail_dict = defaultdict()
 
     for row in haplotype_filter_process.stdout:
         columns = row.rstrip().split()
@@ -523,13 +531,12 @@ def haplotype_filter(args):
     fail_count = 0
     for key in sorted(fa_variant_dict.keys()):
         row_str = fa_variant_dict[key].row_str.rstrip()
-        row_str, is_candidate_filtered = update_filter_info(args, key, row_str, phasable_set, fail_set_list)
+        row_str, is_candidate_filtered = update_filter_info(args, key, row_str, phasable_set, fail_set_list, fail_dict)
         fail_count += is_candidate_filtered
         f_vcf_writer.vcf_writer.write(row_str + '\n')
-
     for key in sorted(pileup_variant_dict.keys()):
         row_str = pileup_variant_dict[key].row_str.rstrip()
-        row_str, is_candidate_filtered = update_filter_info(args, key, row_str, phasable_set, fail_set_list)
+        row_str, is_candidate_filtered = update_filter_info(args, key, row_str, phasable_set, fail_set_list, fail_dict)
         p_vcf_writer.vcf_writer.write(row_str + '\n')
 
     p_vcf_writer.close()
