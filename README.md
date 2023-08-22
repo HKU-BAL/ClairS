@@ -19,7 +19,7 @@ ClairS means Clair-Somatic, or the masculine plural of "Clair" in french (thus, 
 
 The logo of ClairS was generated using DALL-E 2 with prompt "A DNA sequence with genetic variant that looks like a letter 'S'".
 
-ClairS is now available for early access to interested and experienced users. Your suggestions and comments are highly appreciated.
+A preprint describing ClairS's algorithms and results is at at [bioRxiv](https://www.biorxiv.org/content/10.1101/2023.08.17.553778v1).
 
 ------
 
