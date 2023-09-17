@@ -66,6 +66,8 @@ data_preprocess_folder = [
     'cal_af_distribution',
     'add_back_missing_variants_in_genotyping',
     'clair3_somatic_calling',
+    'cal_metrics_in_af_range',
+    'concat_files',
 ]
 
 
