@@ -1009,7 +1009,10 @@ def somatic_calling(args):
     ec_command += ' --genotyping_mode_vcf_fn ' + str(args.genotyping_mode_vcf_fn)
     ec_command += ' :::: ' + os.path.join(args.output_dir, 'tmp', 'CHUNK_LIST')
     ec_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/1_EC.log'
-    ec_command += ' && cat {}/tmp/candidates/CANDIDATES_FILE_* > {}/tmp/candidates/CANDIDATES_FILES '.format(args.output_dir, args.output_dir)
+    ec_command += ' && ' + args.pypy + ' ' + main_entry + ' concat_files'
+    ec_command += ' --input_dir ' + "{}/tmp/candidates".format(args.output_dir)
+    ec_command += ' --input_prefix ' + "CANDIDATES_FILE_"
+    ec_command += ' --output_fn CANDIDATES_FILES '
     commands_list.append(ec_command)
 
     ##STEP 2: CREATE PAIR TENSOR
@@ -1177,7 +1180,10 @@ def somatic_calling(args):
         ##STEP 2: CREATE PAIR TENSOR
         echo_list.append("[INFO] STEP 6: Indel Pileup Model Calling\n")
         echo_list[-1] += ("[INFO] Create Paired Tensors")
-        indel_cpt_command = 'cat {}/tmp/candidates/INDEL_CANDIDATES_FILE_* > {}/tmp/candidates/INDEL_CANDIDATES_FILES'.format(args.output_dir, args.output_dir)
+        indel_cpt_command = args.pypy + ' ' + main_entry + ' concat_files'
+        indel_cpt_command += ' --input_dir ' + "{}/tmp/candidates".format(args.output_dir)
+        indel_cpt_command += ' --input_prefix ' + "INDEL_CANDIDATES_FILE_"
+        indel_cpt_command += ' --output_fn INDEL_CANDIDATES_FILES '
         indel_cpt_command += ' && ( ' + time + args.parallel
         indel_cpt_command += ' --joblog ' + args.output_dir + '/logs/parallel_6-1_create_pair_tensor_indel.log'
         indel_cpt_command += ' -j ' + str(args.threads)
