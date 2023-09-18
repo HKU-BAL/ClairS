@@ -16,9 +16,9 @@ wget -P ${INPUT_DIR} -nc http://www.bio8.cs.hku.hk/clairs/quick_demo/ont/HCC1395
 wget -P ${INPUT_DIR} -nc http://www.bio8.cs.hku.hk/clairs/quick_demo/ont/HCC1395_tumor_chr17_demo.bam.bai
 
 # SEQC2 Truth VCF and BED
-wget -P ${INPUT_DIR} -nc http://www.bio8.cs.hku.hk/clairs/quick_demo/ilmn/SEQC2_high-confidence_sSNV_in_HC_regions_v1.2_chr17.vcf.gz
-wget -P ${INPUT_DIR} -nc http://www.bio8.cs.hku.hk/clairs/quick_demo/ilmn/SEQC2_high-confidence_sSNV_in_HC_regions_v1.2_chr17.vcf.gz.tbi
-wget -P ${INPUT_DIR} -nc http://www.bio8.cs.hku.hk/clairs/quick_demo/ilmn/SEQC2_High-Confidence_Regions_v1.2_chr17.bed
+wget -P ${INPUT_DIR} -nc http://www.bio8.cs.hku.hk/clairs/quick_demo/ont/SEQC2_high-confidence_sSNV_in_HC_regions_v1.2_chr17.vcf.gz
+wget -P ${INPUT_DIR} -nc http://www.bio8.cs.hku.hk/clairs/quick_demo/ont/SEQC2_high-confidence_sSNV_in_HC_regions_v1.2_chr17.vcf.gz.tbi
+wget -P ${INPUT_DIR} -nc http://www.bio8.cs.hku.hk/clairs/quick_demo/ont/SEQC2_High-Confidence_Regions_v1.2_chr17.bed
 
 REF="GRCh38_no_alt_chr17.fa"
 NORMAL_BAM="HCC1395BL_normal_chr17_demo.bam"
@@ -36,7 +36,7 @@ docker run -it \
   --normal_bam_fn ${INPUT_DIR}/${NORMAL_BAM} \
   --ref_fn ${INPUT_DIR}/${REF} \
   --threads 4 \
-  --platform ont_r10 \
+  --platform ont_r10_guppy \
   --output_dir ${OUTPUT_DIR} \
   --region chr17:80000000-80100000
 
