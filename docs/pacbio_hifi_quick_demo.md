@@ -109,10 +109,10 @@ jmcdani20/hap.py:v0.3.12 /opt/hap.py/bin/som.py \
 
 ```bash
 cd ${HOME}
-wget "https://raw.githubusercontent.com/HKU-BAL/clairs/main/demo/hifi_revio_quick_demo.sh"
-chmod +x hifi_revio_quick_demo.sh
-./hifi_revio_quick_demo.sh
+wget "https://raw.githubusercontent.com/HKU-BAL/clairs/main/demo/pacbio_hifi_quick_demo.sh"
+chmod +x pacbio_hifi_quick_demo.sh
+./pacbio_hifi_quick_demo.sh
 ```
 
-Check the results using `less ${HOME}/hifi_revio_quick_demo/output/output.vcf.gz`.
+Check the results using `less ${HOME}/pacbio_hifi_quick_demo/output/output.vcf.gz`.
 
