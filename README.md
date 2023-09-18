@@ -44,6 +44,21 @@ A preprint describing ClairS's algorithms and results is at [bioRxiv](https://ww
 
 
 
+### PacBio Revio SNV performance
+
+- HCC1395/HCC1395BL tumor/normal of PacBio Revio data, using SMRTbell prep kit 3.0
+- Truth:High confidence (HighConf) and medium confidence (MedConf) SNV from the SEQC2 HCC1395/BL truths ([Fang et al., 2021](https://www.nature.com/articles/s41587-021-00993-6)), the TVAF (tumor variant allele frequency) of which is ≥0.05 in the above dataset
+
+#### The performance of ClairS at multiple VAF ranges and multiple tumor coverages with the normal coverage fixed at 25x
+
+![](./images/hifi_vaf_1_result.png)
+
+#### The performance of ClairS at multiple VAF ranges and multiple normal coverages with the tumor coverage fixed at 50x
+
+![](./images/hifi_vaf_2_result.png)
+
+
+
 ### Illumina SNV performance
 
 - HCC1395/HCC1395BL tumor/normal of of Illumina NovaSeq 6000 and HiSeq 4000 data
@@ -72,6 +87,8 @@ A preprint describing ClairS's algorithms and results is at [bioRxiv](https://ww
 ------
 
 ## Latest Updates
+*v0.1.6 (Sep 18)* : 1. Fixed an output bug that caused no VCF output if no Indel candidate was found (contributor @[Khi Pin](https://github.com/proteinosome)). 2. Fixed showing incorrect reference allele depth at a deletion region. 3. Added PacBio HiFi [quick demo](docs/pacbio_hifi_quick_demo.md).
+
 *v0.1.5 (Aug 2)* : 1. Updated SNV calling using ONT Dorado 4kHz data with a new model trained using multiple-sample pairs (HG003/4); 2. Updated SNV calling using ONT Dorado 5kHz data with a new model trained using multiple-sample pairs (HG001/HG002, HG003/4); 3.  Support somatic indel calling using ONT Dorado 4kHz data. 4. Support somatic indel calling using ONT Dorado 5kHz data.
 
 *v0.1.4 (Jul 15)* : 1. Added reference depth in AD tag. 2. Added HiFi Sequel II Indel model.
