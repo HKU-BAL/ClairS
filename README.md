@@ -108,6 +108,7 @@ A preprint describing ClairS's algorithms and results is at [bioRxiv](https://ww
 ## Quick Demo
 
 - Oxford Nanopore (ONT) [Q20+](https://nanoporetech.com/q20plus-chemistry) data as input, see [ONT Quick Demo](docs/ont_quick_demo.md).
+- PacBio HiFi [Revio](https://www.pacb.com/revio/) data as input, see [PacBio HiFi Quick Demo](docs/pacbio_hifi_quick_demo.md).
 - Illumina NGS data as input, see [Illumina Quick Demo](docs/illumina_quick_demo.md).
 
 ### Quick start
