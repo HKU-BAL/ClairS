@@ -824,7 +824,7 @@ def somatic_calling(args):
             clair3_normal_command += ' --min_coverage=' + args.clair3_option.min_coverage
             clair3_normal_command += ' --snp_min_af=' + args.clair3_option.snp_min_af
             clair3_normal_command += ' --indel_min_af=' + args.clair3_option.indel_min_af
-            if args.clair3_option.longphase_for_phasing is not None:
+            if args.clair3_option.longphase_for_phasing is True:
                 clair3_normal_command += ' --longphase_for_phasing '
             clair3_normal_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/1_CLAIR3_NORMAL.log'
             commands_list.append(clair3_normal_command)
@@ -844,7 +844,7 @@ def somatic_calling(args):
         clair3_tumor_command += ' --min_coverage=' + args.clair3_option.min_coverage
         clair3_tumor_command += ' --snp_min_af=' + args.clair3_option.snp_min_af
         clair3_tumor_command += ' --indel_min_af=' + args.clair3_option.indel_min_af
-        if args.clair3_option.longphase_for_phasing is not None:
+        if args.clair3_option.longphase_for_phasing is True:
             clair3_tumor_command += ' --longphase_for_phasing '
         clair3_tumor_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/2_CLAIR3_TUMOR.log'
         commands_list.append(clair3_tumor_command)
