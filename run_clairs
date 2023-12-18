@@ -1001,6 +1001,7 @@ def somatic_calling(args):
     ec_command += ' --ctg_name {1} '
     ec_command += ' --platform ' + args.platform
     ec_command += ' --min_coverage ' + str(args.min_coverage)
+    ec_command += ' --min_bq ' + str(args.min_bq) if args.min_bq is not None else ""
     ec_command += ' --bed_fn ' + os.path.join(args.output_dir, 'tmp', 'split_beds', '{1}')
     ec_command += ' --candidates_folder ' + args.output_dir + '/tmp/candidates'
     ec_command += ' --output_depth True '
@@ -1026,6 +1027,7 @@ def somatic_calling(args):
     cpt_command += ' --tumor_bam_fn ' + args.tumor_bam_fn
     cpt_command += ' --ref_fn ' + args.ref_fn
     cpt_command += ' --ctg_name {1/.}'
+    cpt_command += ' --min_bq ' + str(args.min_bq) if args.min_bq is not None else ""
     cpt_command += ' --samtools ' + args.samtools
     cpt_command += ' --candidates_bed_regions {1}'
     cpt_command += ' --tensor_can_fn ' + args.output_dir + '/tmp/pileup_tensor_can/{1/} '
@@ -1708,6 +1710,14 @@ def somatic_parser():
     ont_params.add_argument(
         "--phase_tumor",
         type=str2bool,
+        default=None,
+        help=SUPPRESS
+    )
+
+    ## Minimum base quality
+    optional_params.add_argument(
+        "--min_bq",
+        type=int,
         default=None,
         help=SUPPRESS
     )
