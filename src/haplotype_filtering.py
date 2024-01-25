@@ -352,7 +352,10 @@ def update_filter_info(args, key, row_str, phasable_set, fail_set_list, fail_dic
     phaseable = k in phasable_set
 
     if phaseable:
-        columns[7] = 'H'
+        if columns[7] == '.':
+            columns[7] = 'H'
+        else:
+            columns[7] = 'H;' + columns[7]
     for idx, fail_pos_set in enumerate(fail_set_list):
         if k in fail_pos_set:
             columns[5] = '0.000'
