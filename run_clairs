@@ -51,10 +51,10 @@ from shared.utils import file_path_from, folder_path_from, subprocess_popen, str
     legal_range_from, log_error, log_warning, clair3_option_type
 
 
-major_contigs = {"chr" + str(a) for a in list(range(1, 23))}.union(
-    {str(a) for a in list(range(1, 23))})
-major_contigs_order = ["chr" + str(a) for a in list(range(1, 23))] + [str(a) for a in
-                                                                                   list(range(1, 23))]
+major_contigs = {"chr" + str(a) for a in list(range(1, 23)) + ["X", "Y"]}.union(
+    {str(a) for a in list(range(1, 23)) + ["X", "Y"]})
+major_contigs_order = ["chr" + str(a) for a in list(range(1, 23)) + ["X", "Y"]] + [str(a) for a in
+                                                                                   list(range(1, 23)) + ["X", "Y"]]
 
 
 file_directory = os.path.dirname(os.path.realpath(__file__))
@@ -352,7 +352,7 @@ def check_contigs_intersection(args, fai_fn):
     contig_set = set(args.ctg_name.split(',')) if is_ctg_name_list_provided else set()
 
     if not args.include_all_ctgs:
-        logging("[INFO] --include_all_ctgs not enabled, use chr{1..22} and {1..22} by default")
+        logging("[INFO] --include_all_ctgs not enabled, use chr{1..22,X,Y} and {1..22,X,Y} by default")
     else:
         logging("[INFO] --include_all_ctgs enabled")
 
