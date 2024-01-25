@@ -91,6 +91,8 @@ For somatic variant calling using tumor only sample, please try [ClairS-TO](http
 ------
 
 ## Latest Updates
+*v0.1.7 (Jan 25, 2024)* : 1. Added ONT Dorado 5khz HAC (`-p ont_r10_dorado_hac_5khz`) and Dorado 4khz HAC (`-p ont_r10_dorado_hac_4khz`) model, renamed all ONT Dorado SUP model, check [here](https://github.com/HKU-BAL/ClairS-TO/blob/main/README.md#pre-trained-models) for more details. 2. Enabled somatic variant calling in sex chromosomes. 3. Added `FAU`, `FCU`, `FGU`, `FTU`, `RAU`, `RCU`, `RGU`, and `RTU` tags.
+
 *v0.1.6 (Sep 18)* : 1. Fixed an output bug that caused no VCF output if no Indel candidate was found (contributor @[Khi Pin](https://github.com/proteinosome)). 2. Fixed showing incorrect reference allele depth at a deletion region. 3. Added PacBio HiFi [quick demo](docs/pacbio_hifi_quick_demo.md).
 
 *v0.1.5 (Aug 2)* : 1. Updated SNV calling using ONT Dorado 4kHz data with a new model trained using multiple-sample pairs (HG003/4); 2. Updated SNV calling using ONT Dorado 5kHz data with a new model trained using multiple-sample pairs (HG001/HG002, HG003/4); 3.  Support somatic indel calling using ONT Dorado 4kHz data. 4. Support somatic indel calling using ONT Dorado 5kHz data.
@@ -134,10 +136,12 @@ ClairS trained both pileup and full-alignment models using GIAB samples, and car
 
 |  Platform   |       Model name       |    Chemistry /Instruments    |    Basecaller    | Option (`-p/--platform`) |   Reference   | Aligner  |
 | :---------: | :--------------------: | :--------------------------: | :----------------------: | :-----------: | :------: | ----------- |
-| ONT | r1041_e82_400bps_sup_v420 | R10.4.1, 5khz | Dorado | `ont_r10_dorado_5khz` | GRCh38_no_alt | Minimap2 |
-| ONT | r1041_e82_400bps_sup_v410 | R10.4.1, 4khz | Dorado | `ont_r10_dorado_4khz` | GRCh38_no_alt | Minimap2 |
-|     ONT     | r104_e81_sup_g5015 |        R10.4/R10.4.1         |        Guppy5        |   `ont_r10_guppy` | GRCh38_no_alt | Minimap2 |
-|    ONT <sup>1</sup>    |  r941_prom_sup_g5014   |            R9.4.1            |            Guppy5            |         `ont_r9_guppy`         | GRCh38_no_alt | Minimap2 |
+| ONT | r1041_e82_400bps_sup_v420 | R10.4.1, 5khz | Dorado SUP | `ont_r10_dorado_sup_5khz` | GRCh38_no_alt | Minimap2 |
+| ONT | r1041_e82_400bps_sup_v410 | R10.4.1, 4khz | Dorado SUP | `ont_r10_dorado_sup_4khz` | GRCh38_no_alt | Minimap2 |
+| ONT | r1041_e82_400bps_hac_v420 | R10.4.1, 5khz | Dorado HAC | `ont_r10_dorado_hac_5khz` | GRCh38_no_alt | Minimap2 |
+| ONT | r1041_e82_400bps_hac_v410 | R10.4.1, 4khz | Dorado HAC | `ont_r10_dorado_hac_4khz` | GRCh38_no_alt | Minimap2 |
+|     ONT     | r104_e81_sup_g5015 |        R10.4/R10.4.1         |        Guppy5 SUP        | `ont_r10_guppy_sup` | GRCh38_no_alt | Minimap2 |
+|    ONT <sup>1</sup>    |  r941_prom_sup_g5014   |            R9.4.1            |            Guppy5 SUP            |         `ont_r9_guppy`         | GRCh38_no_alt | Minimap2 |
 |  Illumina   |          ilmn          |        NovaSeq/HiseqX        |        -        |          `ilmn`          |    GRCh38     | BWA-MEM  |
 | PacBio HiFi <sup>2</sup> |          hifi_sequel2          | Sequel II with Chemistry 2.0 | - |          `hifi_sequel2`          | GRCh38_no_alt | Minimap2 |
 | PacBio HIFI | hifi_revio | Revio with SMRTbell prep kit 3.0 | - | `hifi_revio` | GRCh38_no_alt | Minimap2 |
@@ -168,7 +172,7 @@ docker run -it \
   --normal_bam_fn ${INPUT_DIR}/normal.bam \    ## use your normal bam file name here
   --ref_fn ${INPUT_DIR}/ref.fa \               ## use your reference file name here
   --threads ${THREADS} \                       ## maximum threads to be used
-  --platform ${PLATFORM} \                     ## options: {ont_r10_dorado_4khz, ont_r10_dorado_5khz, ont_r10_guppy, ont_r9_guppy, ilmn, hifi_sequel2, hifi_revio}
+  --platform ${PLATFORM} \                     ## options: {ont_r10_dorado_sup_4khz, ont_r10_dorado_sup_5khz, ont_r10_guppy, ont_r9_guppy, ilmn, hifi_sequel2, hifi_revio, etc}
   --output_dir ${OUTPUT_DIR}                   ## output path prefix 
 ```
 
@@ -200,7 +204,7 @@ singularity exec \
   --normal_bam_fn ${INPUT_DIR}/normal.bam \    ## use your normal bam file name here
   --ref_fn ${INPUT_DIR}/ref.fa \               ## use your reference file name here
   --threads ${THREADS} \                       ## maximum threads to be used
-  --platform ${PLATFORM} \                     ## options: {ont_r10_dorado_4khz, ont_r10_dorado_5khz, ont_r10_guppy, ont_r9_guppy, ilmn, hifi_sequel2, hifi_revio}
+  --platform ${PLATFORM} \                     ## options: {ont_r10_dorado_sup_4khz, ont_r10_dorado_sup_5khz, ont_r10_guppy, ont_r9_guppy, ilmn, hifi_sequel2, hifi_revio, etc}
   --output_dir ${OUTPUT_DIR} \                 ## output path prefix
   --conda_prefix /opt/conda/envs/clairs
 ```
@@ -268,7 +272,7 @@ docker run -it hkubal/clairs:latest /opt/bin/run_clairs --help
   --normal_bam_fn ${INPUT_DIR}/normal.bam \  ## use your bam file name here
   --ref_fn ${INPUT_DIR}/ref.fa \             ## use your reference file name here
   --threads ${THREADS} \                     ## maximum threads to be used
-  --platform ${PLATFORM} \                   ## options: {ont_r10_dorado_4khz, ont_r10_dorado_5khz, ont_r10_guppy, ont_r9_guppy, ilmn, hifi_sequel2, hifi_revio}
+  --platform ${PLATFORM} \                   ## options: {ont_r10_dorado_sup_4khz, ont_r10_dorado_sup_5khz, ont_r10_guppy, ont_r9_guppy, ilmn, hifi_sequel2, hifi_revio, etc}
   --output_dir ${OUTPUT_DIR}                 ## output path prefix
  
 ## Final output file: ${OUTPUT_DIR}/output.vcf.gz
@@ -284,7 +288,7 @@ docker run -it hkubal/clairs:latest /opt/bin/run_clairs --help
   -R, --ref_fn FASTA                Reference file input. The input file must be samtools indexed.
   -o, --output_dir OUTPUT_DIR       VCF output directory.
   -t, --threads THREADS             Max #threads to be used.
-  -p, --platform PLATFORM           Select the sequencing platform of the input. Possible options {ont_r10_dorado_4khz, ont_r10_dorado_5khz, ont_r10_guppy, ont_r9_guppy, ilmn, hifi_sequel2, hifi_revio}.
+  -p, --platform PLATFORM           Select the sequencing platform of the input. Possible options {ont_r10_dorado_sup_4khz, ont_r10_dorado_sup_5khz, ont_r10_dorado_hac_5khz, ont_r10_dorado_hac_4khz, ont_r10_guppy, ont_r9_guppy, ilmn, hifi_sequel2, hifi_revio}.
 ```
 
 **Miscellaneous parameters:**
