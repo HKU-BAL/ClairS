@@ -21,10 +21,14 @@ clair3_default_option = {
 }
 
 model_name_platform_dict = {
-    'r1041_e82_400bps_sup_v420': 'ont_r10_dorado_5khz',
-    'r1041_e82_400bps_sup_v410': 'ont_r10_dorado_4khz',
+    'r1041_e82_400bps_sup_v420': 'ont_r10_dorado_sup_5khz',
+    'r1041_e82_400bps_sup_v410': 'ont_r10_dorado_sup_4khz',
+    'r1041_e82_400bps_hac_v420': 'ont_r10_dorado_hac_5khz',
+    'r1041_e82_400bps_hac_v410': 'ont_r10_dorado_hac_4khz',
     'r104_e81_sup_g5015': 'ont_r10_guppy',
-    'r941_prom_sup_g5014': 'ont_r9_guppy'
+    'r941_prom_sup_g5014': 'ont_r9_guppy',
+    'ont_r10_dorado_5khz': 'ont_r10_dorado_sup_5khz',
+    'ont_r10_dorado_4khz': 'ont_r10_dorado_sup_4khz',
 }
 min_mq = ont_min_bq = 20
 min_bq = 0
@@ -48,7 +52,7 @@ ont_max_depth = ont_tensor_max_depth + center_padding_depth
 ont_normal_tumor_ratio = 0.7
 normal_pro = ont_normal_tumor_ratio / (1 + ont_normal_tumor_ratio)
 min_bq_dict = {'ont': ont_min_bq, 'ilmn': min_bq, 'hifi': min_bq}
-min_thred_qual = {'ont': 8, 'ont_r10': 8, 'ont_r9': 8, 'ont_r10_dorado_5khz': 4, 'ont_r10_dorado_4khz': 4, 'ilmn': 2, 'hifi': 2, 'hifi_sequel2': 2, 'hifi_revio': 2}
+min_thred_qual = {'ont': 8, 'ont_r10': 8, 'ont_r9': 8, 'ont_r10_dorado_sup_5khz': 4, 'ont_r10_dorado_hac_5khz': 4,'ont_r10_dorado_hac_4khz': 4, 'ont_r10_dorado_sup_4khz': 4, 'ilmn': 2, 'hifi': 2, 'hifi_sequel2': 2, 'hifi_revio': 2}
 best_thred_qual = {'ont': 16, 'ont_r10': 16, 'ont_r9': 16, 'ilmn': 4, 'hifi': 4, 'hifi_sequel2': 4, 'hifi_revio': 4}
 ont_max_normal_depth = int(ont_tensor_max_depth * normal_pro)
 ont_max_tumor_depth = ont_tensor_max_depth - ont_max_normal_depth
