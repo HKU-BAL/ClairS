@@ -409,44 +409,77 @@ def generate_tensor(args,
             tensor[read_idx][ins_idx + p][6] = ACGT_NUM[ins_base[ins_idx]]
 
     alt_dict = defaultdict(int)
+    forward_alt_dict = defaultdict(int)
+    reverse_alt_dict = defaultdict(int)
     depth, max_del_length = 0, 0
-    ref_count = 0
+    forward_ref_count = 0
+    reverse_ref_count = 0
+    forward_depth = 0
+    reverse_depth = 0
     for base, indel in pileup_dict[center_pos].base_list:
-        if base in "#*":
-            depth += 1
+        if base == "*":
+            forward_depth += 1
             continue
-        depth += 1
+        if base == "#":
+            reverse_depth += 1
+            continue
+
+        if base in "ACGTN":
+            forward_depth += 1
+        else:
+            reverse_depth += 1
+
         base_upper = base.upper()
         if indel != '':
             if indel[0] == '+':
-                alt_dict['+' + base_upper + indel[1:].upper()] += 1
+                k = '+' + base_upper + indel[1:].upper()
+                if indel[1] in 'ACGTN':
+                    forward_alt_dict[k] += 1
+                else:
+                    reverse_alt_dict[k] += 1
+                alt_dict[k] += 1
             else:  # del
                 alt_dict[indel.upper()] += 1
+                if indel[0] in 'ACGTN':
+                    forward_alt_dict[indel.upper()] += 1
+                else:
+                    reverse_alt_dict[indel.upper()] += 1
                 max_del_length = max(len(indel), max_del_length)
         elif base.upper() != reference_base:
+            if base in 'ACGTN':
+                forward_alt_dict[base.upper()] += 1
+            else:
+                reverse_alt_dict[base.upper()] += 1
+
             alt_dict[base.upper()] += 1
+
         elif base.upper() == reference_base:
-            ref_count += 1
+            if base in 'ACGTN':
+                forward_ref_count += 1
+            else:
+                reverse_ref_count += 1
 
     af_set = set()
 
     alt_info = []
     af_infos = ' '.join([str(item) for item in sorted(list(af_set), reverse=True) if item != 0])
     for alt_type, alt_count in alt_dict.items():
+        forward_count = forward_alt_dict[alt_type]
+        reverse_count = reverse_alt_dict[alt_type]
         if alt_type[0] == '+':
-            alt_info.append(['I' + alt_type[1:].upper(), str(alt_count)])
+            alt_info.append(['I' + alt_type[1:].upper(), str(forward_count) + "/" + str(reverse_count)])
         elif alt_type[0] == '-':
             del_bases_num = len(alt_type[1:])
             del_ref_bases = reference_sequence[
                             center_pos - reference_start:center_pos - reference_start + del_bases_num + 1]
-            alt_info.append(['D' + del_ref_bases, str(alt_count)])
+            alt_info.append(['D' + del_ref_bases, str(forward_count) + "/" + str(reverse_count)])
         else:
-            alt_info.append(['X' + alt_type, str(alt_count)])
+            alt_info.append(['X' + alt_type, str(forward_count) + "/" + str(reverse_count)])
 
-    if ref_count > 0:
-        alt_info.append(['R' + reference_base, str(ref_count)])
+    if forward_ref_count + reverse_ref_count > 0:
+        alt_info.append(['R' + reference_base, str(forward_ref_count) + '/' + str(reverse_ref_count)])
     
-    alt_info = str(depth) + '-' + ' '.join([' '.join([item[0], str(item[1])]) for item in alt_info]) + '-' + af_infos
+    alt_info = str(forward_depth) + '/' + str(reverse_depth) + '-' + ' '.join([' '.join([item[0], str(item[1])]) for item in alt_info]) + '-' + af_infos
     tensor_string_list = [
         " ".join((" ".join(" ".join(str(x) for x in innerlist) for innerlist in outerlist)) for outerlist in tensor)]
 
@@ -631,7 +664,7 @@ def create_pair_tensor(args):
     output_mq, output_read_name = True, True
     output_mq_option = ' --output-MQ ' if output_mq else ""
     output_read_name_option = ' --output-QNAME ' if output_read_name else ""
-    bq_option = ' --min-BQ {}'.format(min_base_quality)
+    bq_option = ' --min-BQ {}'.format(min_base_quality) #bq equal 0
     # pileup bed first
     bed_option = ' -l {}'.format(
         extend_bed) if is_extend_bed_file_given else ""

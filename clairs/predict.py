@@ -121,8 +121,15 @@ def tensor_generator_from(tensor_file_path, batch_size, pileup=False, min_rescal
         if pileup:
             apply_normalize = False
             if min_rescale_cov is not None:
-                normal_coverage = float(normal_alt_info.split('-')[0])
-                tumor_coverage = float(tumor_alt_info.split('-')[0])
+
+                normal_coverage_str = normal_alt_info.split('-')[0]
+                normal_coverage = float(normal_coverage_str) if '/' not in normal_coverage_str else \
+                    sum([int(item) for item in normal_coverage_str.split('/')])
+
+                tumor_coverage_str = tumor_alt_info.split('-')[0]
+                tumor_coverage = float(tumor_coverage_str) if '/' not in tumor_coverage_str else \
+                    sum([int(item) for item in tumor_coverage_str.split('/')])
+
                 normal_rescale = float(min_rescale_cov) / normal_coverage if normal_coverage > min_rescale_cov else None
                 tumor_rescale = float(min_rescale_cov) / tumor_coverage if tumor_coverage > min_rescale_cov else None
 

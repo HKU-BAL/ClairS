@@ -20,6 +20,14 @@ vcf_header = dedent("""\
             ##FILTER=<ID=RefCall,Description="Reference call">
             ##FILTER=<ID=Germline,Description="Germline variant">
             ##INFO=<ID=H,Number=0,Type=Flag,Description="Variant found only in one haplotype in the phased reads">
+            ##INFO=<ID=FAU,Number=1,Type=Integer,Description="Count of A in forward strand in the tumor BAM">
+            ##INFO=<ID=FCU,Number=1,Type=Integer,Description="Count of C in forward strand in the tumor BAM">
+            ##INFO=<ID=FGU,Number=1,Type=Integer,Description="Count of G in forward strand in the tumor BAM">
+            ##INFO=<ID=FTU,Number=1,Type=Integer,Description="Count of T in forward strand in the tumor BAM">
+            ##INFO=<ID=RAU,Number=1,Type=Integer,Description="Count of A in reverse strand in the tumor BAM">
+            ##INFO=<ID=RCU,Number=1,Type=Integer,Description="Count of C in reverse strand in the tumor BAM">
+            ##INFO=<ID=RGU,Number=1,Type=Integer,Description="Count of G in reverse strand in the tumor BAM">
+            ##INFO=<ID=RTU,Number=1,Type=Integer,Description="Count of T in reverse strand in the tumor BAM">
             ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
             ##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype quality">
             ##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Read depth in the tumor BAM">
@@ -204,6 +212,7 @@ class VcfReader(object):
                  min_qual=None,
                  max_qual=None,
                  discard_indel=False,
+                 discard_multi=False,
                  keep_af=False):
         self.vcf_fn = vcf_fn
         self.ctg_name = ctg_name
@@ -223,6 +232,7 @@ class VcfReader(object):
         self.header = ""
         self.save_header = save_header
         self.discard_indel = discard_indel
+        self.discard_multi = discard_multi
         self.min_qual = min_qual
         self.max_qual = max_qual
         self.keep_af = keep_af
@@ -284,7 +294,8 @@ class VcfReader(object):
 
                 if self.discard_indel and (len(reference) > 1 or len(alternate) > 1):
                     continue
-
+                if self.discard_multi and ',' in alternate:
+                    continue
                 try:
                     qual = columns[5] if len(columns) > 5 else None
 

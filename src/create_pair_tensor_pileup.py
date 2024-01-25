@@ -142,29 +142,54 @@ def decode_pileup_bases(args,
 
     depth, max_ins_0, max_del_0, max_ins_1, max_del_1 = 0, 0, 0, 0, 0
     max_del_length = 0
-    alt_info_dict = defaultdict(int)
-    ref_count = 0
+    alt_info_set = set()
+    forward_alt_info_dict = defaultdict(int)
+    reverse_alt_info_dict = defaultdict(int)
+    forward_ref_count = 0
+    reverse_ref_count = 0
+    forward_depth = 0
+    reverse_depth = 0
     for key, count in base_counter.items():
         if len(key) == 1:
             if key.upper() in 'ACGT':
                 pileup_dict[key.upper()] += count
                 if is_candidate and key.upper() != reference_base:
-                    alt_info_dict['X' + key.upper()] += count
+                    alt_info_set.add('X' + key.upper())
+                    if key in "ACGT":
+                        forward_alt_info_dict['X' + key.upper()] += count
+                    else:
+                        reverse_alt_info_dict['X' + key.upper()] += count
                 if is_candidate and key.upper() == reference_base:
-                    ref_count += count
-                depth += count
+                    if key in 'ACGTN':
+                        forward_ref_count += count
+                    else:
+                        reverse_ref_count = count
                 pileup_tensor[BASE2INDEX[key]] += count
             elif key in '#*':
                 pileup_tensor[BASE2INDEX[key]] += count
-                depth += count
+
+            if key in 'ACGTN*':
+                forward_depth += count
+            else:
+                reverse_depth += count
+
         elif key[1] == '+':
             indel_len = len(key[2:])
             if indel_len > args.max_indel_length:
                 continue
-            depth += count
+            if key[0] in "ACGTN":
+                forward_depth += count
+            else:
+                reverse_depth += count
+
             pileup_dict['I'] += count
             if is_candidate:
-                alt_info_dict['I' + key[0].upper() + key[2:].upper()] += count
+                k = 'I' + key[0].upper() + key[2:].upper()
+                alt_info_set.add(k)
+                if key[0] in 'ACGTN':
+                    forward_alt_info_dict[k] += count
+                else:
+                    reverse_alt_info_dict[k] += count
             # two strand
             if key[0] in 'ACGTN*':
                 pileup_tensor[BASE2INDEX["I"]] += count
@@ -176,11 +201,20 @@ def decode_pileup_bases(args,
             indel_len = len(key[1:])
             if indel_len > args.max_indel_length:
                 continue
-            depth += count
+
+            if key[0] in "N*ACGT":
+                forward_depth += count
+            else:
+                reverse_depth += count
+
             pileup_dict['D'] += count
             if is_candidate:
                 info = chunk_ref_seq[:len(key[1:])]
-                alt_info_dict['D' + info] += count
+                alt_info_set.add('D' + info)
+                if key[0] in 'N*ACGT':
+                    forward_alt_info_dict['D' + info] += count
+                else:
+                    reverse_alt_info_dict['D' + info] += count
             max_del_length = max(max_del_length, len(key[1:]))
             # two strand
             if key[0] in 'N*ACGT':
@@ -189,11 +223,12 @@ def decode_pileup_bases(args,
             else:
                 pileup_tensor[BASE2INDEX["d"]] += count
                 max_del_1 = max(max_del_1, count)
-    if is_candidate and ref_count > 0:
-        alt_info_dict['R' + reference_base] = ref_count
+    if is_candidate and forward_ref_count + reverse_ref_count > 0:
+        forward_alt_info_dict['R' + reference_base] = forward_ref_count
+        reverse_alt_info_dict['R' + reference_base] = reverse_ref_count
 
-    alt_info = str(depth) + '-' + ' '.join(
-                [' '.join([item[0], str(item[1])]) for item in alt_info_dict.items()]) + '-'
+    alt_info = str(forward_depth) + '/' + str(reverse_depth) + '-' + ' '.join(
+                [' '.join([k, str(forward_alt_info_dict[k]) + '/' + str(reverse_alt_info_dict[k])]) for k in alt_info_set]) + '-'
     pileup_tensor[BASE2INDEX['I1']] = max_ins_0
     pileup_tensor[BASE2INDEX['i1']] = max_ins_1
     pileup_tensor[BASE2INDEX['D1']] = max_del_0

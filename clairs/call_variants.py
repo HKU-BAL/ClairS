@@ -104,6 +104,17 @@ def decode_acgt_count(alt_dict, ref_base=None, tumor_coverage=None):
     AU, CU, GU, TU = acgt_count
     return AU, CU, GU, TU
 
+def split_forward_reverse_strand(alt_info_dict):
+    updated_alt_info_dict = {}
+    forward_alt_info_dict = dict()
+    for k, v in alt_info_dict.items():
+        columns = v.split('/')
+        if len(columns) < 2:
+            continue
+        forward_alt_info_dict[k] = int(columns[0])
+        updated_alt_info_dict[k] = int(columns[0]) + int(columns[1])
+    return updated_alt_info_dict, forward_alt_info_dict
+
 
 def output_vcf_from_probability(
         chromosome,
@@ -117,19 +128,22 @@ def output_vcf_from_probability(
 ):
     def decode_alt_info(alt_info):
         alt_info = alt_info.rstrip().split('-')
-        read_depth = int(alt_info[0])  # alt_info
+        depth_info = alt_info[0].split('/') # forward reverse
+        forward_read_depth = int(depth_info[0])
+        read_depth = forward_read_depth + int(depth_info[1])
         indel_str = alt_info[1] if len(alt_info) > 1 else ''
         seqs = indel_str.split(' ')
-        alt_info_dict = dict(zip(seqs[::2], [int(item) for item in seqs[1::2]])) if len(seqs) else {}
+        alt_info_dict = dict(zip(seqs[::2], [item for item in seqs[1::2]])) if len(seqs) else {}
+        alt_info_dict, forward_alt_info_dict = split_forward_reverse_strand(alt_info_dict)
         # calcualte the read depth if all positions was deletion or insertion
         if read_depth == 0 and len(alt_info_dict) == 1:
             for k, v in alt_info_dict.items():
                 if k[0] == 'D' or k[0] == 'I':
                     read_depth = int(v)
-        return alt_info_dict, read_depth
+        return alt_info_dict, forward_alt_info_dict, read_depth, forward_read_depth
 
-    normal_alt_info_dict, normal_read_depth = decode_alt_info(normal_alt_info)
-    tumor_alt_info_dict, tumor_read_depth = decode_alt_info(tumor_alt_info)
+    normal_alt_info_dict, _, normal_read_depth, _ = decode_alt_info(normal_alt_info)
+    tumor_alt_info_dict, tumor_forward_alt_info_dict, tumor_read_depth, tumor_forward_read_depth = decode_alt_info(tumor_alt_info)
 
     somatic_arg_index = param.somatic_arg_index
     alternate_base = reference_base
@@ -250,6 +264,9 @@ def output_vcf_from_probability(
     tumor_alt_type_list, tumor_ref_num, tumor_snp_num, tumor_ins_num, tumor_del_num = decode_alt_info(
         alt_info_dict=tumor_alt_info_dict, read_depth=tumor_read_depth)
 
+    tumor_forward_alt_type_list, _, _, _, _ = decode_alt_info(
+        alt_info_dict=tumor_forward_alt_info_dict, read_depth=tumor_forward_read_depth)
+
     if is_reference:
         normal_supported_reads_count = normal_ref_num
         tumor_supported_reads_count = tumor_ref_num
@@ -278,11 +295,19 @@ def output_vcf_from_probability(
         is_germline=is_germline
     )
 
-    information_string = "."
-
     AU, CU, GU, TU = decode_acgt_count(tumor_alt_type_list[0], reference_base, tumor_read_depth)
 
     NAU, NCU, NGU, NTU = decode_acgt_count(normal_alt_type_list[0], reference_base, normal_read_depth)
+
+    FAU, FCU, FGU, FTU = decode_acgt_count(tumor_forward_alt_type_list[0], reference_base, tumor_forward_read_depth)
+
+    RAU = AU - FAU
+    RCU = CU - FCU
+    RGU = GU - FGU
+    RTU = TU - FTU
+
+    information_string = "FAU={};FCU={};FGU={};FTU={};RAU={};RCU={};RGU={};RTU={}".format(FAU, FCU, FGU, FTU, RAU, RCU,
+                                                                                          RGU, RTU)
 
     add_ad_tag = True
     AD = None
