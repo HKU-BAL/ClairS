@@ -580,8 +580,8 @@ def check_args(args):
         sys.exit(log_error("[ERROR] Tumor BAM index file {} or {} not found. Please run `samtools index $BAM` first.".format(args.tumor_bam_fn + '.bai',
                                                                                       args.tumor_bam_fn + '.crai')))
 
-    if args.enable_indel_calling and args.platform not in {'ont_r10_guppy', 'ont_r10', 'ont', 'hifi_revio', 'hifi_sequel2', 'ont_r10_dorado_sup_5khz', 'ont_r10_dorado_sup_4khz'}:
-        sys.exit(log_error("[ERROR] Indel calling only support 'ont_r10' and 'hifi_revio' platform"))
+    if args.enable_indel_calling and args.platform not in {'ont_r10_guppy', 'ont_r10', 'ont', 'hifi_revio', 'hifi_sequel2', 'ont_r10_dorado_sup_5khz', 'ont_r10_dorado_hac_5khz', 'ont_r10_dorado_sup_4khz'}:
+        sys.exit(log_error("[ERROR] Indel calling only support 'ont_r10_guppy', 'ont_r10_dorado_sup_5khz', 'ont_r10_dorado_hac_5khz', 'ont_r10_dorado_sup_4khz', and 'hifi_revio' platforms"))
 
     if args.genotyping_mode_vcf_fn is not None and args.hybrid_mode_vcf_fn is not None:
         sys.exit(log_error("[ERROR] Please provide either --genotyping_mode_vcf_fn or --hybrid_mode_vcf_fn only"))
