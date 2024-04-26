@@ -81,7 +81,8 @@ def select_hetero_snp_for_phasing(args):
             genotype = columns[-1].split(":")[0].replace("/", "|").replace(".", "0").split("|")
 
             genotype_1, genotype_2 = genotype
-            AF = float(columns[-1].split(":")[3])
+            af_index = columns[-2].split(":").index('AF')
+            AF = float(columns[-1].split(":")[af_index])
             genotype_sum = int(genotype_1) + int(genotype_2)
             DP = int(columns[-1].split(":")[2])
             indel_normal_variant_dict[pos] = [ref_base, alt_base, row, DP, AF, genotype_sum]
@@ -125,7 +126,8 @@ def select_hetero_snp_for_phasing(args):
             genotype = columns[-1].split(":")[0].replace("/", "|").replace(".", "0").split("|")
 
             genotype_1, genotype_2 = genotype
-            AF = float(columns[-1].split(":")[3])
+            af_index = columns[-2].split(":").index('AF')
+            AF = float(columns[-1].split(":")[af_index])
             DP = int(columns[-1].split(":")[2])
             genotype_sum = int(genotype_1) + int(genotype_2)
             indel_tumor_variant_dict[pos] = [ref_base, alt_base, row, DP, AF, genotype_sum]

@@ -204,6 +204,7 @@ def extract_pair_candidates(args):
     select_indel_candidates = args.select_indel_candidates
 
     hybrid_mode_vcf_fn = args.hybrid_mode_vcf_fn
+    enable_params_for_liquid_tumor_sample = args.enable_params_for_liquid_tumor_sample
 
     candidates_set = set()
     indel_candidates_list = []
@@ -437,12 +438,15 @@ def extract_pair_candidates(args):
                 tumor_af = float(tumor_af)
                 if len(normal_info) > 0 and depth > min_coverage:
                     normal_af = float(normal_info[0][1])
+                    normal_alt_depth = round(normal_af * depth, 1)
                     if normal_af > 0 and tumor_af > 0:
                         if normal_af >= normal_snv_max_af:
-                            if not (tumor_af >= normal_af * 6):
-                                snv_candidates_set.remove(pos)
-                                high_normal_af_set.add(pos)
-                        elif tumor_af <= normal_af * 4 and tumor_af != 0:
+                            if not (tumor_af >= normal_af * param.upper_beta):
+                                pass_liquid = enable_params_for_liquid_tumor_sample and tumor_af >= normal_af * param.upper_beta_liqud
+                                if not (normal_alt_depth < 2 and pass_liquid):
+                                    snv_candidates_set.remove(pos)
+                                    high_normal_af_set.add(pos)
+                        elif tumor_af <= normal_af * param.lower_beta and tumor_af != 0:
                             snv_candidates_set.remove(pos)
                             high_af_gap_set.add(pos)
 
@@ -457,12 +461,15 @@ def extract_pair_candidates(args):
                 tumor_af = float(tumor_af)
                 if len(normal_info) > 0 and depth > min_coverage:
                     normal_af = float(normal_info[0][1])
+                    normal_alt_depth = round(normal_af * depth, 1)
                     if normal_af > 0 and tumor_af > 0:
                         if normal_af >= normal_snv_max_af:
-                            if not (tumor_af >= normal_af * 6):
-                                indel_candidates_set.remove(pos)
-                                high_normal_af_set.add(pos)
-                        elif tumor_af <= normal_af * 4 and tumor_af != 0:
+                            if not (tumor_af >= normal_af * param.upper_beta):
+                                pass_liquid = enable_params_for_liquid_tumor_sample and tumor_af >= normal_af * param.upper_beta_liqud
+                                if not (normal_alt_depth < 2 and pass_liquid):
+                                    indel_candidates_set.remove(pos)
+                                    high_normal_af_set.add(pos)
+                        elif tumor_af <= normal_af * param.lower_beta and tumor_af != 0:
                             indel_candidates_set.remove(pos)
                             high_af_gap_set.add(pos)
 
@@ -633,7 +640,10 @@ def main():
     parser.add_argument('--hybrid_mode_vcf_fn', type=str_none, default=None,
                         help="EXPERIMENTAL: Variants that passed the threshold and additional VCF candidates will both be subjected to variant calling")
 
-    parser.add_argument('--genotyping_mode_vcf_fn', type=str, default=None,
+    parser.add_argument('--genotyping_mode_vcf_fn', type=str_none, default=None,
+                        help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file, default: %(default)s")
+
+    parser.add_argument('--enable_params_for_liquid_tumor_sample', type=str2bool, default=None,
                         help="Candidate sites VCF file input, if provided, variants will only be called at the sites in the VCF file, default: %(default)s")
 
     # options for debug purpose

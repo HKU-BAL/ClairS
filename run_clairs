@@ -589,10 +589,7 @@ def check_args(args):
     if args.genotyping_mode_vcf_fn is not None and args.hybrid_mode_vcf_fn is not None:
         sys.exit(log_error("[ERROR] Please provide either --genotyping_mode_vcf_fn or --hybrid_mode_vcf_fn only"))
 
-    if args.enable_params_for_liquid_tumor_sample and args.platform != 'ont_r10_dorado_hac_5khz_liquid':
-        if args.platform != 'ont_r10_dorado_hac_5khz_liquid':
-            logging(log_warning("[WARNING] Liquid tumor params only work for ONT Dorado 5khz hac model"))
-            args.enable_params_for_liquid_tumor_sample = False
+
     if args.platform == 'ont_r10_dorado_hac_5khz_liquid':
         args.enable_params_for_liquid_tumor_sample = True
 
@@ -806,6 +803,9 @@ def print_command_line(args):
         cmdline += '--clair3_snp_min_af {} '.format(args.clair3_snp_min_af) if args.clair3_snp_min_af is not None else ""
         cmdline += '--clair3_indel_min_af {} '.format(args.clair3_indel_min_af) if args.clair3_indel_min_af is not None else ""
         cmdline += '--enable_clair3_germline_output ' if args.enable_clair3_germline_output else ""
+        cmdline += '--use_heterozygous_snp_in_normal_sample_for_intermediate_phasing {}'.format(args.use_heterozygous_snp_in_normal_sample_for_intermediate_phasing) if args.use_heterozygous_snp_in_normal_sample_for_intermediate_phasing is not None else ""
+        cmdline += '--use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing {}'.format(args.use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing) if args.use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing is not None else ""
+        cmdline += '--use_heterozygous_indel_for_intermediate_phasing {}'.format(args.use_heterozygous_indel_for_intermediate_phasing) if args.use_heterozygous_indel_for_intermediate_phasing is not None else ""
         cmdline += '--conda_prefix {} '.format(args.conda_prefix) if args.conda_prefix is not None else ""
         args.cmdline = cmdline
     except:
@@ -1052,6 +1052,7 @@ def somatic_calling(args):
     ec_command += ' --select_indel_candidates ' + str(args.enable_indel_calling)
     ec_command += ' --hybrid_mode_vcf_fn ' + str(args.hybrid_mode_vcf_fn)
     ec_command += ' --genotyping_mode_vcf_fn ' + str(args.genotyping_mode_vcf_fn)
+    ec_command += ' --enable_params_for_liquid_tumor_sample True' if args.enable_params_for_liquid_tumor_sample else ""
     ec_command += ' :::: ' + os.path.join(args.output_dir, 'tmp', 'CHUNK_LIST')
     ec_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/1_EC.log'
     ec_command += ' && ' + args.pypy + ' ' + main_entry + ' concat_files'
