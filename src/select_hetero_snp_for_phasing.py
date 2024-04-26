@@ -68,6 +68,8 @@ def select_hetero_snp_for_phasing(args):
         alt_base = columns[4]
         genotype = columns[9].split(':')[0].replace('|', '/')
 
+        if ',' in alt_base or '*' in alt_base:
+            continue
         if len(ref_base) == 1 and len(alt_base) == 1:
             if genotype == '0/1' or genotype == '1/0':
                 qual = float(columns[5])
@@ -100,6 +102,9 @@ def select_hetero_snp_for_phasing(args):
         ref_base = columns[3]
         alt_base = columns[4]
         genotype = columns[9].split(':')[0].replace('|', '/')
+
+        if ',' in alt_base or '*' in alt_base:
+            continue
 
         if len(ref_base) == 1 and len(alt_base) == 1:
             if genotype == '0/1' or genotype == '1/0':
