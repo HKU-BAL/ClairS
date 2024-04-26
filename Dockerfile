@@ -60,7 +60,7 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86
     conda config --add channels defaults && \
     conda config --add channels bioconda && \
     conda config --add channels conda-forge && \
-    conda create -n clairs -c pytorch -c conda-forge -c bioconda clair3 pytorch tqdm torchinfo -y && \
+    conda create -n clairs -c pytorch -c conda-forge -c bioconda clair3 pytorch torchinfo tqdm -y && \
     rm -rf /opt/conda/pkgs/* && \
     rm -rf /root/.cache/pip
 
