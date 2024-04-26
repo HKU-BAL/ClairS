@@ -237,7 +237,7 @@ def output_vcf_from_probability(
         return
 
     if output_config.enable_indel_calling:
-        if len(reference_base) == 1 and len(alternate_base) == 1:
+        if len(reference_base) == 1 and len(alternate_base) == 1 and not output_config.is_show_reference:
             return
 
     def decode_alt_info(alt_info_dict, read_depth):
