@@ -501,7 +501,7 @@ def check_clair3_options(args):
             args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'clairs_models', 'clair3_models', 'r1041_e82_400bps_sup_v410')
         elif args.platform == "ont_r10_dorado_5khz" or args.platform == "ont_r10_dorado_sup_5khz":
             args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'clairs_models', 'clair3_models', 'r1041_e82_400bps_sup_v420')
-        elif args.platform == "ont_r10_dorado_hac_5khz":
+        elif args.platform == "ont_r10_dorado_hac_5khz" or args.platform == "ont_r10_dorado_hac_5khz_liquid":
             args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'clairs_models', 'clair3_models', 'r1041_e82_400bps_hac_v420')
         elif args.platform == "ont_r10_dorado_hac_4khz":
             args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'clairs_models', 'clair3_models', 'r1041_e82_400bps_hac_v410')
@@ -509,8 +509,11 @@ def check_clair3_options(args):
     if not os.path.exists(args.clair3_model_path):
         sys.exit(log_error("[ERROR] Cannot find clair3 model path in {}".format(args.clair3_model_path)))
 
+    if args.longphase is None:
+        args.longphase = os.path.join(conda_prefix, 'bin', 'longphase')
     if args.whatshap is None:
         args.whatshap = os.path.join(conda_prefix, 'bin', 'whatshap')
+
     longphase = os.path.join(args.clair3_path, 'longphase')
     longphase_for_phasing = False if args.whatshap_for_phasing is True else param.clair3_fast_option['longphase_for_phasing']
     if longphase_for_phasing and not os.path.exists(longphase):
@@ -580,11 +583,21 @@ def check_args(args):
         sys.exit(log_error("[ERROR] Tumor BAM index file {} or {} not found. Please run `samtools index $BAM` first.".format(args.tumor_bam_fn + '.bai',
                                                                                       args.tumor_bam_fn + '.crai')))
 
-    if args.enable_indel_calling and args.platform not in {'ont_r10_guppy', 'ont_r10', 'ont', 'hifi_revio', 'hifi_sequel2', 'ont_r10_dorado_sup_5khz', 'ont_r10_dorado_sup_4khz'}:
-        sys.exit(log_error("[ERROR] Indel calling only support 'ont_r10' and 'hifi_revio' platform"))
+    if args.enable_indel_calling and args.platform not in {'ont_r10_guppy', 'ont_r10', 'ont', 'hifi_revio', 'hifi_sequel2', 'ont_r10_dorado_sup_5khz', 'ont_r10_dorado_hac_5khz', 'ont_r10_dorado_sup_4khz', 'ont_r10_dorado_hac_5khz_liquid'}:
+        sys.exit(log_error("[ERROR] Indel calling only support 'ont_r10_guppy', 'ont_r10_dorado_sup_5khz', 'ont_r10_dorado_hac_5khz', 'ont_r10_dorado_sup_4khz', 'ont_r10_dorado_hac_5khz_liquid', and 'hifi_revio' platforms"))
 
     if args.genotyping_mode_vcf_fn is not None and args.hybrid_mode_vcf_fn is not None:
         sys.exit(log_error("[ERROR] Please provide either --genotyping_mode_vcf_fn or --hybrid_mode_vcf_fn only"))
+
+    if args.enable_params_for_liquid_tumor_sample and args.platform != 'ont_r10_dorado_hac_5khz_liquid':
+        if args.platform != 'ont_r10_dorado_hac_5khz_liquid':
+            logging(log_warning("[WARNING] Liquid tumor params only work for ONT Dorado 5khz hac model"))
+            args.enable_params_for_liquid_tumor_sample = False
+    if args.platform == 'ont_r10_dorado_hac_5khz_liquid':
+        args.enable_params_for_liquid_tumor_sample = True
+
+    if args.use_longphase_for_intermediate_haplotagging is None:
+        args.use_longphase_for_intermediate_haplotagging =True
 
     if args.pileup_model_path is None:
         args.pileup_model_path = os.path.join(args.conda_prefix, 'bin', 'clairs_models', args.platform, 'pileup.pkl')
@@ -621,8 +634,8 @@ def check_args(args):
     if args.chunk_size is None:
         args.chunk_size = 5000000
     if args.platform not in {'ont_r10', 'ont_r9', 'ont_r10_guppy', 'ont_r9_guppy', 'ont', 'ilmn', 'hifi_sequel2', 'hifi_revio', \
-                             'ont_r10_dorado_sup_4khz', 'ont_r10_dorado_sup_5khz', 'ont_r10_dorado_hac_5khz', 'ont_r10_dorado_hac_4khz'}:
-        logging(log_error('[ERROR] Invalid platform input, optional: {ont_r10_dorado_sup_4khz, ont_r10_dorado_sup_5khz, ont_r10_dorado_hac_5khz, ont_r10_dorado_hac_4khz, ont_r10_guppy, ont_r9_guppy, ilmn, hifi_sequel2, hifi_revio}'))
+                             'ont_r10_dorado_sup_4khz', 'ont_r10_dorado_sup_5khz', 'ont_r10_dorado_hac_5khz', 'ont_r10_dorado_hac_4khz', 'ont_r10_dorado_hac_5khz_liquid'}:
+        logging(log_error('[ERROR] Invalid platform input, optional: {ont_r10_dorado_sup_4khz, ont_r10_dorado_sup_5khz, ont_r10_dorado_hac_5khz, ont_r10_dorado_hac_4khz, ont_r10_dorado_hac_5khz_liquid, ont_r10_guppy, ont_r9_guppy, ilmn, hifi_sequel2, hifi_revio}'))
 
     if args.qual is None:
         if args.prefer_balance:
@@ -646,6 +659,13 @@ def check_args(args):
                 "[WARNING] Clair3 HET SNPs based phasing is disabled if `--genotyping_mode_vcf_fn` is provided, add `--phase_tumor True` if phasing the tumor is still needed. Please ensure you have sufficient heterozygous variant candidates given in the --genotyping_mode_vcf_fn file, otherwise the phasing step might lead to worse performance."))
         else:
             args.phase_tumor = True if args.platform != 'ilmn' else False
+
+    # By default, we use HET SNP in normal VCF for phasing after v0.1.7
+    if not args.use_heterozygous_snp_in_normal_sample_for_intermediate_phasing and not args.use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing:
+        args.use_heterozygous_snp_in_normal_sample_for_intermediate_phasing = True
+
+    if args.use_heterozygous_indel_for_intermediate_phasing is None:
+        args.use_heterozygous_indel_for_intermediate_phasing = True
 
     if args.genotyping_mode_vcf_fn is not None or args.hybrid_mode_vcf_fn is not None:
         logging(log_warning("[INFO] Enable --print_ref_calls and --print_germline_calls options in genotyping mode!"))
@@ -1674,7 +1694,7 @@ def somatic_parser():
         "--longphase",
         type=str,
         default=None,
-        help="Absolute path of longphase, longphase >= 1.3 is required."
+        help="Absolute path of longphase, longphase >= 1.7 is required."
     )
 
     clair3_params.add_argument(
@@ -1689,6 +1709,38 @@ def somatic_parser():
         type=str2bool,
         default=None,
         help="Use whatshap for phasing."
+    )
+
+    variant_phasing_group = optional_params.add_mutually_exclusive_group(required=False)
+
+    variant_phasing_group.add_argument(
+        "--use_heterozygous_snp_in_normal_sample_for_intermediate_phasing",
+        type=str2bool,
+        default=None,
+        help="EXPERIMENTAL: Use the heterozygous SNPs in normal VCF called by Clair3 for intermediate phasing. Option: {True, False}. Default: True."
+    )
+
+    variant_phasing_group.add_argument(
+        "--use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing",
+        type=str2bool,
+        default=None,
+        help="EXPERIMENTAL: Use the heterozygous SNPs in tumor VCF called by Clair3 for intermediate phasing. Option: {True, False}. Default: False."
+    )
+
+    optional_params.add_argument(
+        "--use_heterozygous_indel_for_intermediate_phasing",
+        type=str2bool,
+        default=None,
+        help="EXPERIMENTAL: Use the heterozygous Indels in normal and tumor VCFs called by Clair3 for intermediate phasing. Option: {True, False}. Default: True."
+    )
+
+    # read_haplotagging_group = optional_params.add_mutually_exclusive_group(required=False)
+
+    optional_params.add_argument(
+        "--use_longphase_for_intermediate_haplotagging",
+        type=str2bool,
+        default=None,
+        help="EXPERIMENTAL: Use the heterozygous Indels in normal and tumor VCFs called by Clair3 for intermediate phasing. Option: {True, False}. Default: True."
     )
 
     # options for internal process control
