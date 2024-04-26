@@ -886,6 +886,9 @@ def somatic_calling(args):
         ssp_command += ' --normal_vcf_fn ' + normal_vcf_fn
         ssp_command += ' --output_folder ' + clair3_output_path + '/vcf'
         ssp_command += ' --ctg_name {1}'
+        ssp_command += ' --use_heterozygous_snp_in_normal_sample_for_intermediate_phasing True' if args.use_heterozygous_snp_in_normal_sample_for_intermediate_phasing else ""
+        ssp_command += ' --use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing True' if args.use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing else ""
+        ssp_command += ' --use_heterozygous_indel_for_intermediate_phasing True' if args.use_heterozygous_indel_for_intermediate_phasing else ""
         ssp_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
         ssp_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/1_select_hetero_snp_for_phasing.log'
         commands_list.append(ssp_command)
@@ -990,18 +993,31 @@ def somatic_calling(args):
         commands_list.append(pt_command + ' && ' + tabix_command)
 
         echo_list.append("[INFO] Haplotag the Tumor BAM")
-        ht_command = '( ' + time + args.parallel
-        ht_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_5_haplotag_tumor.log'
-        ht_command += ' -j ' + str(args.threads)
-        ht_command += ' ' + args.whatshap + ' haplotag'
-        ht_command += ' --output ' + clair3_output_path + '/phased_output/tumor_{1}.bam'
-        ht_command += ' --reference ' + args.ref_fn
-        ht_command += ' --regions {1} '
-        ht_command += ' --ignore-read-groups'
-        ht_command += ' ' + clair3_output_path + '/phased_output/tumor_phased_{1}.vcf.gz'
-        ht_command += ' ' + args.tumor_bam_fn
-        ht_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-        ht_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/5_tumor_haplotag.log'
+        if args.use_longphase_for_intermediate_haplotagging:
+            ht_command = '( ' + time + args.parallel
+            ht_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_5_haplotag_tumor.log'
+            ht_command += ' -j ' + str(args.threads)
+            ht_command += ' ' + args.longphase + ' haplotag'
+            ht_command += ' -o ' + clair3_output_path + '/phased_output/tumor_{1}'
+            ht_command += ' --reference ' + args.ref_fn
+            ht_command += ' --region {1} '
+            ht_command += ' -s ' + clair3_output_path + '/phased_output/tumor_phased_{1}.vcf.gz'
+            ht_command += ' -b ' + args.tumor_bam_fn
+            ht_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
+            ht_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/5_tumor_haplotag.log'
+        else:
+            ht_command = '( ' + time + args.parallel
+            ht_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_5_haplotag_tumor.log'
+            ht_command += ' -j ' + str(args.threads)
+            ht_command += ' ' + args.whatshap + ' haplotag'
+            ht_command += ' --output ' + clair3_output_path + '/phased_output/tumor_{1}.bam'
+            ht_command += ' --reference ' + args.ref_fn
+            ht_command += ' --regions {1} '
+            ht_command += ' --ignore-read-groups'
+            ht_command += ' ' + clair3_output_path + '/phased_output/tumor_phased_{1}.vcf.gz'
+            ht_command += ' ' + args.tumor_bam_fn
+            ht_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
+            ht_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/5_tumor_haplotag.log'
 
         index_command = args.parallel + ' -j ' + str(args.threads)
         index_command += ' ' + args.samtools + ' index '
@@ -1771,6 +1787,13 @@ def somatic_parser():
         "--phase_tumor",
         type=str2bool,
         default=None,
+        help=SUPPRESS
+    )
+
+    #enable parameters for liquid tumor sample
+    optional_params.add_argument(
+        "--enable_params_for_liquid_tumor_sample",
+        action='store_true',
         help=SUPPRESS
     )
 

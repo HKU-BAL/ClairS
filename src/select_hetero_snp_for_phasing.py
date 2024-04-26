@@ -35,7 +35,7 @@ from argparse import ArgumentParser, SUPPRESS
 from collections import defaultdict
 from subprocess import run
 
-from shared.utils import subprocess_popen
+from shared.utils import subprocess_popen, str2bool
 
 def select_hetero_snp_for_phasing(args):
 
@@ -50,6 +50,9 @@ def select_hetero_snp_for_phasing(args):
     tumor_qual_dict = defaultdict(int)
     header = []
 
+    indel_normal_variant_dict = defaultdict(str)
+    indel_tumor_variant_dict = defaultdict(str)
+    normal_variant_dict = defaultdict(str)
     normal_unzip_process = subprocess_popen(shlex.split("gzip -fdc %s" % (normal_vcf_fn)))
     for row in normal_unzip_process.stdout:
         row = row.rstrip()
@@ -69,7 +72,17 @@ def select_hetero_snp_for_phasing(args):
             if genotype == '0/1' or genotype == '1/0':
                 qual = float(columns[5])
                 normal_qual_dict[pos] = qual
-                variant_dict[pos] = [ref_base, alt_base, qual, row]
+                variant_dict[pos] = [ref_base, alt_base, row]
+                normal_variant_dict[pos] = row
+        #indel
+        elif args.use_heterozygous_indel_for_intermediate_phasing:
+            genotype = columns[-1].split(":")[0].replace("/", "|").replace(".", "0").split("|")
+
+            genotype_1, genotype_2 = genotype
+            AF = float(columns[-1].split(":")[3])
+            genotype_sum = int(genotype_1) + int(genotype_2)
+            DP = int(columns[-1].split(":")[2])
+            indel_normal_variant_dict[pos] = [ref_base, alt_base, row, DP, AF, genotype_sum]
 
     intersect_pos_set = set()
     hetero_snp_not_found_in_tumor = 0
@@ -102,6 +115,15 @@ def select_hetero_snp_for_phasing(args):
                         continue
                 tumor_variant_dict[pos] = row
                 intersect_pos_set.add(pos)
+        # indel
+        elif args.use_heterozygous_indel_for_intermediate_phasing:
+            genotype = columns[-1].split(":")[0].replace("/", "|").replace(".", "0").split("|")
+
+            genotype_1, genotype_2 = genotype
+            AF = float(columns[-1].split(":")[3])
+            DP = int(columns[-1].split(":")[2])
+            genotype_sum = int(genotype_1) + int(genotype_2)
+            indel_tumor_variant_dict[pos] = [ref_base, alt_base, row, DP, AF, genotype_sum]
 
     normal_low_qual_set = set([item[0] for item in sorted(normal_qual_dict.items(), key=lambda x: x[1])[:int(var_pct_full * len(normal_qual_dict))]])
     tumor_low_qual_set = set([item[0] for item in sorted(tumor_qual_dict.items(), key=lambda x: x[1])[:int(var_pct_full * len(tumor_qual_dict))]])
@@ -114,6 +136,7 @@ def select_hetero_snp_for_phasing(args):
             low_qual_count += 1
             continue
         pass_variant_dict[pos] = tumor_variant_dict[pos]
+        normal_variant_dict[pos] = tumor_variant_dict[pos]
 
     pro = round(len(pass_variant_dict) / max(len(tumor_qual_dict), 1.0), 4)
     print ('[INFO] Total HET SNP calls selected: {}: {}, not found:{}, not match:{}, low_qual_count:{}. Total normal:{} Total tumor:{}, pro: {}'.format(contig_name, len(pass_variant_dict), hetero_snp_not_found_in_tumor, hetero_snp_not_match_in_tumor, low_qual_count, len(normal_qual_dict), len(tumor_qual_dict), pro))
@@ -122,8 +145,51 @@ def select_hetero_snp_for_phasing(args):
         return_code = run("mkdir -p {}".format(output_folder), shell=True)
     f = open(os.path.join(output_folder, '{}.vcf'.format(contig_name)), 'w')
     f.write(''.join(header))
-    for key, row in sorted(pass_variant_dict.items(), key=lambda x: x[0]):
-        f.write(row +'\n')
+
+    if args.use_heterozygous_indel_for_intermediate_phasing:
+        #add indel HET2HOM_REF and HET2HET:
+        HET2HOM_REF = 0
+        HET2HET = 0
+        HET2HOM = 0
+        eps = 0.1
+        min_dp = 15
+        for k, v in indel_normal_variant_dict.items():
+            ref_base, alt_base, row, DP, AF, genotype_sum = v
+            if genotype_sum != 1:
+                continue
+            if DP < min_dp:
+                continue
+            if AF < 0.5 - eps or AF > 0.5 + eps:
+                continue
+            if k not in indel_tumor_variant_dict:
+                #HET2HOM_REF
+                HET2HOM_REF += 1
+                normal_variant_dict[k] = row
+            else:
+                t_ref_base, t_alt_base, t_row, t_DP, t_AF, t_genotype_sum = indel_tumor_variant_dict[k]
+                if t_ref_base != ref_base or t_alt_base != alt_base:
+                    continue
+                if t_DP < min_dp:
+                    continue
+                if t_genotype_sum == 1:
+                    if AF < 0.5 - eps or AF > 0.5 + eps:
+                        continue
+                    HET2HET += 1
+                    normal_variant_dict[k] = row
+                elif t_genotype_sum == 2:
+                    if t_AF < 1 - eps:
+                        continue
+                    HET2HOM += 1
+                    normal_variant_dict[k] = row
+        print ('[INFO] Total HET INDEL calls selected: {}: Total:{}, HET2HOM_REF:{}, HET2HOM:{}, HET2HET:{}'.format(contig_name, HET2HOM_REF+HET2HOM+HET2HET, HET2HOM_REF, HET2HOM, HET2HET))
+
+    if args.use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing:
+        for key, row in sorted(pass_variant_dict.items(), key=lambda x: x[0]):
+            f.write(row + '\n')
+    else:
+        for key, row in sorted(normal_variant_dict.items(), key=lambda x: x[0]):
+            f.write(row +'\n')
+
     f.close()
 
 
@@ -144,6 +210,15 @@ def main():
 
     parser.add_argument('--ctg_name', type=str, default=None,
                         help="The name of sequence to be processed, default: %(default)s")
+
+    parser.add_argument("--use_heterozygous_snp_in_normal_sample_for_intermediate_phasing", type=str2bool, default=None,
+                        help="EXPERIMENTAL: Use the heterozygous SNP in normal VCF called by Clair3 for intermediate phasing. Default: True.")
+
+    parser.add_argument("--use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing", type=str2bool, default=None,
+                        help="EXPERIMENTAL: Use the heterozygous SNP in tumor VCF called by Clair3 for intermediate phasing. Default: False.")
+
+    parser.add_argument("--use_heterozygous_indel_for_intermediate_phasing", type=str2bool, default=None,
+                        help="EXPERIMENTAL: Use the heterozygous SNP in tumor VCF called by Clair3 for intermediate phasing. Default: True.")
 
     parser.add_argument('--min_qual', type=float, default=5,
                         help=SUPPRESS)
