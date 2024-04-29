@@ -511,13 +511,15 @@ def check_clair3_options(args):
 
     if args.longphase is None:
         args.longphase = os.path.join(conda_prefix, 'bin', 'longphase')
+        if not os.path.exists(args.longphase):
+            args.longphase = os.path.join(args.clair3_path, 'longphase')
+
     if args.whatshap is None:
         args.whatshap = os.path.join(conda_prefix, 'bin', 'whatshap')
 
-    longphase = os.path.join(args.clair3_path, 'longphase')
     longphase_for_phasing = False if args.whatshap_for_phasing is True else param.clair3_fast_option['longphase_for_phasing']
-    if longphase_for_phasing and not os.path.exists(longphase):
-        sys.exit(log_error("[ERROR] Cannot find longphase at {}".format(longphase)))
+    if longphase_for_phasing and not os.path.exists(args.longphase):
+        sys.exit(log_error("[ERROR] Cannot find longphase at {}".format(args.longphase)))
     if args.whatshap_for_phasing and not os.path.exists(args.whatshap):
         sys.exit(log_error("[ERROR] Cannot find whatshap at {}".format(args.whatshap)))
 
@@ -537,7 +539,7 @@ def check_clair3_options(args):
         min_coverage=str(args.clair3_min_coverage),
         snp_min_af=str(args.clair3_snp_min_af),
         indel_min_af=str(args.clair3_indel_min_af),
-        longphase=longphase)
+        longphase=args.longphase)
 
     return args
 
@@ -593,9 +595,6 @@ def check_args(args):
     if args.platform == 'ont_r10_dorado_hac_5khz_liquid':
         args.enable_params_for_liquid_tumor_sample = True
 
-    if args.use_longphase_for_intermediate_haplotagging is None:
-        args.use_longphase_for_intermediate_haplotagging =True
-
     if args.pileup_model_path is None:
         args.pileup_model_path = os.path.join(args.conda_prefix, 'bin', 'clairs_models', args.platform, 'pileup.pkl')
 
@@ -645,7 +644,7 @@ def check_args(args):
     if args.enable_realignment and args.platform != 'ilmn':
         args.enable_realignment = False
 
-    if args.min_bq is None and (args.platform == "ont_r10_dorado_hac_5khz" or args.platform == "ont_r10_dorado_hac_4khz"):
+    if args.min_bq is None and (args.platform == "ont_r10_dorado_hac_5khz" or args.platform == "ont_r10_dorado_hac_4khz" or args.platform == 'ont_r10_dorado_hac_5khz_liquid'):
         args.min_bq = 15
 
     if args.disable_phasing:
@@ -899,11 +898,12 @@ def somatic_calling(args):
                 pn_command = '( ' + time + args.parallel
                 pn_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_2_phase_normal.log'
                 pn_command += ' -j ' + str(args.threads)
-                pn_command += ' ' + args.clair3_option.longphase + ' phase '
+                pn_command += ' ' + args.longphase + ' phase '
                 pn_command += ' -s ' + clair3_output_path + '/vcf/{1}.vcf'
                 pn_command += ' -b ' + args.normal_bam_fn
                 pn_command += ' -r ' + args.ref_fn
                 pn_command += ' -t ' + str(args.threads)
+                pn_command += ' --indels ' if args.use_heterozygous_indel_for_intermediate_phasing else ""
                 pn_command += ' -o ' + clair3_output_path + '/phased_output/normal_phased_{1}'
                 pn_command += ' --ont' if args.platform == 'ont' else ' --pb'
                 pn_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
@@ -964,6 +964,7 @@ def somatic_calling(args):
             pt_command += ' -b ' + args.tumor_bam_fn
             pt_command += ' -r ' + args.ref_fn
             pt_command += ' -t ' + str(args.threads)
+            pt_command += ' --indels ' if args.use_heterozygous_indel_for_intermediate_phasing else ""
             pt_command += ' -o ' + clair3_output_path + '/phased_output/tumor_phased_{1}'
             pt_command += ' --ont' if args.platform == 'ont' else ' --pb'
             pt_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
