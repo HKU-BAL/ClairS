@@ -1752,13 +1752,12 @@ def somatic_parser():
         help="EXPERIMENTAL: Use the heterozygous Indels in normal and tumor VCFs called by Clair3 for intermediate phasing. Option: {True, False}. Default: True."
     )
 
-    # read_haplotagging_group = optional_params.add_mutually_exclusive_group(required=False)
-
+    #EXPERIMENTAL: Use the heterozygous Indels in normal and tumor VCFs called by Clair3 for intermediate phasing. Option: {True, False}. Default: True.
     optional_params.add_argument(
         "--use_longphase_for_intermediate_haplotagging",
         type=str2bool,
         default=None,
-        help="EXPERIMENTAL: Use the heterozygous Indels in normal and tumor VCFs called by Clair3 for intermediate phasing. Option: {True, False}. Default: True."
+        help=SUPPRESS
     )
 
     # options for internal process control
