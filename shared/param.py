@@ -87,6 +87,10 @@ input_shape_dict = {'ilmn': input_shape,
                     'ont': ont_input_shape,
                     'hifi': hifi_input_shape}
 
+upper_beta = 6
+lower_beta = 4
+upper_beta_liqud = 5
+
 # Training hyper parameters
 use_alt_base = True
 label_shape = [3]
