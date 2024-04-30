@@ -663,6 +663,9 @@ def check_args(args):
     if args.use_heterozygous_indel_for_intermediate_phasing is None:
         args.use_heterozygous_indel_for_intermediate_phasing = True
 
+    if args.use_longphase_for_intermediate_haplotagging is None:
+        args.use_longphase_for_intermediate_haplotagging = True
+
     if args.genotyping_mode_vcf_fn is not None or args.hybrid_mode_vcf_fn is not None:
         logging(log_warning("[INFO] Enable --print_ref_calls and --print_germline_calls options in genotyping mode!"))
         args.print_ref_calls = True
@@ -805,6 +808,7 @@ def print_command_line(args):
         cmdline += '--use_heterozygous_snp_in_normal_sample_for_intermediate_phasing {}'.format(args.use_heterozygous_snp_in_normal_sample_for_intermediate_phasing) if args.use_heterozygous_snp_in_normal_sample_for_intermediate_phasing is not None else ""
         cmdline += '--use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing {}'.format(args.use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing) if args.use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing is not None else ""
         cmdline += '--use_heterozygous_indel_for_intermediate_phasing {}'.format(args.use_heterozygous_indel_for_intermediate_phasing) if args.use_heterozygous_indel_for_intermediate_phasing is not None else ""
+        cmdline += '--use_longphase_for_intermediate_haplotagging {}'.format(args.use_longphase_for_intermediate_haplotagging) if args.use_longphase_for_intermediate_haplotagging is not None else ""
         cmdline += '--conda_prefix {} '.format(args.conda_prefix) if args.conda_prefix is not None else ""
         args.cmdline = cmdline
     except:
@@ -1752,12 +1756,11 @@ def somatic_parser():
         help="EXPERIMENTAL: Use the heterozygous Indels in normal and tumor VCFs called by Clair3 for intermediate phasing. Option: {True, False}. Default: True."
     )
 
-    #EXPERIMENTAL: Use the heterozygous Indels in normal and tumor VCFs called by Clair3 for intermediate phasing. Option: {True, False}. Default: True.
     optional_params.add_argument(
         "--use_longphase_for_intermediate_haplotagging",
         type=str2bool,
         default=None,
-        help=SUPPRESS
+        help="EXPERIMENTAL: Use the longphase instead of whatshap for intermediate haplotagging. Option: {True, False}. Default: True."
     )
 
     # options for internal process control
