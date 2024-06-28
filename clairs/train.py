@@ -442,7 +442,6 @@ def train_model_torch_dataset(args):
         v = tqdm(enumerate(validate_dataloader), total=validate_steps, position=0,
                  leave=True) if not debug_mode else enumerate(validate_dataloader)
         model.train()
-        # for batch_idx, (data, label, af_list, _, _) in t:
         for batch_idx, batch_tuple in t:
             data, label, af_list = None, None, None
             if param.add_af_in_label:
@@ -754,10 +753,7 @@ def train_model(args):
                     af_tensor = torch.from_numpy(np.array(af_list)).to(device)
 
                 if not args.pileup:#in collate
-                    # print(f"DEBUG:data shape{input_matrix.shape}")
-                    # print(f"DEBUG:label shape{label_tensor.shape}")
                     input_tensor = torch.from_numpy(np.transpose(input_matrix, (0, 3, 1, 2)) / 100.0).to(device)
-                    # print(f"DEBUG:data shape{input_matrix.shape}")
                 else:
                     input_tensor = torch.from_numpy(input_matrix).to(device)
                 label_tensor = torch.from_numpy(label_for_tumor).to(device)
@@ -826,8 +822,6 @@ def train_model(args):
             t.set_description('EPOCH {}'.format(epoch))
             data = data.to(device)
             label = label.to(device)
-            # print(f"DEBUG:data shape{data.shape}")
-            # print(f"DEBUG:label shape{label.shape}")
             output_logit = model(data).contiguous()
             y_truth = torch.argmax(label, axis=1)
             optimizer.zero_grad()
