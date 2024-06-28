@@ -37,18 +37,27 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import torch.nn.functional as F
+from torch.utils.data import Dataset
 
+import threading
+import time
 from tqdm import tqdm
 from subprocess import run
 from argparse import ArgumentParser, SUPPRESS
 from torch.utils.tensorboard import SummaryWriter
-
+import csv
 from shared.utils import str2bool
 import shared.param as param
 import clairs.model as model_path
-
+from torch.utils.data import random_split, DataLoader
 logging.basicConfig(format='%(message)s', level=logging.INFO)
+
+check_gpu_status = True
+try:
+    import gpustat
+except ModuleNotFoundError:
+    check_gpu_status = False
+
 tables.set_blosc_max_threads(512)
 os.environ['NUMEXPR_MAX_THREADS'] = '256'
 os.environ['NUMEXPR_NUM_THREADS'] = '32'
@@ -62,6 +71,108 @@ torch.cuda.manual_seed(seed)
 torch.cuda.manual_seed_all(seed)
 torch.backends.cudnn.deterministic = True
 
+
+class BinFileDataset(Dataset):
+    def __init__(self, file_list, file_path, chunk_size, batch_size, debug_mode=False, discard_germline = False, add_af_in_label = False, smoothing = None):
+        ### Configurations
+        self.debug_mode = debug_mode
+        self.discard_germline = discard_germline
+        self.file_list = file_list
+        self.file_path = file_path
+        self.chunk_size = chunk_size
+        self.batch_size = batch_size
+        self.add_af_in_label = add_af_in_label
+
+        ### Dataset Initialization
+        self.table_dataset_list, self.chunk_offset = self._populate_dataset_table(file_list, file_path)
+        self.cum_sum = np.cumsum(self.chunk_offset)
+        self.total_chunks = sum(self.chunk_offset)
+
+        ### Smoothing
+        self.positive = 1 - smoothing if smoothing is not None else 1
+        self.negative = smoothing if smoothing is not None else 0
+
+    def _populate_dataset_table(self, file_list, file_path):
+        chunk_offset = np.zeros(len(file_list), dtype=int)
+        table_dataset_list = []
+        for bin_idx, bin_file in enumerate(file_list):
+            table_dataset = tables.open_file(os.path.join(file_path, bin_file), 'r')
+            table_dataset_list.append(table_dataset)
+            chunk_num = (len(table_dataset.root.label) - self.batch_size) // self.chunk_size
+            chunk_offset[bin_idx] = chunk_num
+        return table_dataset_list, chunk_offset
+
+    def __len__(self):
+        return self.total_chunks
+
+    def __getitem__(self, idx):
+        bin_idx, chunk_idx = self._get_file_and_chunk_index(idx)
+        start_idx = chunk_idx * self.chunk_size
+        end_idx = start_idx + self.chunk_size
+        num_rows = len(self.table_dataset_list[bin_idx].root.input_matrix)
+        assert end_idx <= num_rows, f"Index out of range: {end_idx} > {num_rows}"
+        current_tensor = self.table_dataset_list[bin_idx].root.input_matrix[start_idx:end_idx]
+        current_label = self.table_dataset_list[bin_idx].root.label[start_idx:end_idx]
+        if self.add_af_in_label:
+            af_info = [item[3] for item in current_label]
+            af_info = [[item, item, 1 / float(max(item, 0.05)) / 20.0] for item in af_info]
+            af_tensor = np.array(af_info)
+
+        if self.discard_germline:
+            current_label = [[self.negative, self.positive] if np.argmax(item[:3]) == 2 else [self.positive, self.negative]for item in current_label]
+        else:
+            current_label = [[self.negative, self.negative, self.positive] if np.argmax(item[:3]) == 2 else \
+                [self.negative, self.positive, self.negative] if np.argmax(item[:3]) == 1 else \
+                    [self.positive, self.negative, self.negative]for item in current_label]
+        current_label = np.array(current_label)
+        if self.debug_mode:
+            position_info = self.table_dataset_list[bin_idx].root.position[start_idx:end_idx]
+            normal_info = self.table_dataset_list[bin_idx].root.normal_alt_info[start_idx:end_idx]
+            tumor_info = self.table_dataset_list[bin_idx].root.tumor_alt_info[start_idx:end_idx]
+            return current_tensor, current_label, position_info, normal_info, tumor_info
+        if self.add_af_in_label:
+            return current_tensor, current_label, af_tensor
+        return current_tensor, current_label
+
+    def _get_file_and_chunk_index(self, idx):
+        file_idx = np.searchsorted(self.cum_sum, idx, side='right')
+        if file_idx > 0:
+            chunk_idx = idx - self.cum_sum[file_idx - 1]
+        else:
+            chunk_idx = idx
+        return file_idx, chunk_idx
+
+    def close(self):
+        for dataset in self.table_dataset_list:
+            dataset.close()
+
+class GPU_Monitor(threading.Thread):
+    def __init__(self, gpu_id, interval=5, duration=60, csv_file='gpu_usage.csv'):
+        super().__init__()
+        self.gpu_id = gpu_id  # The ID of the GPU to monitor
+        self.interval = interval  # The time interval (in seconds) between measurements
+        self.duration = duration  # The total duration (in seconds) for which to run the monitoring
+        self.csv_file = csv_file  # The filename for the CSV output
+        self.running = True  # A flag to control the running of the thread
+        self.daemon = True  # Set the thread as a daemon so it exits when the main program does
+
+    def run(self):
+        print('Monitoring GPU {} for {} seconds'.format(self.gpu_id, self.duration) )
+        start_time = time.time()
+        with open(self.csv_file, 'w', newline='') as file:
+            writer = csv.writer(file)
+            # Write the CSV header
+            writer.writerow(['Timestamp', 'GPU ID', 'GPU Utilization'])
+
+            while self.running and ((time.time() - start_time) < self.duration):
+                stats = gpustat.new_query()  # Get the current GPU statistics
+                gpu = stats.gpus[self.gpu_id]  # Only query the specified GPU
+                # Record the current time, GPU ID, and GPU utilization
+                writer.writerow([time.strftime("%Y-%m-%d %H:%M:%S"), gpu.index, gpu.utilization])
+                time.sleep(self.interval)  # Wait for the next interval
+        print('Monitoring complete')
+    def stop(self):
+        self.running = False
 
 class FocalLoss(nn.Module):
     def __init__(self, alpha=None, gamma=2):
@@ -160,6 +271,304 @@ def pass_chr(fn, ctg_name_list):
             return True
     return False
 
+
+def train_model_torch_dataset(args):
+    apply_focal_loss = param.apply_focal_loss
+    discard_germline = param.discard_germline
+    add_l2_regulation_loss = param.add_l2_regulation_loss
+    l2_regularization_lambda = param.l2_regularization_lambda
+    debug_mode = args.debug_mode
+    platform = args.platform
+    ctg_name_string = args.ctg_name
+    chkpnt_fn = args.chkpnt_fn
+    ochk_prefix = args.ochk_prefix
+    add_writer = args.add_writer
+    smoothing = args.smoothing
+    phase_tumor = args.phase_tumor and args.platform != 'ilmn'
+    gpu_csv_fn = args.gpu_csv_fn
+
+    add_validation_dataset = args.random_validation or (args.validation_fn is not None)
+    validation_fn = args.validation_fn
+    ctg_name_list = ctg_name_string.split(',') if ctg_name_string is not None else []
+    exclude_training_samples = args.exclude_training_samples
+    exclude_training_samples = set(exclude_training_samples.split(',')) if exclude_training_samples else set()
+
+    if ochk_prefix and not os.path.exists(ochk_prefix):
+        output = run('mkdir -p {}'.format(ochk_prefix), shell=True)
+        print("[INFO] Model path empty, create folder:{}".format(ochk_prefix))
+
+    if add_writer:
+        writer = SummaryWriter("{}/log".format(ochk_prefix))
+    device = 'cpu'
+    if torch.cuda.is_available():
+        device = 'cuda'
+    apply_softmax = False if apply_focal_loss else True
+    if args.pileup:
+        channel_size = param.pileup_channel_size
+        tumor_channel_size = param.tumor_channel_size if phase_tumor else channel_size
+        pileup_tensor_shape = [param.no_of_positions, channel_size + tumor_channel_size]  # normal and tumor
+        tensor_shape = pileup_tensor_shape
+        model = model_path.BiGRU(apply_softmax=apply_softmax,
+                                 num_classes=2 if discard_germline else 3,
+                                 channel_size=tensor_shape[1]).to(device)
+
+        input = torch.ones(size=[100] + tensor_shape).to(device)
+
+    else:
+        model = model_path.ResNet(platform=platform).to(device)
+        input = torch.ones(size=(100, param.channel_size, param.matrix_depth_dict[platform], param.no_of_positions)).to(device)
+        tensor_shape = param.input_shape_dict[platform]
+
+    if chkpnt_fn is not None:
+        model = torch.load(chkpnt_fn)
+
+    output = model(input)
+
+    batch_size, chunk_size = param.trainBatchSize, param.chunk_size
+    assert batch_size % chunk_size == 0
+    chunks_per_batch = batch_size // chunk_size
+    random.seed(param.RANDOM_SEED)
+    np.random.seed(param.RANDOM_SEED)
+    learning_rate = args.learning_rate if args.learning_rate else param.initialLearningRate
+    max_epoch = args.max_epoch if args.max_epoch else param.maxEpoch
+    bin_list = os.listdir(args.bin_fn)
+
+    bin_list = [f for f in bin_list if
+                pass_chr(f, ctg_name_list) and not exist_file_prefix(exclude_training_samples, f)]
+    failed_bin_set = set()
+    for bin_file in bin_list:
+        try:
+            table = tables.open_file(os.path.join(args.bin_fn, bin_file), 'r')
+            table.close()
+        except:
+            print("[WARNING] {} cannot open!".format(bin_file))
+            failed_bin_set.add(bin_file)
+    bin_list = [f for f in bin_list if f not in failed_bin_set]
+    if len(bin_list) == 0:
+        print("[ERROR] Cannot find ant binary for model training")
+        return
+
+    logging.info("[INFO] total {} training bin files: {}".format(len(bin_list), ','.join(bin_list)))
+
+    if validation_fn:
+        val_list = os.listdir(validation_fn)
+        logging.info("[INFO] total {} validation bin files: {}".format(len(val_list), ','.join(val_list)))
+        train_dataset = BinFileDataset(bin_list, args.bin_fn, chunk_size, batch_size, debug_mode = False, discard_germline = discard_germline, \
+                                       add_af_in_label = param.add_af_in_label, smoothing=smoothing)
+        train_chunk_num = len(train_dataset)
+
+        val_dataset = BinFileDataset(val_list, validation_fn, chunk_size, batch_size, debug_mode=debug_mode, discard_germline=discard_germline, \
+                                     add_af_in_label=False, smoothing=smoothing)
+        validate_chunk_num = len(val_dataset)
+        total_chunks = train_chunk_num + validate_chunk_num
+    else:
+        total_dataset = BinFileDataset(bin_list, args.bin_fn, chunk_size, batch_size, debug_mode= debug_mode, discard_germline=discard_germline, \
+                                       add_af_in_label = param.add_af_in_label, smoothing = smoothing)
+        total_chunks = len(total_dataset)
+        training_dataset_percentage = param.trainingDatasetPercentage if add_validation_dataset else None
+        if add_validation_dataset:
+            total_batches = total_chunks // chunks_per_batch
+            validate_chunk_num = int(
+                max(1., np.floor(total_batches * (1 - training_dataset_percentage))) * chunks_per_batch)
+            train_chunk_num = int(total_chunks - validate_chunk_num)
+            train_dataset, val_dataset = random_split(total_dataset, [train_chunk_num, validate_chunk_num])
+            #set the training dataset to:no debug mode
+            train_dataset.dataset.debug_mode = False
+            val_dataset.dataset.add_af_in_label = False
+        else:
+            train_chunk_num = total_chunks
+            train_dataset = total_dataset
+            #set the training dataset to:no debug mode
+            train_dataset.dataset.debug_mode = False
+
+        train_chunk_num = len(train_dataset)
+        validate_chunk_num = len(val_dataset) if add_validation_dataset else 0
+    train_data_size = train_chunk_num * chunk_size
+    validate_data_size = validate_chunk_num * chunk_size
+
+    if args.pileup:
+        try:
+            from torchinfo import summary
+            print(summary(model, input_size=tuple([100] + tensor_shape), device=device))
+        except:
+            pass
+    else:
+        try:
+            from torchsummary import summary
+            print(summary(model,
+                          input_size=(param.channel_size, param.matrix_depth_dict[platform], param.no_of_positions),
+                          device=device))
+        except:
+            pass
+
+    if add_validation_dataset:
+        train_dataloader = DataLoader(train_dataset, batch_size=chunks_per_batch, shuffle=True, num_workers=args.torch_dataset_num_workers, prefetch_factor=args.torch_dataset_prefetch_factor, pin_memory=True)
+        validate_dataloader = DataLoader(val_dataset, batch_size=chunks_per_batch, shuffle=False, num_workers=args.torch_dataset_num_workers, prefetch_factor=args.torch_dataset_prefetch_factor, pin_memory=True)
+    else:
+        train_dataloader = DataLoader(train_dataset, batch_size=chunks_per_batch, shuffle=True, num_workers=args.torch_dataset_num_workers, prefetch_factor=args.torch_dataset_prefetch_factor, pin_memory=True)
+    criterion = FocalLoss() if apply_focal_loss else nn.CrossEntropyLoss()
+    criterion = criterion.to(device)
+    if param.add_af_in_label:
+        af_loss = AFLoss().to(device)
+
+    # optimizer
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=param.weight_decay)
+    # learning rate scheduler
+    lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.9)
+
+    train_steps = train_data_size // batch_size
+    validate_steps = validate_data_size // batch_size
+    print("[INFO] Using GPU for model training: {}".format(True if device == 'cuda' else False))
+    print("[INFO] The size of dataset: {}".format(train_data_size))
+    print("[INFO] The training batch size: {}".format(batch_size))
+    print("[INFO] The training learning_rate: {}".format(learning_rate))
+    print("[INFO] The output model folder: {}".format(ochk_prefix))
+    print("[INFO] Apply focal loss in training: {}".format(apply_focal_loss))
+    print("[INFO] Discard germline in training: {}".format(discard_germline))
+    print("[INFO] Add L2 regularization to model parameters: {}".format(add_l2_regulation_loss))
+    print('[INFO] Train steps:{}'.format(train_steps))
+    print('[INFO] Validate steps:{}'.format(validate_steps))
+
+    training_loss, validation_loss = 0.0, 0.0
+    training_step, validation_step = 0, 0
+    echo_each_step = 200
+    if args.gpu_csv_fn is not None and check_gpu_status:
+        monitor = GPU_Monitor(gpu_id=0, interval=1, duration=120, csv_file = args.gpu_csv_fn)  # Monitor for 5 minutes
+        monitor.start()
+    for epoch in range(1, max_epoch + 1):
+        epoch_loss = 0
+        fp, tp, fn = 0, 0, 0
+        t = tqdm(enumerate(train_dataloader), total=train_steps, position=0, leave=True)
+        v = tqdm(enumerate(validate_dataloader), total=validate_steps, position=0,
+                 leave=True) if not debug_mode else enumerate(validate_dataloader)
+        model.train()
+        # for batch_idx, (data, label, af_list, _, _) in t:
+        for batch_idx, batch_tuple in t:
+            data, label, af_list = None, None, None
+            if param.add_af_in_label:
+                data, label, af_list = batch_tuple
+            else:
+                data, label = batch_tuple
+            t.set_description('EPOCH {}'.format(epoch))
+            if not args.pileup:
+                    data = data.reshape(-1, param.channel_size, param.matrix_depth_dict[platform], param.no_of_positions)
+                    data = data.to(device) / 100.0
+            else:
+                    data = data.reshape(-1, param.no_of_positions, param.pileup_channel_size*2)
+                    data = data.to(device)
+            label = label.reshape(-1, 3).to(device)
+            label = label.to(device)
+            output_logit = model(data).contiguous()
+            y_truth = torch.argmax(label, axis=1)
+            optimizer.zero_grad()
+            loss = criterion(input=output_logit, target=label) if apply_focal_loss else criterion(output_logit, y_truth)
+
+            l2_regularization_loss = sum([l2_regularization_lambda * 0.5 * params.norm(2) ** 2 for params in
+                                          model.parameters()]) if add_l2_regulation_loss else 0.0
+
+            loss += l2_regularization_loss
+
+            if param.add_af_in_label:
+                af_list = af_list.reshape(-1, 3).to(device)
+                loss += af_loss(input=output_logit, target=af_list)
+            loss.backward()
+            optimizer.step()
+
+            training_step += 1
+            training_loss += loss.item()
+            if add_writer:
+                if training_step % echo_each_step == echo_each_step - 1:
+                    writer.add_scalar('training loss', training_loss / echo_each_step, training_step)
+                training_loss = 0.0
+            y_truth = y_truth.cpu().numpy()
+            y_pred = output_logit.argmax(dim=1).cpu().numpy()
+            arg_index = 1 if discard_germline else 2
+            fp += sum([True if x != arg_index and y == arg_index else False for x, y in zip(y_truth, y_pred)])
+            fn += sum([True if x == arg_index and y != arg_index else False for x, y in zip(y_truth, y_pred)])
+            tp += sum([True if x == y and x == arg_index else False for x, y in zip(y_truth, y_pred)])
+
+            if batch_idx + 1 == train_steps:
+                break
+
+            epoch_loss += loss
+            el = epoch_loss.detach().cpu().numpy()
+            t.set_postfix({'loss': el, 'tp': tp, 'fp': fp, 'fn': fn})
+            t.update(1)
+
+        # validation
+        val_fp, val_tp, val_fn = 0, 0, 0
+        val_epoch_loss = 0
+        model.eval()
+        for batch_idx, batch_tuple in v:
+            data, label, position_info, normal_info, tumor_info = None, None, None, None, None
+            if not debug_mode:
+                data, label = batch_tuple
+                v.set_description('VAL EPOCH {}'.format(epoch))
+            else:
+                data, label, position_info, normal_info, tumor_info = batch_tuple
+            if not args.pileup:
+                    data = data.reshape(-1, param.channel_size, param.matrix_depth_dict[platform], param.no_of_positions)
+                    data = data.to(device) / 100.0
+            else:
+                    data = data.reshape(-1, param.no_of_positions, param.pileup_channel_size*2)
+                    data = data.to(device)
+            label = label.reshape(-1, 3).to(device)
+            label = label.to(device)
+            with torch.no_grad():
+                output_logit = model(data)
+
+            y_truth = torch.argmax(label, axis=1)
+            optimizer.zero_grad()
+            loss = criterion(input=output_logit, target=label) if apply_focal_loss else criterion(output_logit, y_truth)
+            validation_step += 1
+            validation_loss += loss.item()
+            if add_writer:
+                if validation_step % echo_each_step == echo_each_step - 1:
+                    writer.add_scalar('validation loss', validation_loss / echo_each_step, validation_step)
+                validation_loss = 0.0
+            y_truth = y_truth.cpu().numpy()
+            output_pro = torch.softmax(output_logit, dim=1)
+            y_pred = output_pro.argmax(dim=1).cpu().numpy()
+            arg_index = 1 if discard_germline else 2
+            if debug_mode:
+                if device == 'cuda':
+                    data_numpy = data.cpu().numpy()
+                else:
+                    data_numpy = data.numpy()
+                cpu_logit = output_pro.cpu().numpy()
+                for idx, (x, y) in enumerate(zip(y_truth, y_pred)):
+                    if x == arg_index and y != arg_index:
+                        print(idx, 'FN', x, y, cpu_logit[idx], position_info[idx], normal_info[idx], tumor_info[idx])
+                    if x != arg_index and y == arg_index:
+                        print(idx, 'FP', x, y, cpu_logit[idx], position_info[idx], normal_info[idx], tumor_info[idx])
+
+            val_fp += sum([True if x != arg_index and y == arg_index else False for x, y in zip(y_truth, y_pred)])
+            val_fn += sum([True if x == arg_index and y != arg_index else False for x, y in zip(y_truth, y_pred)])
+            val_tp += sum([True if x == y and x == arg_index else False for x, y in zip(y_truth, y_pred)])
+
+            if batch_idx + 1 == validate_steps:
+                break
+
+            val_epoch_loss += loss
+            el = val_epoch_loss.detach().cpu().numpy()
+            if not debug_mode:
+                v.set_postfix(
+                    {'validation_loss': el, 'val_tp': val_tp, 'val_fp': val_fp, 'val_fn': val_fn})
+
+                v.update(1)
+
+        # leanrning rate decay in each epoch end
+        lr_scheduler.step()
+        save_path = os.path.join(ochk_prefix, "{}.pkl".format(epoch)) if ochk_prefix is not None else "{}.pkl".format(
+            epoch)
+        print(save_path)
+        torch.save(model, save_path)
+
+    if add_writer:
+        writer.close()
+    train_dataset.dataset.close()
+    if add_validation_dataset:
+        val_dataset.dataset.close()
 
 def train_model(args):
     apply_focal_loss = param.apply_focal_loss
@@ -344,8 +753,11 @@ def train_model(args):
                     af_list = [[item, item, 1 / float(max(item, 0.05)) / 20.0] for item in af_list]
                     af_tensor = torch.from_numpy(np.array(af_list)).to(device)
 
-                if not args.pileup:
+                if not args.pileup:#in collate
+                    # print(f"DEBUG:data shape{input_matrix.shape}")
+                    # print(f"DEBUG:label shape{label_tensor.shape}")
                     input_tensor = torch.from_numpy(np.transpose(input_matrix, (0, 3, 1, 2)) / 100.0).to(device)
+                    # print(f"DEBUG:data shape{input_matrix.shape}")
                 else:
                     input_tensor = torch.from_numpy(input_matrix).to(device)
                 label_tensor = torch.from_numpy(label_for_tumor).to(device)
@@ -399,6 +811,10 @@ def train_model(args):
     training_loss, validation_loss = 0.0, 0.0
     training_step, validation_step = 0, 0
     echo_each_step = 200
+    if args.gpu_csv_fn is not None and check_gpu_status:
+        monitor = GPU_Monitor(gpu_id=0, interval=1, duration=120, csv_file = args.gpu_csv_fn)  # Monitor for 5 minutes
+        monitor.start()
+
     for epoch in range(1, max_epoch + 1):
         epoch_loss = 0
         fp, tp, fn = 0, 0, 0
@@ -410,6 +826,8 @@ def train_model(args):
             t.set_description('EPOCH {}'.format(epoch))
             data = data.to(device)
             label = label.to(device)
+            # print(f"DEBUG:data shape{data.shape}")
+            # print(f"DEBUG:label shape{label.shape}")
             output_logit = model(data).contiguous()
             y_truth = torch.argmax(label, axis=1)
             optimizer.zero_grad()
@@ -544,6 +962,12 @@ def main():
     parser.add_argument('--exclude_training_samples', type=str, default=None,
                         help="Define training samples to be excluded")
 
+    parser.add_argument('--torch_dataset_num_workers', type=int, default=6,
+                        help="Threads for torch dataset to preload datasets")
+
+    parser.add_argument('--torch_dataset_prefetch_factor', type=int, default=10,
+                        help="Prefetch factor for torch dataset to preload datasets")
+
     # mutually-incompatible validation options
     vgrp = parser.add_mutually_exclusive_group()
     vgrp.add_argument('--random_validation', action='store_true',
@@ -584,13 +1008,17 @@ def main():
     parser.add_argument('--phase_tumor', type=str2bool, default=False,
                         help=SUPPRESS)
 
+    parser.add_argument('--gpu_csv_fn', type=str, default=None,
+                        help=SUPPRESS)
+
     args = parser.parse_args()
 
     if len(sys.argv[1:]) == 0:
         parser.print_help()
         sys.exit(1)
 
-    train_model(args)
+    # train_model(args) is deprecated since v0.2.1 for better GPU utilization
+    train_model_torch_dataset(args)
 
 
 if __name__ == "__main__":
