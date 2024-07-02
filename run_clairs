@@ -666,6 +666,14 @@ def check_args(args):
     if args.use_longphase_for_intermediate_haplotagging is None:
         args.use_longphase_for_intermediate_haplotagging = True
 
+    if args.enable_cnv_germline_tagging:
+        logging(log_warning(
+            "[INFO] The --enable_cnv_germline_tagging option currently only works for GRCh38 reference genome!"))
+        if args.cnv_resource_dir is None:
+            args.cnv_resource_dir = os.path.join(args.conda_prefix, 'bin', 'cnv_data', 'reference_files')
+        if args.allele_counter_dir is None:
+            args.allele_counter_dir = os.path.join(file_directory, 'src', 'allele_counter', 'bin')
+
     if args.genotyping_mode_vcf_fn is not None or args.hybrid_mode_vcf_fn is not None:
         logging(log_warning("[INFO] Enable --print_ref_calls and --print_germline_calls options in genotyping mode!"))
         args.print_ref_calls = True
@@ -1228,6 +1236,19 @@ def somatic_calling(args):
         genotyping_command += ' 2>&1 | tee ' + args.output_dir + '/logs/6_GT.log'
         commands_list += [genotyping_command]
 
+    if args.enable_cnv_germline_tagging:
+        echo_list.append("[INFO] Add CNV germline tagging to output VCF")
+        cnv_germline_tagging_command = args.python + ' ' + main_entry + ' cnv_germline_tagging'
+        cnv_germline_tagging_command += ' --tumor_bam_fn ' + args.tumor_bam_fn
+        cnv_germline_tagging_command += ' --normal_bam_fn ' + args.normal_bam_fn
+        cnv_germline_tagging_command += ' --input_vcf_fn ' + args.output_dir + '/{}.vcf'.format(args.output_prefix)
+        cnv_germline_tagging_command += ' --allele_counter ' + args.output_dir + '/{}.vcf'.format(args.output_prefix)
+        cnv_germline_tagging_command += ' --cnv_resource_dir ' + args.cnv_resource_dir
+        cnv_germline_tagging_command += ' --output_fn ' + args.output_dir + '/{}.vcf'.format(args.output_prefix)
+        cnv_germline_tagging_command += ' 2>&1 | tee ' + args.output_dir + '/logs/7_CGT.log'
+        commands_list += [cnv_germline_tagging_command]
+
+
     if args.enable_indel_calling:
         ##STEP 2: CREATE PAIR TENSOR
         echo_list.append("[INFO] STEP 6: Indel Pileup Model Calling\n")
@@ -1675,6 +1696,12 @@ def somatic_parser():
         help="EXPERIMENTAL: Use Clair3 default calling settings than Clair3 fast calling setting for tumor and normal germline varaint calling. The calling time would increase ~40 percent, Default: disabled"
     )
 
+    optional_params.add_argument(
+        "--enable_cnv_germline_tagging",
+        action='store_true',
+        help="EXPERIMENTAL: Use Verdict to tag the germline variant in CNV regions. We suggest using the parameter only for sample with tumor purity lower than 0.8, Default: disabled"
+    )
+
     ont_params.add_argument(
         "--indel_output_prefix",
         type=str,
@@ -1897,6 +1924,20 @@ def somatic_parser():
 
     optional_params.add_argument(
         "--output_path",
+        type=str,
+        default=None,
+        help=SUPPRESS
+    )
+
+    optional_params.add_argument(
+        "--cnv_resource_dir",
+        type=str,
+        default=None,
+        help=SUPPRESS
+    )
+
+    optional_params.add_argument(
+        "--allele_counter_dir",
         type=str,
         default=None,
         help=SUPPRESS
