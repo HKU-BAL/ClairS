@@ -69,6 +69,13 @@ ENV CONDA_DEFAULT_ENV clairs
 
 COPY . .
 
+RUN apt install curl zlib1g-dev libbz2-dev liblzma-dev libcurl4-openssl-dev -y && cd /opt/bin/src/allele_counter && chmod +x setup.sh && /bin/bash setup.sh /opt/bin/src/allele_counter
+
+RUN apt install r-base -y && /opt/conda/python3 -m pip install scipy && \
+    wget http://www.bio8.cs.hku.hk/clairs/data/reference_files.tar.gz -P /opt/cnv_data && \
+    mkdir -p /opt/cnv_data && \
+    tar -zxvf /opt/cnv_data/reference_files.tar.gz -C /opt/cnv_data
+
 RUN /bin/bash -c "source activate clairs" && cd /opt/bin/src/realign && \
     g++ -std=c++14 -O1 -shared -fPIC -o realigner ssw_cpp.cpp ssw.c realigner.cpp && \
     g++ -std=c++11 -shared -fPIC -o debruijn_graph -O3 debruijn_graph.cpp && \
