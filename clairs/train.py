@@ -37,7 +37,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, Subset
 
 import threading
 import time
@@ -82,6 +82,8 @@ class BinFileDataset(Dataset):
         self.chunk_size = chunk_size
         self.batch_size = batch_size
         self.add_af_in_label = add_af_in_label
+        self.random_start_position = None
+        self.train_flag = True
 
         ### Dataset Initialization
         self.table_dataset_list, self.chunk_offset = self._populate_dataset_table(file_list, file_path)
@@ -108,8 +110,13 @@ class BinFileDataset(Dataset):
     def __getitem__(self, idx):
         bin_idx, chunk_idx = self._get_file_and_chunk_index(idx)
         start_idx = chunk_idx * self.chunk_size
+        start_idx += self.random_start_position if self.random_start_position is not None and self.train_flag else 0
         end_idx = start_idx + self.chunk_size
         num_rows = len(self.table_dataset_list[bin_idx].root.input_matrix)
+        if end_idx > num_rows:
+            end_idx = num_rows
+        if start_idx >= num_rows:
+            start_idx = num_rows - 1
         assert end_idx <= num_rows, f"Index out of range: {end_idx} > {num_rows}"
         current_tensor = self.table_dataset_list[bin_idx].root.input_matrix[start_idx:end_idx]
         current_label = self.table_dataset_list[bin_idx].root.label[start_idx:end_idx]
@@ -371,7 +378,13 @@ def train_model_torch_dataset(args):
             validate_chunk_num = int(
                 max(1., np.floor(total_batches * (1 - training_dataset_percentage))) * chunks_per_batch)
             train_chunk_num = int(total_chunks - validate_chunk_num)
-            train_dataset, val_dataset = random_split(total_dataset, [train_chunk_num, validate_chunk_num])
+
+            train_indices = list(range(train_chunk_num))
+            val_indices = list(range(train_chunk_num, train_chunk_num + validate_chunk_num))
+
+            train_dataset = Subset(total_dataset, train_indices)
+            val_dataset = Subset(total_dataset, val_indices)
+
             #set the training dataset to:no debug mode
             train_dataset.dataset.debug_mode = False
             val_dataset.dataset.add_af_in_label = False
@@ -438,6 +451,11 @@ def train_model_torch_dataset(args):
     for epoch in range(1, max_epoch + 1):
         epoch_loss = 0
         fp, tp, fn = 0, 0, 0
+
+        #set a random start position for each epoch training
+        np.random.seed(epoch)
+        train_dataset.dataset.random_start_position = np.random.randint(0, chunk_size)
+        train_dataset.dataset.train_flag = True
         t = tqdm(enumerate(train_dataloader), total=train_steps, position=0, leave=True)
         v = tqdm(enumerate(validate_dataloader), total=validate_steps, position=0,
                  leave=True) if not debug_mode else enumerate(validate_dataloader)
@@ -498,6 +516,8 @@ def train_model_torch_dataset(args):
         val_fp, val_tp, val_fn = 0, 0, 0
         val_epoch_loss = 0
         model.eval()
+        val_dataset.dataset.train_flag = False
+        val_dataset.dataset.random_start_position = None
         for batch_idx, batch_tuple in v:
             data, label, position_info, normal_info, tumor_info = None, None, None, None, None
             if not debug_mode:
