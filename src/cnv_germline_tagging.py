@@ -27,214 +27,163 @@
 # CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
+import subprocess
 import sys
 import os
 
 from argparse import ArgumentParser
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__))))
 from shared.vcf import VcfReader
 from src.sort_vcf import compress_index_vcf
 from numpy import *
 from scipy.stats import binomtest
 
 file_directory = os.path.dirname(os.path.realpath(__file__))
-R_entry = os.path.join(file_directory, "compute_purity.R")
+entry_path = os.path.join(file_directory, 'verdict')
+
+def tumor_allele_counter_command(args):
+    #allele counter
+    command = f'time {args.parallel} -j{args.threads} '
+    command += f'LD_LIBRARY_PATH="$LD_LIBRARY_PATH:{args.allele_counter}/lib" {args.allele_counter}/bin/alleleCounter '
+    command += f'-b {args.tumor_bam_fn} '
+    command += f'-l {args.cnv_resource_dir}/loci_files/G1000_loci_hg38_{{1}}.txt '
+    command += f'-o {args.output_dir}/{args.tumor_sample_name}_AlleleCount_{{1}}.txt '
+    command += '-m 20 '
+    command += '-q 20 '
+    command += '-f 0 '
+    command += '-F 2316 '
+    command += '--dense-snps '
+    command += f':::: {args.contig_fn}'
+
+    return command
+
+def normal_allele_counter_command(args):
+    command = f'time {args.parallel} -j{args.threads} '
+    command += f'LD_LIBRARY_PATH="$LD_LIBRARY_PATH:{args.allele_counter}/lib" {args.allele_counter}/bin/alleleCounter '
+    command += f'-b {args.normal_bam_fn} '
+    command += f'-l {args.cnv_resource_dir}/loci_files/G1000_loci_hg38_{{1}}.txt '
+    command += f'-o {args.output_dir}/{args.normal_sample_name}_AlleleCount_{{1}}.txt '
+    command += '-m 20 '
+    command += '-q 20 '
+    command += '-f 0 '
+    command += '-F 2316 '
+    command += '--dense-snps '
+    command += f':::: {args.contig_fn}'
+
+    return command
+
+def get_logr_baf_command(args):
+
+    command = f'time {args.python} {args.verdict}/get_logr_and_baf.py '
+    command += f'--tumor_allele_counts_file_prefix {args.output_dir}/{args.tumor_sample_name}_AlleleCount_ '
+    command += f'--normal_allele_counts_file_prefix {args.output_dir}/{args.normal_sample_name}_AlleleCount_ '
+    command += f'--alleles_file_prefix {args.cnv_resource_dir}/allele_files/G1000_alleles_hg38_ '
+    command += f'--tumor_logr_output_file {args.output_dir}/{args.tumor_sample_name}_Tumor_LogR.txt '
+    command += f'--tumor_baf_output_file {args.output_dir}/{args.tumor_sample_name}_Tumor_BAF.txt '
+    command += f'--normal_baf_output_file {args.output_dir}/{args.normal_sample_name}_Normal_BAF.txt '
+    command += f'--sample_name {args.tumor_sample_name} '
+    command += f'--normal_sample_name {args.normal_sample_name}'
+
+    return command
+
+def correct_logr_command(args):
+    command = f'time {args.python} {args.verdict}/correct_logr.py '
+    command += f'--tumor_logr_file {args.output_dir}/{args.tumor_sample_name}_Tumor_LogR.txt '
+    command += f'--gc_content_file {args.cnv_resource_dir}/GC_G1000_hg38.txt '
+    command += f'--replication_timing_file {args.cnv_resource_dir}/RT_G1000_hg38.txt '
+    command += f'--tumor_logr_correction_output_file {args.output_dir}/{args.tumor_sample_name}_Tumor_LogR_Correction.txt '
+    command += f'--sample_name {args.tumor_sample_name}'
+
+    return command
 
 
-def filter_germline_variant(args):
+def predict_germline_genotypes_command(args):
+    command = f'time {args.python} {args.verdict}/predict_germline_genotypes.py '
+    command += f'--tumor_logr_file {args.output_dir}/{args.tumor_sample_name}_Tumor_LogR_Correction.txt '
+    command += f'--tumor_baf_file {args.output_dir}/{args.tumor_sample_name}_Tumor_BAF.txt '
+    command += f'--normal_baf_file {args.output_dir}/{args.normal_sample_name}_Normal_BAF.txt '
+    command += f'--germline_genotypes_output_file {args.output_dir}/{args.tumor_sample_name}_Tumor_GG.txt '
+    command += f'--sample_name {args.tumor_sample_name}'
 
-    output_dir = args.output_dir
-    input_vcf_fn = args.input_vcf_fn
-    # cna_fn = args.cna_fn
-    # tumor_purity = args.tumor_purity
-
-
-    tumor_purity_path = os.path.join(output_dir, 'tumor_purity')
-    segment_path = os.path.join(output_dir, 'normal.segments.txt')
-    if not os.path.exists(tumor_purity_path) or not os.path.exists(segment_path):
-        return
-
-    tumor_purity = float(open(tumor_purity_path).read().rstrip())
-
-    input_vcf_reader = VcfReader(
-            vcf_fn=input_vcf_fn,
-            show_ref=True,
-            keep_row_str=True,
-            keep_af=True,
-            skip_genotype=True,
-            save_header=True,
-            filter_tag='PASS'
-    )
-    input_vcf_reader.read_vcf()
-    input_variant_dict = input_vcf_reader.variant_dict
-
-    cna_file = open(segment_path, 'r')
-
-    seg_chr_list = []
-    seg_start_list = []
-    seg_end_list = []
-    cn_major_list = []
-    cn_minor_list = []
-    for idx, cna in enumerate(cna_file.readlines()):
-        if idx == 0:
-            continue
-        cna_columns = cna.strip().split('\t')
-        seg_chr = "chr" + str(cna_columns[1].strip('"'))
-        seg_start = int(cna_columns[2])
-        seg_end = int(cna_columns[3])
-        cn_major = int(cna_columns[4])
-        cn_minor = int(cna_columns[5])
-        seg_chr_list.append(seg_chr)
-        seg_start_list.append(seg_start)
-        seg_end_list.append(seg_end)
-        cn_major_list.append(cn_major)
-        cn_minor_list.append(cn_minor)
-
-    cna_file.close()
-    high_purity_tresh = 0.95
-    ALPHA = 0.01
-
-    not_pass_count = 0
-    for k, v in input_variant_dict.items():
-        frequency = v.af
-        columns = v.row_str.strip().split('\t')
-        depth = int(columns[9].strip().split(':')[2])
-        ctg_name = str(columns[0])
-        pos = int(columns[1])
-        p = M = C = nan
-        segFound = 0
-        clonality = 'NA'
-        in_tumor = 'NA'
-        SG_status = 'somatic'
-        for i in range(len(seg_chr_list)):
-            seg_chr = seg_chr_list[i]
-            seg_start = seg_start_list[i]
-            seg_end = seg_end_list[i]
-            cn_major = cn_major_list[i]
-            cn_minor = cn_minor_list[i]
-            if seg_chr == ctg_name and seg_start <= pos <= seg_end:
-                segFound = 1
-                p = tumor_purity
-                M = cn_minor
-                C = cn_major + cn_minor
-                if M == 0:
-                    M = C - M
-                P_G1 = P_G2 = P_S1 = P_S2 = 0
-                AF_G1 = (p * M + 1 * (1 - p)) / (p * C + 2 * (1 - p) + sys.float_info.epsilon)
-                AF_S1 = (p * M + 0 * (1 - p)) / (p * C + 2 * (1 - p) + sys.float_info.epsilon)
-                P_G1 = binomtest(round(depth * frequency), depth, AF_G1).pvalue
-                P_S1 = binomtest(round(depth * frequency), depth, AF_S1).pvalue
-                if M != C - M:
-                    AF_G2 = (p * (C - M) + 1 * (1 - p)) / (p * C + 2 * (1 - p) + sys.float_info.epsilon)
-                    P_G2 = binomtest(round(depth * frequency), depth, AF_G2).pvalue
-                    if C - M != 0:
-                        AF_S2 = (p * (C - M) + 0 * (1 - p)) / (p * C + 2 * (1 - p) + sys.float_info.epsilon)
-                        P_S2 = binomtest(round(depth * frequency), depth, AF_S2).pvalue
-                    else:
-                        AF_S2 = P_S2 = nan
-                else:
-                    AF_G2 = AF_S2 = P_G2 = P_S2 = nan
-
-                max_prob_germline = max(P_G1, P_G2)
-                max_prob_somatic = max(P_S1, P_S2)
-
-                if max_prob_somatic == 0:
-                    logodds = inf
-                elif max_prob_germline == 0:
-                    logodds = -inf
-                else:
-                    logodds = log10(max_prob_germline) - log10(max_prob_somatic)
-
-                if frequency < 0.05 and 0.2 < p < 0.9:
-                    SG_status = 'subclonal somatic'
-                    columns[6] += ';SubclonalSomatic'
-
-                elif isnan(C) or isnan(M):
-                    SG_status = 'ambiguous_CNA_model'
-                    # columns[6] += ';AmbiguousCNA'
-
-                elif p > 0.95:
-                    SG_status = 'nocall_purity>95%'
-                    # columns[6] += ';NoCallPurity'
-
-                elif frequency > 0.95:
-                    SG_status = 'germline'
-                    columns[6] += 'Germline'
-
-                elif max_prob_germline > ALPHA and max_prob_somatic < ALPHA:
-                    if logodds < 2:
-                        SG_status = 'probable germline'
-                        columns[6] += ';ProbableGermline'
-                    else:
-                        if frequency > 0.25:
-                            SG_status = 'germline'
-                            columns[6] += ';Germline'
-                        else:
-                            SG_status = 'probable germline'
-                            columns[6] += ';ProbableGermline'
-
-                elif max_prob_germline < ALPHA and max_prob_somatic > ALPHA:
-                    if logodds > -2:
-                        SG_status = 'probable somatic'
-                    else:
-                        SG_status = 'somatic'
-
-                    if nanargmax([P_S1, P_S2]) == 1:
-                        M = C - M
-
-                elif max_prob_germline > ALPHA and max_prob_somatic > ALPHA:
-                    SG_status = 'ambiguous_both_G_and_S'
-
-                elif max_prob_germline < ALPHA and max_prob_somatic < ALPHA:
-
-                    min_soma_EAF = min(AF_S1, AF_S2)
-                    min_germ_EAF = min(AF_G1, AF_G2)
-
-                    if p >= 0.3 and frequency < 0.25 and frequency < min_soma_EAF / 1.5 and min_soma_EAF <= min_germ_EAF:
-                        SG_status = 'subclonal somatic'
-                        columns[6] += ';SubclonalSomatic'
-
-                    elif p >= 0.3 and frequency < 0.25 and frequency < min_germ_EAF / 2.0 and min_germ_EAF < min_soma_EAF:
-                        SG_status = 'subclonal somatic'
-                        columns[6] += ';SubclonalSomatic'
-
-                    elif logodds < -5 and max_prob_somatic > 1e-10:
-                        SG_status = 'somatic'
-                        columns[6] += ';Somatic'
-
-                        if nanargmax([P_S1, P_S2]) == 1:
-                            M = C - M
-
-                    elif logodds > 5 and max_prob_germline > 1e-4:
-                        SG_status = 'germline'
-                        columns[6] += 'Germline'
-
-                    else:
-                        SG_status = 'ambiguous_neither_G_nor_S'
-
-                else:
-                    SG_status = 'unknown'
-
-                break
+    return command
 
 
-        v.row_str = '\t'.join(columns) + '\n'
+def create_aspcf_command(args):
+    command = f'time {args.python} {args.verdict}/aspcf.py '
+    command += f'--tumor_logr_file {args.output_dir}/{args.tumor_sample_name}_Tumor_LogR_Correction.txt '
+    command += f'--tumor_baf_file {args.output_dir}/{args.tumor_sample_name}_Tumor_BAF.txt '
+    command += f'--germline_genotypes_file {args.output_dir}/{args.tumor_sample_name}_Tumor_GG.txt '
+    command += f'--tumor_logr_pcfed_output_file {args.output_dir}/{args.tumor_sample_name}_Tumor_LogR_PCFed.txt '
+    command += f'--tumor_baf_pcfed_output_file {args.output_dir}/{args.tumor_sample_name}_Tumor_BAF_PCFed.txt '
+    command += f'--penalty 500 '
+    command += f'--sample_name {args.tumor_sample_name}'
 
-    with open(args.output_fn, 'w') as f:
-        #write header
-        header = input_vcf_reader.header
-        f.write(header+'\n')
-        for k, v in input_variant_dict.items():
-            f.write(v.row_str)
-
-    if os.path.exists(args.output_fn):
-        compress_index_vcf(args.output_fn)
+    return command
 
 
-def get_purities_segments(args):
-    r_command = args.R + ' -e '
-    r_command += R_entry + ' '
+def create_verdict_run_ascat_command(args):
+    command = f'time {args.python} {args.verdict}/run_ascat.py '
+    command += f'--tumor_logr_file {args.output_dir}/{args.tumor_sample_name}_Tumor_LogR_Correction.txt '
+    command += f'--tumor_baf_file {args.output_dir}/{args.tumor_sample_name}_Tumor_BAF.txt '
+    command += f'--germline_genotypes_file {args.output_dir}/{args.tumor_sample_name}_Tumor_GG.txt '
+    command += f'--tumor_logr_segmented_file {args.output_dir}/{args.tumor_sample_name}_Tumor_LogR_PCFed.txt '
+    command += f'--tumor_baf_segmented_file {args.output_dir}/{args.tumor_sample_name}_Tumor_BAF_PCFed.txt '
+    command += f'--tumor_purity_ploidy_output_file {args.output_dir}/{args.tumor_sample_name}_Tumor_Purity_Ploidy.txt '
+    command += f'--tumor_cna_output_file {args.output_dir}/{args.tumor_sample_name}_Tumor_CNA.txt '
+    command += f'--gamma 1.0 '
+    command += f'--min_ploidy 1.5 '
+    command += f'--max_ploidy 5.5 '
+    command += f'--min_purity 0.1 '
+    command += f'--max_purity 1.05 '
+    command += f'--sample_name {args.tumor_sample_name}'
 
+    return command
+
+def tag_germline_variant(args):
+    command = f'time {args.python} {args.verdict}/tag_germline_variant.py '
+    command += f'--input_vcf_fn {args.input_vcf_fn} '
+    command += f'--output_fn {args.output_fn} '
+    command += f'--tumor_purity_ploidy_output_file {args.output_dir}/{args.tumor_sample_name}_Tumor_Purity_Ploidy.txt '
+    command += f'--tumor_cna_output_file {args.output_dir}/{args.tumor_sample_name}_Tumor_CNA.txt '
+
+    return command
+
+def get_cnv_purity(args):
+
+    args.verdict = args.verdict if args.verdict else entry_path
+
+    if args.output_dir is not None and os.path.exists(args.output_dir):
+        subprocess.run(f'mkdir -p {args.output_dir}', shell=True)
+
+    tac_command = tumor_allele_counter_command(args)
+    nac_command = normal_allele_counter_command(args)
+
+    glb_command = get_logr_baf_command(args)
+    cl_command = correct_logr_command(args)
+    pgg_command = predict_germline_genotypes_command(args)
+    ca_command = create_aspcf_command(args)
+    cvra_command = create_verdict_run_ascat_command(args)
+    tg_command = tag_germline_variant(args)
+
+    print(tac_command)
+    print(nac_command)
+    print(glb_command)
+    print(cl_command)
+    print(pgg_command)
+    print(ca_command)
+    print(cvra_command)
+    print(tg_command)
+    commands_list = (tac_command, nac_command, glb_command, cl_command, pgg_command, ca_command, cvra_command, tg_command)
+    for i, command in enumerate(zip(commands_list)):
+
+        print(f"[INFO] STEP {i} RUN THE FOLLOWING COMMAND FOR CNV GERMLINE TAGGING:")
+
+        try:
+            return_code = subprocess.check_call(command, shell=True, stdout=sys.stdout)
+        except subprocess.CalledProcessError as e:
+            sys.stderr.write("ERROR in STEP {}, THE FOLLOWING COMMAND FAILED: {}\n".format(i + 1, command))
+            exit(1)
+        print('')
 
 def main():
     parser = ArgumentParser(description="add cnv tag into output_vcf file with the same input prefix")
@@ -252,7 +201,7 @@ def main():
                         help="Output directory")
 
     parser.add_argument('--output_dir', type=str, default=None,
-                        help="Output file name")
+                        help="Output directory")
 
     parser.add_argument('--output_fn', type=str, default=None,
                         help="Output file name")
@@ -263,15 +212,53 @@ def main():
     parser.add_argument('--is_indel', action='store_true',
                         help="Indel input_candidates")
 
-    parser.add_argument('--R', type=str, default='R',
-                        help="The binary path of R, required")
+    parser.add_argument('--python', type=str, default='python3',
+                        help="Absolute path of python, python3 >= 3.9 is required")
+
+    parser.add_argument('--parallel', type=str, default='parallel',
+                        help="Absolute path of parallel, parallel >= 20191122 is required")
+
+    parser.add_argument('--pypy', type=str, default='pypy',
+                        help="Absolute path of pypy3, pypy3 >= 3.6 is required")
+
+    parser.add_argument('--contig_fn', type=str, default=None,
+                        help="All contig name")
+
+    parser.add_argument('--tumor_sample_name', type=str, default='tumor',
+                        help="Sample name")
+
+    parser.add_argument('--normal_sample_name', type=str, default='normal',
+                        help="Normal sample name")
+
+    parser.add_argument('--allele_counter', type=str, default=None,
+                        help="Directory of allele counter")
+
+    parser.add_argument('--cnv_resource_dir', type=str, default=None,
+                        help="Reference resource of CNV directory")
+
+    parser.add_argument('--threads', type=int, default=None,
+                        help="Threads to use")
+
+    parser.add_argument('--verdict', type=str, default=None,
+                        help="Path of entry path")
 
     args = parser.parse_args()
 
-    #excuate R script
-    get_purities_segments(args)
+    args.tumor_bam_fn = "/autofs/bal13/lchen/home/data/ont/contam/tumor_wgs_0.6/tumor_purity_0.6.bam"
+    args.normal_bam_fn = "/autofs/bal36/zxzheng/somatic/data/hcc1395_data/downsample/hcc1395bl_25x.bam"
+    args.input_vcf_fn = "/autofs/bal36/zxzheng/verdict/test/input.vcf"
+    args.allele_counter = "/autofs/bal36/zxzheng/somatic/Clair-somatic/scripts/ont/verdict/ac/alleleCount"
+    args.cnv_resource_dir = "/autofs/bal36/zxzheng/somatic/Clair-somatic/scripts/ont/verdict/reference_files"
+    args.output_fn = "/autofs/bal36/zxzheng/verdict/test/output.vcf"
+    args.output_dir = "/autofs/bal36/zxzheng/verdict/test/tmp"
+    args.threads = 20
+    args.parallel = "/autofs/bal33/zxzheng/env/conda/envs/clair-somatic/bin/parallel"
+    args.python = "/autofs/bal33/zxzheng/env/conda/envs/clair-somatic/bin/python"
+    args.contig_fn = "/autofs/bal13/lchen/verdict/CONTIGS"
+    args.sample_name = "sample"
+    get_cnv_purity(args)
 
-    filter_germline_variant(args)
+    # filter_germline_variant(args)
 
 if __name__ == "__main__":
     main()
