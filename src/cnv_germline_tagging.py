@@ -165,14 +165,6 @@ def get_cnv_purity(args):
     cvra_command = create_verdict_run_ascat_command(args)
     tg_command = tag_germline_variant(args)
 
-    print(tac_command)
-    print(nac_command)
-    print(glb_command)
-    print(cl_command)
-    print(pgg_command)
-    print(ca_command)
-    print(cvra_command)
-    print(tg_command)
     commands_list = (tac_command, nac_command, glb_command, cl_command, pgg_command, ca_command, cvra_command, tg_command)
     for i, command in enumerate(zip(commands_list)):
 
@@ -244,18 +236,6 @@ def main():
 
     args = parser.parse_args()
 
-    args.tumor_bam_fn = "/autofs/bal13/lchen/home/data/ont/contam/tumor_wgs_0.6/tumor_purity_0.6.bam"
-    args.normal_bam_fn = "/autofs/bal36/zxzheng/somatic/data/hcc1395_data/downsample/hcc1395bl_25x.bam"
-    args.input_vcf_fn = "/autofs/bal36/zxzheng/verdict/test/input.vcf"
-    args.allele_counter = "/autofs/bal36/zxzheng/somatic/Clair-somatic/scripts/ont/verdict/ac/alleleCount"
-    args.cnv_resource_dir = "/autofs/bal36/zxzheng/somatic/Clair-somatic/scripts/ont/verdict/reference_files"
-    args.output_fn = "/autofs/bal36/zxzheng/verdict/test/output.vcf"
-    args.output_dir = "/autofs/bal36/zxzheng/verdict/test/tmp"
-    args.threads = 20
-    args.parallel = "/autofs/bal33/zxzheng/env/conda/envs/clair-somatic/bin/parallel"
-    args.python = "/autofs/bal33/zxzheng/env/conda/envs/clair-somatic/bin/python"
-    args.contig_fn = "/autofs/bal13/lchen/verdict/CONTIGS"
-    args.sample_name = "sample"
     get_cnv_purity(args)
 
     # filter_germline_variant(args)
