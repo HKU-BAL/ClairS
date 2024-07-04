@@ -21,14 +21,13 @@ def tag_germline_variant(args):
 
     input_vcf_fn = args.input_vcf_fn
 
-    tumor_purity_path = args.tumor_cna_output_file
+    tumor_purity_path = args.tumor_purity_ploidy_output_file
 
-    segment_path = args.cna_output_file
+    segment_path = args.tumor_cna_output_file
     if not os.path.exists(tumor_purity_path) or not os.path.exists(segment_path):
         return
 
-    tumor_purity = float(open(tumor_purity_path).read().rstrip())
-
+    tumor_purity = float(open(tumor_purity_path).read().rstrip().split('\n')[1].split('\t')[1])
     input_vcf_reader = VcfReader(
             vcf_fn=input_vcf_fn,
             show_ref=True,
@@ -52,7 +51,7 @@ def tag_germline_variant(args):
         if idx == 0:
             continue
         cna_columns = cna.strip().split('\t')
-        seg_chr = "chr" + str(cna_columns[1].strip('"'))
+        seg_chr = str(cna_columns[1].strip('"'))
         seg_start = int(cna_columns[2])
         seg_end = int(cna_columns[3])
         cn_major = int(cna_columns[4])
@@ -149,6 +148,7 @@ def tag_germline_variant(args):
                 elif max_prob_germline < ALPHA and max_prob_somatic > ALPHA:
                     if logodds > -2:
                         SG_status = 'probable somatic'
+                        columns[6] += ';ProbableSomatic'
                     else:
                         SG_status = 'somatic'
 
@@ -196,7 +196,7 @@ def tag_germline_variant(args):
     with open(args.output_fn, 'w') as f:
         #write header
         header = input_vcf_reader.header
-        f.write(header+'\n')
+        f.write(header)
         for k, v in input_variant_dict.items():
             f.write(v.row_str)
 
@@ -224,7 +224,6 @@ def main():
                         help="Output file path")
 
     global args
-
     args = parser.parse_args()
     tag_germline_variant(args)
 
