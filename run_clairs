@@ -668,7 +668,7 @@ def check_args(args):
 
     if args.enable_cnv_germline_tagging:
         logging(log_warning(
-            "[INFO] The --enable_cnv_germline_tagging option currently only works for GRCh38 reference genome!"))
+            "[WARNING] The --enable_cnv_germline_tagging option currently only works for GRCh38 reference genome!"))
         if args.cnv_resource_dir is None:
             args.cnv_resource_dir = os.path.join(args.conda_prefix, 'bin', 'cnv_data', 'reference_files')
         if args.allele_counter_dir is None:
@@ -1242,9 +1242,14 @@ def somatic_calling(args):
         cnv_germline_tagging_command += ' --tumor_bam_fn ' + args.tumor_bam_fn
         cnv_germline_tagging_command += ' --normal_bam_fn ' + args.normal_bam_fn
         cnv_germline_tagging_command += ' --input_vcf_fn ' + args.output_dir + '/{}.vcf'.format(args.output_prefix)
-        cnv_germline_tagging_command += ' --allele_counter ' + args.output_dir + '/{}.vcf'.format(args.output_prefix)
-        cnv_germline_tagging_command += ' --cnv_resource_dir ' + args.cnv_resource_dir
-        cnv_germline_tagging_command += ' --output_fn ' + args.output_dir + '/{}.vcf'.format(args.output_prefix)
+        cnv_germline_tagging_command += ' --allele_counter ' + str(args.allele_counter_dir)
+        cnv_germline_tagging_command += ' --cnv_resource_dir ' + str(args.cnv_resource_dir)
+        cnv_germline_tagging_command += ' --output_fn ' + args.output_dir + '/{}_cnv_germline_tagged.vcf.gz'.format(args.output_prefix)
+        cnv_germline_tagging_command += ' --output_dir ' + args.output_dir + '/tmp/cnv_output'
+        cnv_germline_tagging_command += ' --parallel ' + args.parallel
+        cnv_germline_tagging_command += ' --python ' + args.python
+        cnv_germline_tagging_command += ' --contig_fn ' + args.output_dir + '/tmp/CONTIGS'
+        cnv_germline_tagging_command += ' --threads ' + str(args.threads)
         cnv_germline_tagging_command += ' 2>&1 | tee ' + args.output_dir + '/logs/7_CGT.log'
         commands_list += [cnv_germline_tagging_command]
 

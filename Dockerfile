@@ -81,7 +81,7 @@ RUN /bin/bash -c "source activate clairs" && cd /opt/bin/src/realign && \
     mkdir -p /opt/conda/envs/clairs/bin/clairs_models && \
     tar -zxvf /opt/models/clairs_models.tar.gz -C /opt/conda/envs/clairs/bin/clairs_models && \
     rm /opt/models/clairs_models.tar.gz && \
-    mkdir -p /opt/cnv_data && \
+    mkdir -p /opt/conda/envs/clairs/bin/cnv_data && \
     wget http://www.bio8.cs.hku.hk/clairs/data/reference_files.tar.gz -P /opt/cnv_data && \
     tar -zxvf /opt/cnv_data/reference_files.tar.gz -C /opt/conda/envs/clairs/bin/cnv_data && rm -rf /opt/cnv_data/reference_files.tar.gz && \
     echo 'will cite' | parallel --citation || true \

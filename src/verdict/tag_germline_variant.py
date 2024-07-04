@@ -131,7 +131,7 @@ def tag_germline_variant(args):
 
                 elif frequency > 0.95:
                     SG_status = 'germline'
-                    columns[6] += 'Germline'
+                    columns[6] += ';Germline'
 
                 elif max_prob_germline > ALPHA and max_prob_somatic < ALPHA:
                     if logodds < 2:
