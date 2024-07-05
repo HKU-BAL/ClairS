@@ -115,7 +115,7 @@ def create_aspcf_command(args):
     command += f'--germline_genotypes_file {args.output_dir}/{args.tumor_sample_name}_Tumor_GG.txt '
     command += f'--tumor_logr_pcfed_output_file {args.output_dir}/{args.tumor_sample_name}_Tumor_LogR_PCFed.txt '
     command += f'--tumor_baf_pcfed_output_file {args.output_dir}/{args.tumor_sample_name}_Tumor_BAF_PCFed.txt '
-    command += f'--penalty 500 '
+    command += f'--penalty 1000 '
     command += f'--sample_name {args.tumor_sample_name}'
 
     return command
@@ -238,7 +238,6 @@ def main():
 
     get_cnv_purity(args)
 
-    # filter_germline_variant(args)
 
 if __name__ == "__main__":
     main()
