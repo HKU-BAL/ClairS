@@ -1,6 +1,6 @@
 # parameters
 caller_name = "clairs"
-version = "0.2.0"
+version = "0.2.1"
 
 from itertools import accumulate
 
@@ -87,10 +87,6 @@ input_shape_dict = {'ilmn': input_shape,
                     'ont': ont_input_shape,
                     'hifi': hifi_input_shape}
 
-upper_beta = 6
-lower_beta = 4
-upper_beta_liqud = 5
-
 # Training hyper parameters
 use_alt_base = True
 label_shape = [3]
@@ -121,6 +117,9 @@ NORMAL_PREFIX = 'n'
 TUMOR_PREFIX = 't'
 variant_type = {'ref', 'homo_somatic', 'homo_germline', 'hetero_germline'}
 grad_norm_clip = 1.0
+upper_beta = 6
+lower_beta = 4
+upper_beta_liqud = 5
 
 use_beta_subsampling = True
 use_exp_subsampling = False
