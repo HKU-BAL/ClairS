@@ -666,21 +666,21 @@ def check_args(args):
     if args.use_longphase_for_intermediate_haplotagging is None:
         args.use_longphase_for_intermediate_haplotagging = True
 
-    if args.enable_cnv_germline_tagging:
+    if args.enable_verdict:
         logging(log_warning(
-            "[WARNING] The --enable_cnv_germline_tagging option currently only works for GRCh38 reference genome!"))
+            "[WARNING] The --enable_verdict option currently only works for GRCh38 reference genome!"))
         if args.cnv_resource_dir is None:
             args.cnv_resource_dir = os.path.join(args.conda_prefix, 'bin', 'cnv_data', 'reference_files')
         if args.allele_counter_dir is None:
             args.allele_counter_dir = os.path.join(file_directory, 'src', 'verdict', 'allele_counter')
         if not os.path.exists(args.allele_counter_dir):
-            args.enable_cnv_germline_tagging = False
+            args.enable_verdict = False
             logging(log_warning(
-                "[WARNING] The allele counter {}is not found, disable the --enable_cnv_germline_tagging option!".format(args.allele_counter_dir)))
+                "[WARNING] The allele counter {}is not found, disable the --enable_verdict option!".format(args.allele_counter_dir)))
         if not os.path.exists(args.cnv_resource_dir):
-            args.enable_cnv_germline_tagging = False
+            args.enable_verdict = False
             logging(log_warning(
-                "[WARNING] The CNV resource directory {} is not found, disable the --enable_cnv_germline_tagging option!".format(args.cnv_resource_dir)))
+                "[WARNING] The CNV resource directory {} is not found, disable the --enable_verdict option!".format(args.cnv_resource_dir)))
 
     if args.genotyping_mode_vcf_fn is not None or args.hybrid_mode_vcf_fn is not None:
         logging(log_warning("[INFO] Enable --print_ref_calls and --print_germline_calls options in genotyping mode!"))
@@ -825,7 +825,7 @@ def print_command_line(args):
         cmdline += '--use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing {} '.format(args.use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing) if args.use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing is not None else ""
         cmdline += '--use_heterozygous_indel_for_intermediate_phasing {} '.format(args.use_heterozygous_indel_for_intermediate_phasing) if args.use_heterozygous_indel_for_intermediate_phasing is not None else ""
         cmdline += '--use_longphase_for_intermediate_haplotagging {} '.format(args.use_longphase_for_intermediate_haplotagging) if args.use_longphase_for_intermediate_haplotagging is not None else ""
-        cmdline += '--enable_cnv_germline_tagging ' if args.enable_cnv_germline_tagging else ""
+        cmdline += '--enable_verdict ' if args.enable_verdict else ""
         cmdline += '--conda_prefix {} '.format(args.conda_prefix) if args.conda_prefix is not None else ""
         args.cmdline = cmdline
     except:
@@ -1245,7 +1245,7 @@ def somatic_calling(args):
         genotyping_command += ' 2>&1 | tee ' + args.output_dir + '/logs/6_GT.log'
         commands_list += [genotyping_command]
 
-    if args.enable_cnv_germline_tagging:
+    if args.enable_verdict:
         echo_list.append("[INFO] Add CNV germline tagging to output VCF")
         cnv_germline_tagging_command = args.python + ' ' + main_entry + ' cnv_germline_tagging'
         cnv_germline_tagging_command += ' --tumor_bam_fn ' + args.tumor_bam_fn
@@ -1711,7 +1711,7 @@ def somatic_parser():
     )
 
     optional_params.add_argument(
-        "--enable_cnv_germline_tagging",
+        "--enable_verdict",
         action='store_true',
         help="EXPERIMENTAL: Use Verdict to tag the germline variant in CNV regions. We suggest using the parameter only for sample with tumor purity lower than 0.8, Default: disabled"
     )

@@ -91,6 +91,8 @@ For somatic variant calling using tumor only sample, please try [ClairS-TO](http
 ------
 
 ## Latest Updates
+*v0.3.0 (Jul 5)* : 1. Added a module called “verdict” (Option `--enable_verdict`) to statistically classify a called variant into either a germline, somatic, or subclonal somatic variant based on the CNV profile and tumor purity estimation. 2. Improved model training speed, reduced model training time cost by about three times.
+
 *v0.2.0 (Apr 29)* : 1. Added `--use_heterozygous_snp_in_normal_sample_for_intermediate_phasing`/`--use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing` option to support using either heterozygous SNPs in the normal sample or tumor sample for intermediate phasing. The previous versions used in_tumor_sample for phasing. In this new version, when testing with ONT 4kkz HCC1395/BL and using in_normal_sample for intermediate phasing, the SNV precision improved ~2%, while recall remained unchanged. in_normal_sample becomes the default from this version. However, if the coverage of normal sample is low, please consider switching back to using in_tumor_sample ([#22](https://github.com/HKU-BAL/ClairS/issues/22), idea contributed by the longphase team @[sloth-eat-pudding](https://github.com/sloth-eat-pudding)). 2. Added `--use_heterozygous_indel_for_intermediate_phasing` to include high quality heterozygous Indels for intermediate phasing. With this new option, the haplotagged tumor reads increased by ~3% in ONT 4khz HCC1395/BL, the option becomes default from this version. 3. Added a model that might provide a slightly better performance for liquid tumor. In this release, only ONT Dorado 5khz HAC for liquid tumor (`-p ont_r10_dorado_hac_5khz_liquid`) is provided. The model was trained with slightly higher normal contamination. We are testing out the new model with collaborator. 4. Added `--use_longphase_for_intermediate_haplotagging` option to replace WhatsHap haplotagging by LongPhase haplotagging to speed up read haplotagging process, the option becomes default from this version. 5. Bumped up Clair3 dependency to version 1.0.7, LongPhase to version 1.7.
 
 *v0.1.7 (Jan 25, 2024)* : 1. Added ONT Dorado 5khz HAC (`-p ont_r10_dorado_hac_5khz`) and Dorado 4khz HAC (`-p ont_r10_dorado_hac_4khz`) model, renamed all ONT Dorado SUP model, check [here](https://github.com/HKU-BAL/ClairS/blob/main/README.md#pre-trained-models) for more details. 2. Enabled somatic variant calling in sex chromosomes. 3. Added `FAU`, `FCU`, `FGU`, `FTU`, `RAU`, `RCU`, `RGU`, and `RTU` tags.
@@ -339,6 +341,10 @@ docker run -it hkubal/clairs:latest /opt/bin/run_clairs --help
                         EXPERIMENTAL: Enable Indel calling, 'ont_r9_guppy' and 'ilmn' platforms are not supported. The calling time would increase significantly. default: disabled.
   --enable_clair3_germline_output
                         EXPERIMENTAL: Use Clair3 default calling settings than Clair3 fast calling setting for tumor and normal germline varaint calling. The calling time would increase ~40 percent, Default: disabled.
+  --enable_verdict      EXPERIMENTAL: Use Verdict to tag the germline variant
+                        in CNV regions. We suggest using the parameter only
+                        for sample with tumor purity lower than 0.8, Default:
+                        disabled
   --use_heterozygous_snp_in_normal_sample_for_intermediate_phasing USE_HETEROZYGOUS_SNP_IN_NORMAL_SAMPLE_FOR_INTERMEDIATE_PHASING
                         EXPERIMENTAL: Use the heterozygous SNPs in normal VCF called by Clair3 for intermediate phasing. Option: {True, False}. Default: True.
   --use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing USE_HETEROZYGOUS_SNP_IN_TUMOR_SAMPLE_FOR_INTERMEDIATE_PHASING
