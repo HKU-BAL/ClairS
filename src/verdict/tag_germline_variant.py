@@ -9,7 +9,7 @@ from shared.vcf import VcfReader
 import subprocess
 from src.sort_vcf import compress_index_vcf
 from numpy import *
-from scipy.stats import binomtest
+from scipy.stats import binom_test
 
 import random
 from time import time
@@ -94,14 +94,14 @@ def tag_germline_variant(args):
                 P_G1 = P_G2 = P_S1 = P_S2 = 0
                 AF_G1 = (p * M + 1 * (1 - p)) / (p * C + 2 * (1 - p) + sys.float_info.epsilon)
                 AF_S1 = (p * M + 0 * (1 - p)) / (p * C + 2 * (1 - p) + sys.float_info.epsilon)
-                P_G1 = binomtest(round(depth * frequency), depth, AF_G1).pvalue
-                P_S1 = binomtest(round(depth * frequency), depth, AF_S1).pvalue
+                P_G1 = binom_test(round(depth * frequency), depth, AF_G1).pvalue
+                P_S1 = binom_test(round(depth * frequency), depth, AF_S1).pvalue
                 if M != C - M:
                     AF_G2 = (p * (C - M) + 1 * (1 - p)) / (p * C + 2 * (1 - p) + sys.float_info.epsilon)
-                    P_G2 = binomtest(round(depth * frequency), depth, AF_G2).pvalue
+                    P_G2 = binom_test(round(depth * frequency), depth, AF_G2).pvalue
                     if C - M != 0:
                         AF_S2 = (p * (C - M) + 0 * (1 - p)) / (p * C + 2 * (1 - p) + sys.float_info.epsilon)
-                        P_S2 = binomtest(round(depth * frequency), depth, AF_S2).pvalue
+                        P_S2 = binom_test(round(depth * frequency), depth, AF_S2).pvalue
                     else:
                         AF_S2 = P_S2 = nan
                 else:

@@ -33,10 +33,7 @@ import os
 
 from argparse import ArgumentParser
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__))))
-from shared.vcf import VcfReader
-from src.sort_vcf import compress_index_vcf
 from numpy import *
-from scipy.stats import binomtest
 
 file_directory = os.path.dirname(os.path.realpath(__file__))
 entry_path = os.path.join(file_directory, 'verdict')
