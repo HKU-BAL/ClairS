@@ -149,7 +149,7 @@ def get_cnv_purity(args):
 
     args.verdict = args.verdict if args.verdict else entry_path
 
-    if args.output_dir is not None and os.path.exists(args.output_dir):
+    if args.output_dir is not None and not os.path.exists(args.output_dir):
         subprocess.run(f'mkdir -p {args.output_dir}', shell=True)
 
     tac_command = tumor_allele_counter_command(args)
