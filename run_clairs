@@ -672,11 +672,13 @@ def check_args(args):
         if args.cnv_resource_dir is None:
             args.cnv_resource_dir = os.path.join(args.conda_prefix, 'bin', 'cnv_data', 'reference_files')
         if args.allele_counter_dir is None:
-            args.allele_counter_dir = os.path.join(file_directory, 'src', 'allele_counter', 'bin')
-        if os.path.exists(args.allele_counter_dir):
+            args.allele_counter_dir = os.path.join(file_directory, 'src', 'verdict', 'allele_counter')
+        if not os.path.exists(args.allele_counter_dir):
+            args.enable_cnv_germline_tagging = False
             logging(log_warning(
                 "[WARNING] The allele counter {}is not found, disable the --enable_cnv_germline_tagging option!".format(args.allele_counter_dir)))
         if not os.path.exists(args.cnv_resource_dir):
+            args.enable_cnv_germline_tagging = False
             logging(log_warning(
                 "[WARNING] The CNV resource directory {} is not found, disable the --enable_cnv_germline_tagging option!".format(args.cnv_resource_dir)))
 
@@ -819,10 +821,11 @@ def print_command_line(args):
         cmdline += '--clair3_snp_min_af {} '.format(args.clair3_snp_min_af) if args.clair3_snp_min_af is not None else ""
         cmdline += '--clair3_indel_min_af {} '.format(args.clair3_indel_min_af) if args.clair3_indel_min_af is not None else ""
         cmdline += '--enable_clair3_germline_output ' if args.enable_clair3_germline_output else ""
-        cmdline += '--use_heterozygous_snp_in_normal_sample_for_intermediate_phasing {}'.format(args.use_heterozygous_snp_in_normal_sample_for_intermediate_phasing) if args.use_heterozygous_snp_in_normal_sample_for_intermediate_phasing is not None else ""
-        cmdline += '--use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing {}'.format(args.use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing) if args.use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing is not None else ""
-        cmdline += '--use_heterozygous_indel_for_intermediate_phasing {}'.format(args.use_heterozygous_indel_for_intermediate_phasing) if args.use_heterozygous_indel_for_intermediate_phasing is not None else ""
-        cmdline += '--use_longphase_for_intermediate_haplotagging {}'.format(args.use_longphase_for_intermediate_haplotagging) if args.use_longphase_for_intermediate_haplotagging is not None else ""
+        cmdline += '--use_heterozygous_snp_in_normal_sample_for_intermediate_phasing {} '.format(args.use_heterozygous_snp_in_normal_sample_for_intermediate_phasing) if args.use_heterozygous_snp_in_normal_sample_for_intermediate_phasing is not None else ""
+        cmdline += '--use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing {} '.format(args.use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing) if args.use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing is not None else ""
+        cmdline += '--use_heterozygous_indel_for_intermediate_phasing {} '.format(args.use_heterozygous_indel_for_intermediate_phasing) if args.use_heterozygous_indel_for_intermediate_phasing is not None else ""
+        cmdline += '--use_longphase_for_intermediate_haplotagging {} '.format(args.use_longphase_for_intermediate_haplotagging) if args.use_longphase_for_intermediate_haplotagging is not None else ""
+        cmdline += '--enable_cnv_germline_tagging ' if args.enable_cnv_germline_tagging else ""
         cmdline += '--conda_prefix {} '.format(args.conda_prefix) if args.conda_prefix is not None else ""
         args.cmdline = cmdline
     except:
