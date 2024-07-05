@@ -473,8 +473,6 @@ def train_model_torch_dataset(args):
             if not args.pileup:
                     data = data.reshape(-1, param.channel_size, param.matrix_depth_dict[platform], param.no_of_positions)
                     data = data.to(device) / 100.0
-                    # data = data.reshape(-1, param.matrix_depth_dict[platform], param.no_of_positions, param.channel_size)
-                    # data = data.permute(0, 3, 1, 2)
             else:
                     data = data.reshape(-1, param.no_of_positions, param.pileup_channel_size*2)
                     data = data.to(device)
