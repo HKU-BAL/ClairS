@@ -73,7 +73,7 @@ torch.backends.cudnn.deterministic = True
 
 
 class BinFileDataset(Dataset):
-    def __init__(self, file_list, file_path, chunk_size, batch_size, debug_mode=False, discard_germline = False, add_af_in_label = False, smoothing = None):
+    def __init__(self, file_list, file_path, chunk_size, batch_size, debug_mode=False, discard_germline = False, add_af_in_label = False, smoothing = None, pileup=True):
         ### Configurations
         self.debug_mode = debug_mode
         self.discard_germline = discard_germline
@@ -89,7 +89,7 @@ class BinFileDataset(Dataset):
         self.table_dataset_list, self.chunk_offset = self._populate_dataset_table(file_list, file_path)
         self.cum_sum = np.cumsum(self.chunk_offset)
         self.total_chunks = sum(self.chunk_offset)
-
+        self.pileup = pileup
         ### Smoothing
         self.positive = 1 - smoothing if smoothing is not None else 1
         self.negative = smoothing if smoothing is not None else 0
@@ -131,7 +131,10 @@ class BinFileDataset(Dataset):
             current_label = [[self.negative, self.negative, self.positive] if np.argmax(item[:3]) == 2 else \
                 [self.negative, self.positive, self.negative] if np.argmax(item[:3]) == 1 else \
                     [self.positive, self.negative, self.negative]for item in current_label]
-        current_label = np.array(current_label)
+
+        if not self.pileup:
+            current_tensor = np.transpose(current_tensor, (0, 3, 1, 2))
+        current_label = np.array(current_label,dtype=np.float32)
         if self.debug_mode:
             position_info = self.table_dataset_list[bin_idx].root.position[start_idx:end_idx]
             normal_info = self.table_dataset_list[bin_idx].root.normal_alt_info[start_idx:end_idx]
@@ -360,17 +363,17 @@ def train_model_torch_dataset(args):
     if validation_fn:
         val_list = os.listdir(validation_fn)
         logging.info("[INFO] total {} validation bin files: {}".format(len(val_list), ','.join(val_list)))
-        train_dataset = BinFileDataset(bin_list, args.bin_fn, chunk_size, batch_size, debug_mode = False, discard_germline = discard_germline, \
-                                       add_af_in_label = param.add_af_in_label, smoothing=smoothing)
+        train_dataset = BinFileDataset(bin_list, args.bin_fn, chunk_size, batch_size, debug_mode=False, discard_germline = discard_germline, \
+                                       add_af_in_label = param.add_af_in_label, smoothing=smoothing, pileup=args.pileup)
         train_chunk_num = len(train_dataset)
 
         val_dataset = BinFileDataset(val_list, validation_fn, chunk_size, batch_size, debug_mode=debug_mode, discard_germline=discard_germline, \
-                                     add_af_in_label=False, smoothing=smoothing)
+                                     add_af_in_label=False, smoothing=smoothing, pileup=args.pileup)
         validate_chunk_num = len(val_dataset)
         total_chunks = train_chunk_num + validate_chunk_num
     else:
-        total_dataset = BinFileDataset(bin_list, args.bin_fn, chunk_size, batch_size, debug_mode= debug_mode, discard_germline=discard_germline, \
-                                       add_af_in_label = param.add_af_in_label, smoothing = smoothing)
+        total_dataset = BinFileDataset(bin_list, args.bin_fn, chunk_size, batch_size, debug_mode=debug_mode, discard_germline=discard_germline, \
+                                       add_af_in_label = param.add_af_in_label, smoothing=smoothing, pileup=args.pileup)
         total_chunks = len(total_dataset)
         training_dataset_percentage = param.trainingDatasetPercentage if add_validation_dataset else None
         if add_validation_dataset:
@@ -470,6 +473,8 @@ def train_model_torch_dataset(args):
             if not args.pileup:
                     data = data.reshape(-1, param.channel_size, param.matrix_depth_dict[platform], param.no_of_positions)
                     data = data.to(device) / 100.0
+                    # data = data.reshape(-1, param.matrix_depth_dict[platform], param.no_of_positions, param.channel_size)
+                    # data = data.permute(0, 3, 1, 2)
             else:
                     data = data.reshape(-1, param.no_of_positions, param.pileup_channel_size*2)
                     data = data.to(device)
@@ -976,10 +981,10 @@ def main():
     parser.add_argument('--exclude_training_samples', type=str, default=None,
                         help="Define training samples to be excluded")
 
-    parser.add_argument('--torch_dataset_num_workers', type=int, default=6,
+    parser.add_argument('--torch_dataset_num_workers', type=int, default=12,
                         help="Threads for torch dataset to preload datasets")
 
-    parser.add_argument('--torch_dataset_prefetch_factor', type=int, default=10,
+    parser.add_argument('--torch_dataset_prefetch_factor', type=int, default=12,
                         help="Prefetch factor for torch dataset to preload datasets")
 
     # mutually-incompatible validation options

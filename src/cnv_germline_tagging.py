@@ -169,7 +169,7 @@ def get_cnv_purity(args):
     for i, command in enumerate(zip(commands_list)):
 
         print(f"[INFO] STEP {i} RUN THE FOLLOWING COMMAND FOR CNV GERMLINE TAGGING:")
-
+        print(command)
         try:
             return_code = subprocess.check_call(command, shell=True, stdout=sys.stdout)
         except subprocess.CalledProcessError as e:
