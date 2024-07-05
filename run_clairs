@@ -673,6 +673,12 @@ def check_args(args):
             args.cnv_resource_dir = os.path.join(args.conda_prefix, 'bin', 'cnv_data', 'reference_files')
         if args.allele_counter_dir is None:
             args.allele_counter_dir = os.path.join(file_directory, 'src', 'allele_counter', 'bin')
+        if os.path.exists(args.allele_counter_dir):
+            logging(log_warning(
+                "[WARNING] The allele counter {}is not found, disable the --enable_cnv_germline_tagging option!".format(args.allele_counter_dir)))
+        if not os.path.exists(args.cnv_resource_dir):
+            logging(log_warning(
+                "[WARNING] The CNV resource directory {} is not found, disable the --enable_cnv_germline_tagging option!".format(args.cnv_resource_dir)))
 
     if args.genotyping_mode_vcf_fn is not None or args.hybrid_mode_vcf_fn is not None:
         logging(log_warning("[INFO] Enable --print_ref_calls and --print_germline_calls options in genotyping mode!"))
