@@ -68,6 +68,7 @@ data_preprocess_folder = [
     'clair3_somatic_calling',
     'cal_metrics_in_af_range',
     'concat_files',
+    'cnv_germline_tagging',
 ]
 
 

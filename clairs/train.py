@@ -37,7 +37,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, Subset
 
 import threading
 import time
@@ -73,7 +73,7 @@ torch.backends.cudnn.deterministic = True
 
 
 class BinFileDataset(Dataset):
-    def __init__(self, file_list, file_path, chunk_size, batch_size, debug_mode=False, discard_germline = False, add_af_in_label = False, smoothing = None):
+    def __init__(self, file_list, file_path, chunk_size, batch_size, debug_mode=False, discard_germline = False, add_af_in_label = False, smoothing = None, pileup=True):
         ### Configurations
         self.debug_mode = debug_mode
         self.discard_germline = discard_germline
@@ -82,12 +82,14 @@ class BinFileDataset(Dataset):
         self.chunk_size = chunk_size
         self.batch_size = batch_size
         self.add_af_in_label = add_af_in_label
+        self.random_start_position = None
+        self.train_flag = True
 
         ### Dataset Initialization
         self.table_dataset_list, self.chunk_offset = self._populate_dataset_table(file_list, file_path)
         self.cum_sum = np.cumsum(self.chunk_offset)
         self.total_chunks = sum(self.chunk_offset)
-
+        self.pileup = pileup
         ### Smoothing
         self.positive = 1 - smoothing if smoothing is not None else 1
         self.negative = smoothing if smoothing is not None else 0
@@ -108,8 +110,13 @@ class BinFileDataset(Dataset):
     def __getitem__(self, idx):
         bin_idx, chunk_idx = self._get_file_and_chunk_index(idx)
         start_idx = chunk_idx * self.chunk_size
+        start_idx += self.random_start_position if self.random_start_position is not None and self.train_flag else 0
         end_idx = start_idx + self.chunk_size
         num_rows = len(self.table_dataset_list[bin_idx].root.input_matrix)
+        if end_idx > num_rows:
+            end_idx = num_rows
+        if start_idx >= num_rows:
+            start_idx = num_rows - 1
         assert end_idx <= num_rows, f"Index out of range: {end_idx} > {num_rows}"
         current_tensor = self.table_dataset_list[bin_idx].root.input_matrix[start_idx:end_idx]
         current_label = self.table_dataset_list[bin_idx].root.label[start_idx:end_idx]
@@ -124,7 +131,10 @@ class BinFileDataset(Dataset):
             current_label = [[self.negative, self.negative, self.positive] if np.argmax(item[:3]) == 2 else \
                 [self.negative, self.positive, self.negative] if np.argmax(item[:3]) == 1 else \
                     [self.positive, self.negative, self.negative]for item in current_label]
-        current_label = np.array(current_label)
+
+        if not self.pileup:
+            current_tensor = np.transpose(current_tensor, (0, 3, 1, 2))
+        current_label = np.array(current_label,dtype=np.float32)
         if self.debug_mode:
             position_info = self.table_dataset_list[bin_idx].root.position[start_idx:end_idx]
             normal_info = self.table_dataset_list[bin_idx].root.normal_alt_info[start_idx:end_idx]
@@ -353,17 +363,17 @@ def train_model_torch_dataset(args):
     if validation_fn:
         val_list = os.listdir(validation_fn)
         logging.info("[INFO] total {} validation bin files: {}".format(len(val_list), ','.join(val_list)))
-        train_dataset = BinFileDataset(bin_list, args.bin_fn, chunk_size, batch_size, debug_mode = False, discard_germline = discard_germline, \
-                                       add_af_in_label = param.add_af_in_label, smoothing=smoothing)
+        train_dataset = BinFileDataset(bin_list, args.bin_fn, chunk_size, batch_size, debug_mode=False, discard_germline = discard_germline, \
+                                       add_af_in_label = param.add_af_in_label, smoothing=smoothing, pileup=args.pileup)
         train_chunk_num = len(train_dataset)
 
         val_dataset = BinFileDataset(val_list, validation_fn, chunk_size, batch_size, debug_mode=debug_mode, discard_germline=discard_germline, \
-                                     add_af_in_label=False, smoothing=smoothing)
+                                     add_af_in_label=False, smoothing=smoothing, pileup=args.pileup)
         validate_chunk_num = len(val_dataset)
         total_chunks = train_chunk_num + validate_chunk_num
     else:
-        total_dataset = BinFileDataset(bin_list, args.bin_fn, chunk_size, batch_size, debug_mode= debug_mode, discard_germline=discard_germline, \
-                                       add_af_in_label = param.add_af_in_label, smoothing = smoothing)
+        total_dataset = BinFileDataset(bin_list, args.bin_fn, chunk_size, batch_size, debug_mode=debug_mode, discard_germline=discard_germline, \
+                                       add_af_in_label = param.add_af_in_label, smoothing=smoothing, pileup=args.pileup)
         total_chunks = len(total_dataset)
         training_dataset_percentage = param.trainingDatasetPercentage if add_validation_dataset else None
         if add_validation_dataset:
@@ -371,7 +381,13 @@ def train_model_torch_dataset(args):
             validate_chunk_num = int(
                 max(1., np.floor(total_batches * (1 - training_dataset_percentage))) * chunks_per_batch)
             train_chunk_num = int(total_chunks - validate_chunk_num)
-            train_dataset, val_dataset = random_split(total_dataset, [train_chunk_num, validate_chunk_num])
+
+            train_indices = list(range(train_chunk_num))
+            val_indices = list(range(train_chunk_num, train_chunk_num + validate_chunk_num))
+
+            train_dataset = Subset(total_dataset, train_indices)
+            val_dataset = Subset(total_dataset, val_indices)
+
             #set the training dataset to:no debug mode
             train_dataset.dataset.debug_mode = False
             val_dataset.dataset.add_af_in_label = False
@@ -438,6 +454,11 @@ def train_model_torch_dataset(args):
     for epoch in range(1, max_epoch + 1):
         epoch_loss = 0
         fp, tp, fn = 0, 0, 0
+
+        #set a random start position for each epoch training
+        np.random.seed(epoch)
+        train_dataset.dataset.random_start_position = np.random.randint(0, chunk_size)
+        train_dataset.dataset.train_flag = True
         t = tqdm(enumerate(train_dataloader), total=train_steps, position=0, leave=True)
         v = tqdm(enumerate(validate_dataloader), total=validate_steps, position=0,
                  leave=True) if not debug_mode else enumerate(validate_dataloader)
@@ -498,6 +519,8 @@ def train_model_torch_dataset(args):
         val_fp, val_tp, val_fn = 0, 0, 0
         val_epoch_loss = 0
         model.eval()
+        val_dataset.dataset.train_flag = False
+        val_dataset.dataset.random_start_position = None
         for batch_idx, batch_tuple in v:
             data, label, position_info, normal_info, tumor_info = None, None, None, None, None
             if not debug_mode:
@@ -956,10 +979,10 @@ def main():
     parser.add_argument('--exclude_training_samples', type=str, default=None,
                         help="Define training samples to be excluded")
 
-    parser.add_argument('--torch_dataset_num_workers', type=int, default=6,
+    parser.add_argument('--torch_dataset_num_workers', type=int, default=12,
                         help="Threads for torch dataset to preload datasets")
 
-    parser.add_argument('--torch_dataset_prefetch_factor', type=int, default=10,
+    parser.add_argument('--torch_dataset_prefetch_factor', type=int, default=12,
                         help="Prefetch factor for torch dataset to preload datasets")
 
     # mutually-incompatible validation options
