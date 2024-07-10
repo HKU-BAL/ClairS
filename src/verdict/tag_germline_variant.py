@@ -24,10 +24,17 @@ def tag_germline_variant(args):
     tumor_purity_path = args.tumor_purity_ploidy_output_file
 
     segment_path = args.tumor_cna_output_file
+    
     if not os.path.exists(tumor_purity_path) or not os.path.exists(segment_path):
+        print("[INFO] Verdict can not obtain final results, not applying verdict tagging!")
         return
 
     tumor_purity = float(open(tumor_purity_path).read().rstrip().split('\n')[1].split('\t')[1])
+
+    if tumor_purity > 0.8:
+        print("[INFO] Tumor purity estimation {} is higher than 0.8, not applying verdict tagging!".format(tumor_purity))
+        return
+    
     input_vcf_reader = VcfReader(
             vcf_fn=input_vcf_fn,
             show_ref=True,
@@ -136,21 +143,22 @@ def tag_germline_variant(args):
                 elif max_prob_germline > ALPHA and max_prob_somatic < ALPHA:
                     if logodds < 2:
                         SG_status = 'probable germline'
-                        columns[6] += ';ProbableGermline'
+                        # columns[6] += ';ProbableGermline'
                     else:
                         if frequency > 0.25:
                             SG_status = 'germline'
                             columns[6] += ';Germline'
                         else:
                             SG_status = 'probable germline'
-                            columns[6] += ';ProbableGermline'
+                            # columns[6] += ';ProbableGermline'
 
                 elif max_prob_germline < ALPHA and max_prob_somatic > ALPHA:
                     if logodds > -2:
                         SG_status = 'probable somatic'
-                        columns[6] += ';ProbableSomatic'
+                        # columns[6] += ';ProbableSomatic'
                     else:
                         SG_status = 'somatic'
+                        columns[6] += ';Somatic'
 
                     if nanargmax([P_S1, P_S2]) == 1:
                         M = C - M
@@ -180,7 +188,7 @@ def tag_germline_variant(args):
 
                     elif logodds > 5 and max_prob_germline > 1e-4:
                         SG_status = 'germline'
-                        columns[6] += 'Germline'
+                        columns[6] += ';Germline'
 
                     else:
                         SG_status = 'ambiguous_neither_G_nor_S'
@@ -189,7 +197,6 @@ def tag_germline_variant(args):
                     SG_status = 'unknown'
 
                 break
-
 
         v.row_str = '\t'.join(columns) + '\n'
 

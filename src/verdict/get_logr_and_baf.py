@@ -8,16 +8,24 @@ from time import time
 seed = int(time())
 random.seed(seed)
 
+major_contigs_order = ["chr" + str(a) for a in list(range(1, 23)) + ["X"]]
 
-def getBAFsAndLogRs(tumor_allele_counts_file_prefix, normal_allele_counts_file_prefix, alleles_file_prefix, tumor_logr_output_file, tumor_baf_output_file, normal_baf_output_file, sample_name, normal_sample_name):
+
+def getBAFsAndLogRs(tumor_allele_counts_file_prefix, normal_allele_counts_file_prefix, alleles_file_prefix, tumor_logr_output_file, tumor_baf_output_file, normal_baf_output_file, sample_name, normal_sample_name, contig_fn):
     allele_map_dict = {'1': 'A', '2': 'C', '3': 'G', '4': 'T'}
     allele_dict = dict()
     totalTumor_dict = dict()
     tumorBAF_dict = dict()
     totalNormal_dict = dict()
     normalBAF_dict = dict()
-    major_contigs_order = ["chr" + str(a) for a in list(range(1, 23)) + ["X"]]
-    for chr in major_contigs_order:
+    contig_fn = open(contig_fn, 'r')
+    contig_list = []
+    for contig in contig_fn:
+        chr = contig.strip()
+        if chr not in major_contigs_order:
+            continue
+        contig_list.append(chr)
+    for chr in contig_list:
         alleles_file_path = alleles_file_prefix + str(chr) + '.txt'
         alleles = open(alleles_file_path, 'r')
         for idx, allele in enumerate(alleles.readlines()):
@@ -194,10 +202,14 @@ def main():
                         default="NORMAL_SAMPLE",
                         help="Normal sample name")
 
+    parser.add_argument('--contig_fn', type=str,
+                        default=None,
+                        help="Contig file")
+    
     global args
     args = parser.parse_args()
 
-    getBAFsAndLogRs(args.tumor_allele_counts_file_prefix, args.normal_allele_counts_file_prefix, args.alleles_file_prefix, args.tumor_logr_output_file, args.tumor_baf_output_file, args.normal_baf_output_file, args.sample_name, args.normal_sample_name)
+    getBAFsAndLogRs(args.tumor_allele_counts_file_prefix, args.normal_allele_counts_file_prefix, args.alleles_file_prefix, args.tumor_logr_output_file, args.tumor_baf_output_file, args.normal_baf_output_file, args.sample_name, args.normal_sample_name, args.contig_fn)
 
 
 if __name__ == "__main__":

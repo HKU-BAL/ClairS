@@ -38,8 +38,24 @@ from numpy import *
 file_directory = os.path.dirname(os.path.realpath(__file__))
 entry_path = os.path.join(file_directory, 'verdict')
 
+major_contigs_order = ["chr" + str(a) for a in list(range(1, 23)) + ["X"]]
+
+
+def get_contigs(args):
+    contig_fn = open(args.contig_fn, 'r')
+    contig_list = []
+    for contig in contig_fn:
+        chr = contig.strip()
+        if chr not in major_contigs_order:
+            continue
+        contig_list.append(chr)
+
+    return contig_list
+
+
 def tumor_allele_counter_command(args):
-    #allele counter
+    contig_list = get_contigs(args)
+    
     command = f'time {args.parallel} -j{args.threads} '
     command += f'LD_LIBRARY_PATH="$LD_LIBRARY_PATH:{args.allele_counter}/lib" {args.allele_counter}/bin/alleleCounter '
     command += f'-b {args.tumor_bam_fn} '
@@ -50,11 +66,14 @@ def tumor_allele_counter_command(args):
     command += '-f 0 '
     command += '-F 2316 '
     command += '--dense-snps '
-    command += f':::: {args.contig_fn}'
+    command += f" ::: {' '.join(contig_list)}"
 
     return command
 
+
 def normal_allele_counter_command(args):
+    contig_list = get_contigs(args)
+    
     command = f'time {args.parallel} -j{args.threads} '
     command += f'LD_LIBRARY_PATH="$LD_LIBRARY_PATH:{args.allele_counter}/lib" {args.allele_counter}/bin/alleleCounter '
     command += f'-b {args.normal_bam_fn} '
@@ -65,9 +84,10 @@ def normal_allele_counter_command(args):
     command += '-f 0 '
     command += '-F 2316 '
     command += '--dense-snps '
-    command += f':::: {args.contig_fn}'
+    command += f" ::: {' '.join(contig_list)}"
 
     return command
+
 
 def get_logr_baf_command(args):
 
@@ -80,8 +100,10 @@ def get_logr_baf_command(args):
     command += f'--normal_baf_output_file {args.output_dir}/{args.normal_sample_name}_Normal_BAF.txt '
     command += f'--sample_name {args.tumor_sample_name} '
     command += f'--normal_sample_name {args.normal_sample_name}'
+    command += f'--contig_fn {args.contig_fn}'
 
     return command
+
 
 def correct_logr_command(args):
     command = f'time {args.python} {args.verdict}/correct_logr.py '
@@ -127,14 +149,10 @@ def create_verdict_run_ascat_command(args):
     command += f'--tumor_baf_segmented_file {args.output_dir}/{args.tumor_sample_name}_Tumor_BAF_PCFed.txt '
     command += f'--tumor_purity_ploidy_output_file {args.output_dir}/{args.tumor_sample_name}_Tumor_Purity_Ploidy.txt '
     command += f'--tumor_cna_output_file {args.output_dir}/{args.tumor_sample_name}_Tumor_CNA.txt '
-    command += f'--gamma 1.0 '
-    command += f'--min_ploidy 1.5 '
-    command += f'--max_ploidy 5.5 '
-    command += f'--min_purity 0.1 '
-    command += f'--max_purity 1.05 '
     command += f'--sample_name {args.tumor_sample_name}'
 
     return command
+
 
 def tag_germline_variant(args):
     command = f'time {args.python} {args.verdict}/tag_germline_variant.py '
@@ -144,6 +162,7 @@ def tag_germline_variant(args):
     command += f'--tumor_cna_output_file {args.output_dir}/{args.tumor_sample_name}_Tumor_CNA.txt '
 
     return command
+
 
 def get_cnv_purity(args):
 
@@ -173,6 +192,7 @@ def get_cnv_purity(args):
             sys.stderr.write("ERROR in STEP {}, THE FOLLOWING COMMAND FAILED: {}\n".format(i + 1, command))
             exit(1)
         print('')
+
 
 def main():
     parser = ArgumentParser(description="add cnv tag into output_vcf file with the same input prefix")
