@@ -667,8 +667,17 @@ def check_args(args):
         args.use_longphase_for_intermediate_haplotagging = True
 
     if args.enable_verdict:
-        logging(log_warning(
-            "[WARNING] The --enable_verdict option currently only works for GRCh38 reference genome!"))
+        ref_contigs_set = set()
+        with open(fai_fn, 'r') as fai_fp:
+            for row in fai_fp:
+                columns = row.strip().split("\t")
+                contig_name = columns[0]
+                ref_contigs_set.add(contig_name)
+        contigs_order = ["chr" + str(a) for a in list(range(1, 23)) + ["X"]]
+        verdict_flag = set(contigs_order).issubset(ref_contigs_set)
+        if not verdict_flag:
+            args.enable_verdict = False
+            logging(log_warning("[WARNING] Verdict currently only works for GRCh38 reference genome, disable the --enable_verdict option!"))
         if args.cnv_resource_dir is None:
             args.cnv_resource_dir = os.path.join(args.conda_prefix, 'bin', 'cnv_data', 'reference_files')
         if args.allele_counter_dir is None:
