@@ -9,8 +9,10 @@ from shared.vcf import VcfReader
 import subprocess
 from src.sort_vcf import compress_index_vcf
 from numpy import *
-from scipy.stats import binom_test
-
+try:
+    from scipy.stats import binomtest as binom_test
+except ModuleNotFoundError:
+     from scipy.stats import binom_test as binom_test
 import random
 from time import time
 
