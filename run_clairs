@@ -1260,10 +1260,10 @@ def somatic_calling(args):
         cnv_germline_tagging_command = args.python + ' ' + main_entry + ' cnv_germline_tagging'
         cnv_germline_tagging_command += ' --tumor_bam_fn ' + args.tumor_bam_fn
         cnv_germline_tagging_command += ' --normal_bam_fn ' + args.normal_bam_fn
-        cnv_germline_tagging_command += ' --input_vcf_fn ' + args.output_dir + '/{}.vcf'.format(args.output_prefix)
+        cnv_germline_tagging_command += ' --input_vcf_fn ' + args.output_dir + '/{}.vcf.gz'.format(args.output_prefix)
         cnv_germline_tagging_command += ' --allele_counter ' + str(args.allele_counter_dir)
         cnv_germline_tagging_command += ' --cnv_resource_dir ' + str(args.cnv_resource_dir)
-        cnv_germline_tagging_command += ' --output_fn ' + args.output_dir + '/{}_cnv_germline_tagged.vcf.gz'.format(args.output_prefix)
+        cnv_germline_tagging_command += ' --output_fn ' + args.output_dir + '/{}_cnv_germline_tagged.vcf'.format(args.output_prefix)
         cnv_germline_tagging_command += ' --output_dir ' + args.output_dir + '/tmp/cnv_output'
         cnv_germline_tagging_command += ' --parallel ' + args.parallel
         cnv_germline_tagging_command += ' --python ' + args.python
@@ -2028,7 +2028,10 @@ def main():
 
     runtime = time() - call_start_time
     logging("[INFO] Total time elapsed: %im%.2fs\n" % (int(runtime/60), int(runtime % 60)))
-    logging("[INFO] Finish calling, output file: {}/{}.vcf.gz\n".format(args.output_dir, args.output_prefix))
+    if args.enable_verdict:
+        logging("[INFO] Finish calling, output file: {}/{}_cnv_germline_tagged.vcf.gz\n".format(args.output_dir, args.output_prefix))
+    else:
+        logging("[INFO] Finish calling, output file: {}/{}.vcf.gz\n".format(args.output_dir, args.output_prefix))
     if args.enable_indel_calling:
         logging("[INFO] Finish calling, snv output file: {}/snv.vcf.gz\n".format(args.output_dir))
         logging("[INFO] Finish calling, indel output file: {}/{}.vcf.gz\n".format(args.output_dir, args.indel_output_prefix))
