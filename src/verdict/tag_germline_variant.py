@@ -17,6 +17,16 @@ from time import time
 seed = int(time())
 random.seed(seed)
 
+
+def insert_after_line(original_str, target_line, insert_str):
+    lines = original_str.split('\n')
+    for i, line in enumerate(lines):
+        if line == target_line:
+            lines.insert(i+1, insert_str.rstrip('\n'))
+            break
+    return '\n'.join(lines)
+
+
 def tag_germline_variant(args):
 
     input_vcf_fn = args.input_vcf_fn
@@ -41,8 +51,7 @@ def tag_germline_variant(args):
             keep_row_str=True,
             keep_af=True,
             skip_genotype=True,
-            save_header=True,
-            filter_tag='PASS'
+            save_header=True
     )
     input_vcf_reader.read_vcf()
     input_variant_dict = input_vcf_reader.variant_dict
@@ -75,6 +84,8 @@ def tag_germline_variant(args):
 
     not_pass_count = 0
     for k, v in input_variant_dict.items():
+        if v.filter != 'PASS':
+            continue
         frequency = v.af
         columns = v.row_str.strip().split('\t')
         depth = int(columns[9].strip().split(':')[2])
@@ -126,19 +137,17 @@ def tag_germline_variant(args):
 
                 if frequency < 0.05 and 0.2 < p < 0.9:
                     SG_status = 'subclonal somatic'
-                    columns[6] += ';SubclonalSomatic'
+                    columns[7] += ';Verdict_SubclonalSomatic'
+                    # columns[6] += ';SubclonalSomatic'
 
                 elif isnan(C) or isnan(M):
                     SG_status = 'ambiguous_CNA_model'
                     # columns[6] += ';AmbiguousCNA'
 
-                elif p > 0.95:
-                    SG_status = 'nocall_purity>95%'
-                    # columns[6] += ';NoCallPurity'
-
                 elif frequency > 0.95:
                     SG_status = 'germline'
-                    columns[6] += ';Germline'
+                    columns[7] += ';Verdict_Germline'
+                    # columns[6] += ';Germline'
 
                 elif max_prob_germline > ALPHA and max_prob_somatic < ALPHA:
                     if logodds < 2:
@@ -147,7 +156,8 @@ def tag_germline_variant(args):
                     else:
                         if frequency > 0.25:
                             SG_status = 'germline'
-                            columns[6] += ';Germline'
+                            columns[7] += ';Verdict_Germline'
+                            # columns[6] += ';Germline'
                         else:
                             SG_status = 'probable germline'
                             # columns[6] += ';ProbableGermline'
@@ -158,7 +168,8 @@ def tag_germline_variant(args):
                         # columns[6] += ';ProbableSomatic'
                     else:
                         SG_status = 'somatic'
-                        columns[6] += ';Somatic'
+                        columns[7] += ';Verdict_Somatic'
+                        # columns[6] += ';Somatic'
 
                     if nanargmax([P_S1, P_S2]) == 1:
                         M = C - M
@@ -173,22 +184,26 @@ def tag_germline_variant(args):
 
                     if p >= 0.3 and frequency < 0.25 and frequency < min_soma_EAF / 1.5 and min_soma_EAF <= min_germ_EAF:
                         SG_status = 'subclonal somatic'
-                        columns[6] += ';SubclonalSomatic'
+                        columns[7] += ';Verdict_SubclonalSomatic'
+                        # columns[6] += ';SubclonalSomatic'
 
                     elif p >= 0.3 and frequency < 0.25 and frequency < min_germ_EAF / 2.0 and min_germ_EAF < min_soma_EAF:
                         SG_status = 'subclonal somatic'
-                        columns[6] += ';SubclonalSomatic'
+                        columns[7] += ';Verdict_SubclonalSomatic'
+                        # columns[6] += ';SubclonalSomatic'
 
                     elif logodds < -5 and max_prob_somatic > 1e-10:
                         SG_status = 'somatic'
-                        columns[6] += ';Somatic'
+                        columns[7] += ';Verdict_Somatic'
+                        # columns[6] += ';Somatic'
 
                         if nanargmax([P_S1, P_S2]) == 1:
                             M = C - M
 
                     elif logodds > 5 and max_prob_germline > 1e-4:
                         SG_status = 'germline'
-                        columns[6] += ';Germline'
+                        columns[7] += ';Verdict_Germline'
+                        # columns[6] += ';Germline'
 
                     else:
                         SG_status = 'ambiguous_neither_G_nor_S'
@@ -202,8 +217,14 @@ def tag_germline_variant(args):
 
     with open(args.output_fn, 'w') as f:
         #write header
-        header = input_vcf_reader.header
-        f.write(header)
+        ori_header = input_vcf_reader.header
+        last_filter_line = '##FILTER=<ID=Germline,Description="Germline variant">'
+        vcf_header_verdict_info = ''
+        vcf_header_verdict_info += '##INFO=<ID=Verdict_Germline,Number=0,Type=Flag,Description="Variant tagged by verdict as Germline">' + '\n'
+        vcf_header_verdict_info += '##INFO=<ID=Verdict_Somatic,Number=0,Type=Flag,Description="Variant tagged by verdict as Somatic">' + '\n'
+        vcf_header_verdict_info += '##INFO=<ID=Verdict_SubclonalSomatic,Number=0,Type=Flag,Description="Variant tagged by verdict as Subclonal Somatic">' + '\n'
+        updated_header = insert_after_line(ori_header, last_filter_line, vcf_header_verdict_info)
+        f.write(updated_header)
         for k, v in input_variant_dict.items():
             f.write(v.row_str)
 
