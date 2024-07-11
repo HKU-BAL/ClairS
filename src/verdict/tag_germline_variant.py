@@ -38,13 +38,14 @@ def tag_germline_variant(args):
     segment_path = args.tumor_cna_output_file
     
     if not os.path.exists(tumor_purity_path) or not os.path.exists(segment_path):
-        print("[INFO] Verdict can not obtain final results, not applying verdict tagging!")
+        print("[WARNING] Verdict can not obtain final results, not applying verdict tagging!")
         return
 
     tumor_purity = float(open(tumor_purity_path).read().rstrip().split('\n')[1].split('\t')[1])
 
     if tumor_purity > 0.8:
-        print("[INFO] Tumor purity estimation {} is higher than 0.8, not applying verdict tagging!".format(tumor_purity))
+        print("[WARNING] Tumor purity estimation {} is higher than 0.8, not applying verdict tagging!".format(tumor_purity))
+        subprocess.run('ln -sf {} {}.gz'.format(input_vcf_fn, args.output_fn), shell=True)
         return
     
     input_vcf_reader = VcfReader(
