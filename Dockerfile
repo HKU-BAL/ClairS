@@ -68,7 +68,7 @@ ENV PATH /opt/conda/envs/clairs/bin:$PATH
 ENV CONDA_DEFAULT_ENV clairs
 
 RUN apt install curl zlib1g-dev libbz2-dev liblzma-dev libcurl4-openssl-dev -y && \
-    /opt/conda/bin/python3 -m pip install scipy scikit-learn && \
+    /opt/conda/envs/clairs/bin/python3 -m pip install scipy scikit-learn && \
     rm -rf /var/lib/apt/lists/*
 
 COPY . .
