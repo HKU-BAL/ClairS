@@ -674,10 +674,11 @@ def check_args(args):
                 contig_name = columns[0]
                 ref_contigs_set.add(contig_name)
         contigs_order = ["chr" + str(a) for a in list(range(1, 23)) + ["X"]]
-        verdict_flag = set(contigs_order).issubset(ref_contigs_set)
+        verdict_flag = set(contigs_order).intersection(ref_contigs_set) is not None
         if not verdict_flag:
             args.enable_verdict = False
-            logging(log_warning("[WARNING] Verdict currently only works for GRCh38 reference genome, disable the --enable_verdict option!"))
+            logging(log_warning(
+                "[WARNING] Verdict currently only works for GRCh38 reference genome, disable the --enable_verdict option!"))
         if args.cnv_resource_dir is None:
             args.cnv_resource_dir = os.path.join(args.conda_prefix, 'bin', 'cnv_data', 'reference_files')
         if args.allele_counter_dir is None:
