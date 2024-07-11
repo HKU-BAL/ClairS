@@ -99,8 +99,8 @@ def get_logr_baf_command(args):
     command += f'--tumor_baf_output_file {args.output_dir}/{args.tumor_sample_name}_Tumor_BAF.txt '
     command += f'--normal_baf_output_file {args.output_dir}/{args.normal_sample_name}_Normal_BAF.txt '
     command += f'--sample_name {args.tumor_sample_name} '
-    command += f'--normal_sample_name {args.normal_sample_name}'
-    command += f'--contig_fn {args.contig_fn}'
+    command += f'--normal_sample_name {args.normal_sample_name} '
+    command += f'--contig_fn {args.contig_fn} '
 
     return command
 
@@ -111,7 +111,7 @@ def correct_logr_command(args):
     command += f'--gc_content_file {args.cnv_resource_dir}/GC_G1000_hg38.txt '
     command += f'--replication_timing_file {args.cnv_resource_dir}/RT_G1000_hg38.txt '
     command += f'--tumor_logr_correction_output_file {args.output_dir}/{args.tumor_sample_name}_Tumor_LogR_Correction.txt '
-    command += f'--sample_name {args.tumor_sample_name}'
+    command += f'--sample_name {args.tumor_sample_name} '
 
     return command
 
@@ -122,7 +122,7 @@ def predict_germline_genotypes_command(args):
     command += f'--tumor_baf_file {args.output_dir}/{args.tumor_sample_name}_Tumor_BAF.txt '
     command += f'--normal_baf_file {args.output_dir}/{args.normal_sample_name}_Normal_BAF.txt '
     command += f'--germline_genotypes_output_file {args.output_dir}/{args.tumor_sample_name}_Tumor_GG.txt '
-    command += f'--sample_name {args.tumor_sample_name}'
+    command += f'--sample_name {args.tumor_sample_name} '
 
     return command
 
@@ -135,7 +135,7 @@ def create_aspcf_command(args):
     command += f'--tumor_logr_pcfed_output_file {args.output_dir}/{args.tumor_sample_name}_Tumor_LogR_PCFed.txt '
     command += f'--tumor_baf_pcfed_output_file {args.output_dir}/{args.tumor_sample_name}_Tumor_BAF_PCFed.txt '
     command += f'--penalty 1000 '
-    command += f'--sample_name {args.tumor_sample_name}'
+    command += f'--sample_name {args.tumor_sample_name} '
 
     return command
 
@@ -149,7 +149,7 @@ def create_verdict_run_ascat_command(args):
     command += f'--tumor_baf_segmented_file {args.output_dir}/{args.tumor_sample_name}_Tumor_BAF_PCFed.txt '
     command += f'--tumor_purity_ploidy_output_file {args.output_dir}/{args.tumor_sample_name}_Tumor_Purity_Ploidy.txt '
     command += f'--tumor_cna_output_file {args.output_dir}/{args.tumor_sample_name}_Tumor_CNA.txt '
-    command += f'--sample_name {args.tumor_sample_name}'
+    command += f'--sample_name {args.tumor_sample_name} '
 
     return command
 
