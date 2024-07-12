@@ -2028,7 +2028,7 @@ def main():
 
     runtime = time() - call_start_time
     logging("[INFO] Total time elapsed: %im%.2fs\n" % (int(runtime/60), int(runtime % 60)))
-    if args.enable_verdict and os.path.exists("{}/{}_cnv_germline_tagged.vcf.gz\n".format(args.output_dir, args.output_prefix)):
+    if args.enable_verdict:
         logging("[INFO] Finish calling, output file: {}/{}_cnv_germline_tagged.vcf.gz\n".format(args.output_dir, args.output_prefix))
     else:
         logging("[INFO] Finish calling, output file: {}/{}.vcf.gz\n".format(args.output_dir, args.output_prefix))
