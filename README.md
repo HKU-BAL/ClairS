@@ -338,6 +338,9 @@ docker run -it hkubal/clairs:latest /opt/bin/run_clairs --help
   --samtools SAMTOOLS   Absolute path of samtools, samtools version >= 1.10 is required.
   --parallel PARALLEL   Absolute path of parallel, parallel >= 20191122 is required.
   --disable_phasing     EXPERIMENTAL: Disable phasing with longphase or whatshap. Usually leads to significant performance loss.
+  --haplotagged_tumor_bam_provided_so_skip_intermediate_phasing_and_haplotagging
+                        EXPERIMENTAL: Use haplotagged tumor bam as input, If enabled, will skip intermediate phasing and haplotagging, and the haplotype information
+                        will be acquired from haplotagged tumor BAM. Default: disabled.
   --normal_vcf_fn NORMAL_VCF_FN
                         EXPERIMENTAL: Path to normal VCF file. Setting this will skip germline varaint calling on normal BAM file input.
   --enable_indel_calling
@@ -345,13 +348,21 @@ docker run -it hkubal/clairs:latest /opt/bin/run_clairs --help
   --enable_clair3_germline_output
                         EXPERIMENTAL: Use Clair3 default calling settings than Clair3 fast calling setting for tumor and normal germline varaint calling. The calling time would increase ~40 percent, Default: disabled.
   --enable_verdict      EXPERIMENTAL: Use Verdict to tag the germline variant in CNV regions. We suggest using the parameter only for sample with tumor purity lower than 0.8, Default: disabled
-  --use_heterozygous_snp_in_normal_sample_for_intermediate_phasing USE_HETEROZYGOUS_SNP_IN_NORMAL_SAMPLE_FOR_INTERMEDIATE_PHASING
-                        EXPERIMENTAL: Use the heterozygous SNPs in normal VCF called by Clair3 for intermediate phasing. Option: {True, False}. Default: True.
-  --use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing USE_HETEROZYGOUS_SNP_IN_TUMOR_SAMPLE_FOR_INTERMEDIATE_PHASING
-                        EXPERIMENTAL: Use the heterozygous SNPs in tumor VCF called by Clair3 for intermediate phasing. Option: {True, False}. Default: False.
+  --use_heterozygous_snp_in_normal_sample_and_tumor_bam_for_intermediate_phasing USE_HETEROZYGOUS_SNP_IN_NORMAL_SAMPLE_AND_TUMOR_BAM_FOR_INTERMEDIATE_PHASING
+                        EXPERIMENTAL: Use the heterozygous SNPs in normal VCF called by Clair3 and the tumor BAM for intermediate phasing. Option: {True, False}.
+                        Default: True.
+  --use_heterozygous_snp_in_tumor_sample_and_tumor_bam_for_intermediate_phasing USE_HETEROZYGOUS_SNP_IN_TUMOR_SAMPLE_AND_TUMOR_BAM_FOR_INTERMEDIATE_PHASING
+                        EXPERIMENTAL: Use the heterozygous SNPs in tumor VCF called by Clair3 and the tumor BAM for intermediate phasing. Option: {True, False}.
+                        Default: False.
+  --use_heterozygous_snp_in_normal_sample_and_normal_bam_for_intermediate_phasing USE_HETEROZYGOUS_SNP_IN_NORMAL_SAMPLE_AND_NORMAL_BAM_FOR_INTERMEDIATE_PHASING
+                        EXPERIMENTAL: Use the heterozygous SNPs in normal VCF called by Clair3 and the normal BAM for intermediate phasing. Option: {True, False}.
+                        Default: False.
+  --use_heterozygous_snp_in_tumor_sample_and_normal_bam_for_intermediate_phasing USE_HETEROZYGOUS_SNP_IN_TUMOR_SAMPLE_AND_NORMAL_BAM_FOR_INTERMEDIATE_PHASING
+                        EXPERIMENTAL: Use the heterozygous SNPs in tumor VCF called by Clair3 and the normal BAM for intermediate phasing. Option: {True, False}.
+                        Default: False.
   --use_heterozygous_indel_for_intermediate_phasing USE_HETEROZYGOUS_INDEL_FOR_INTERMEDIATE_PHASING
                         EXPERIMENTAL: Use the heterozygous Indels in normal and tumor VCFs called by Clair3 for intermediate phasing. Option: {True, False}. Default: True.
-    --use_longphase_for_intermediate_haplotagging USE_LONGPHASE_FOR_INTERMEDIATE_HAPLOTAGGING
+  --use_longphase_for_intermediate_haplotagging USE_LONGPHASE_FOR_INTERMEDIATE_HAPLOTAGGING
                         EXPERIMENTAL: Use the longphase instead of whatshap for intermediate haplotagging. Option: {True, False}. Default: True.
   --indel_output_prefix INDEL_OUTPUT_PREFIX
                         Prefix for Indel output VCF filename. Default: indel.
