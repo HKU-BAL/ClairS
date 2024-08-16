@@ -220,7 +220,7 @@ def check_contig_in_bam(bam_fn, sorted_contig_list, samtools, allow_none=False, 
     for contig_name in sorted_contig_list:
         if contig_name not in contig_with_read_support_set:
             logging(log_warning(
-                "[WARNING] Contig name {} provided but no mapped reads found in {} BAM, skip!".format(flag, contig_name)))
+                "[WARNING] Contig name {} provided but no mapped reads found in {} BAM, skip!".format(contig_name, flag)))
     filtered_sorted_contig_list = [item for item in sorted_contig_list if item in contig_with_read_support_set]
 
     found_contig = True
@@ -647,7 +647,7 @@ def check_args(args):
     if args.min_bq is None and (args.platform == "ont_r10_dorado_hac_5khz" or args.platform == "ont_r10_dorado_hac_4khz" or args.platform == 'ont_r10_dorado_hac_5khz_liquid'):
         args.min_bq = 15
 
-    if args.disable_phasing or args.use_haplotype_information_in_haplotagged_tumor_bam:
+    if args.disable_phasing or args.haplotagged_tumor_bam_provided_so_skip_intermediate_phasing_and_haplotagging:
         args.phase_tumor = False
     if args.phase_tumor is None:
         if args.genotyping_mode_vcf_fn is not None:
@@ -656,15 +656,31 @@ def check_args(args):
         else:
             args.phase_tumor = True if args.platform != 'ilmn' else False
 
+    #N: normal V: variant T: tumor B: BAM
+    NVNB = args.use_heterozygous_snp_in_normal_sample_and_normal_bam_for_intermediate_phasing
+    TVTB = args.use_heterozygous_snp_in_tumor_sample_and_tumor_bam_for_intermediate_phasing
+    NVTB = args.use_heterozygous_snp_in_normal_sample_and_tumor_bam_for_intermediate_phasing
+    TVNB = args.use_heterozygous_snp_in_tumor_sample_and_normal_bam_for_intermediate_phasing
+
     # By default, we use HET SNP in normal VCF for phasing after v0.1.7
-    if not args.use_heterozygous_snp_in_normal_sample_for_intermediate_phasing and not args.use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing:
+    if NVNB is None and TVTB is None and NVTB is None and TVNB is None:
+        args.use_heterozygous_snp_in_normal_sample_and_tumor_bam_for_intermediate_phasing = True
+        NVTB = True
+    if NVTB:
         args.use_heterozygous_snp_in_normal_sample_for_intermediate_phasing = True
+        args.use_normal_bam_for_intermediate_phasing = False
+    elif TVNB:
+        args.use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing = True
+        args.use_normal_bam_for_intermediate_phasing = True
+    elif NVNB:
+        args.use_heterozygous_snp_in_normal_sample_for_intermediate_phasing = True
+        args.use_normal_bam_for_intermediate_phasing = True
+    elif TVTB:
+        args.use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing = True
+        args.use_normal_bam_for_intermediate_phasing = False
 
     if args.use_heterozygous_indel_for_intermediate_phasing is None:
         args.use_heterozygous_indel_for_intermediate_phasing = False
-
-    if args.use_normal_bam_for_intermediate_phasing is None:
-        args.use_normal_bam_for_intermediate_phasing = False
 
     if args.use_longphase_for_intermediate_haplotagging is None:
         args.use_longphase_for_intermediate_haplotagging = True
@@ -758,7 +774,6 @@ def print_args(args):
         logging("[INFO] INDEL FULL-ALIGNMENT MODEL PATH: {}".format(args.indel_full_alignment_model_path))
     logging("[INFO] NORMAL VCF FILE PATH: {}".format(args.normal_vcf_fn))
     logging("[INFO] DISABLE PHASING: {}".format(args.disable_phasing))
-    logging("[INFO] USE HAPLOTYPE INFORMATION IN HAPLOTAGGED TUMOR BAM: {}".format(args.use_haplotype_information_in_haplotagged_tumor_bam))
     logging("[INFO] ENABLE DRY RUN: {}".format(args.dry_run))
     logging("[INFO] ENABLE INDEL CALLING: {}".format(args.enable_indel_calling))
     logging("[INFO] ENABLE PRINTING REFERENCE CALLS: {}".format(args.print_ref_calls))
@@ -813,7 +828,7 @@ def print_command_line(args):
         cmdline += '--parallel {} '.format(args.parallel) if args.parallel != "parallel" else ""
         cmdline += '--normal_vcf_fn {} '.format(args.normal_vcf_fn) if args.normal_vcf_fn is not None else ""
         cmdline += '--disable_phasing ' if args.disable_phasing else ""
-        cmdline += '--use_haplotype_information_in_haplotagged_tumor_bam ' if args.use_haplotype_information_in_haplotagged_tumor_bam else ""
+        cmdline += '--haplotagged_tumor_bam_provided_so_skip_intermediate_phasing_and_haplotagging ' if args.haplotagged_tumor_bam_provided_so_skip_intermediate_phasing_and_haplotagging else ""
         cmdline += '--enable_indel_calling ' if args.enable_indel_calling else ""
         cmdline += '--indel_output_prefix {} '.format(args.indel_output_prefix) if args.indel_output_prefix != "indel" else ""
         cmdline += '--indel_pileup_model_path {} '.format(args.indel_pileup_model_path) if args.indel_pileup_model_path is not None else ""
@@ -836,6 +851,10 @@ def print_command_line(args):
         cmdline += '--clair3_snp_min_af {} '.format(args.clair3_snp_min_af) if args.clair3_snp_min_af is not None else ""
         cmdline += '--clair3_indel_min_af {} '.format(args.clair3_indel_min_af) if args.clair3_indel_min_af is not None else ""
         cmdline += '--enable_clair3_germline_output ' if args.enable_clair3_germline_output else ""
+        cmdline += '--use_heterozygous_snp_in_normal_sample_and_normal_bam_for_intermediate_phasing {} '.format(args.use_heterozygous_snp_in_normal_sample_and_normal_bam_for_intermediate_phasing) if args.use_heterozygous_snp_in_normal_sample_and_normal_bam_for_intermediate_phasing is not None else ""
+        cmdline += '--use_heterozygous_snp_in_tumor_sample_and_tumor_bam_for_intermediate_phasing {} '.format(args.use_heterozygous_snp_in_tumor_sample_and_tumor_bam_for_intermediate_phasing) if args.use_heterozygous_snp_in_tumor_sample_and_tumor_bam_for_intermediate_phasing is not None else ""
+        cmdline += '--use_heterozygous_snp_in_normal_sample_and_tumor_bam_for_intermediate_phasing {} '.format(args.use_heterozygous_snp_in_normal_sample_and_tumor_bam_for_intermediate_phasing) if args.use_heterozygous_snp_in_normal_sample_and_tumor_bam_for_intermediate_phasing is not None else ""
+        cmdline += '--use_heterozygous_snp_in_tumor_sample_and_normal_bam_for_intermediate_phasing {} '.format(args.use_heterozygous_snp_in_tumor_sample_and_normal_bam_for_intermediate_phasing) if args.use_heterozygous_snp_in_tumor_sample_and_normal_bam_for_intermediate_phasing is not None else ""
         cmdline += '--use_heterozygous_snp_in_normal_sample_for_intermediate_phasing {} '.format(args.use_heterozygous_snp_in_normal_sample_for_intermediate_phasing) if args.use_heterozygous_snp_in_normal_sample_for_intermediate_phasing is not None else ""
         cmdline += '--use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing {} '.format(args.use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing) if args.use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing is not None else ""
         cmdline += '--use_heterozygous_indel_for_intermediate_phasing {} '.format(args.use_heterozygous_indel_for_intermediate_phasing) if args.use_heterozygous_indel_for_intermediate_phasing is not None else ""
@@ -1706,7 +1725,6 @@ def somatic_parser():
         help="EXPERIMENTAL: Path to normal VCF file with pattern *.vcf.gz. Setting this will skip varaint calling on normal BAM file input"
     )
 
-
     halotagging_group = optional_params.add_mutually_exclusive_group(required=False)
     halotagging_group.add_argument(
         "--disable_phasing",
@@ -1715,9 +1733,9 @@ def somatic_parser():
     )
 
     halotagging_group.add_argument(
-        "--use_haplotype_information_in_haplotagged_tumor_bam",
+        "--haplotagged_tumor_bam_provided_so_skip_intermediate_phasing_and_haplotagging",
         action='store_true',
-        help="EXPERIMENTAL: Use haplotagged tumor bam as input, If enabled, will skip internal phasing and haplotagging, and the haplotype information will be acquired from haplotagged BAM. Default: Disable."
+        help="EXPERIMENTAL: Use haplotagged tumor bam as input, If enabled, will skip intermediate phasing and haplotagging, and the haplotype information will be acquired from haplotagged tumor BAM. Default: disabled."
     )
 
     ont_params = parser.add_argument_group('ONT parameters')
@@ -1800,17 +1818,31 @@ def somatic_parser():
     variant_phasing_group = optional_params.add_mutually_exclusive_group(required=False)
 
     variant_phasing_group.add_argument(
-        "--use_heterozygous_snp_in_normal_sample_for_intermediate_phasing",
+        "--use_heterozygous_snp_in_normal_sample_and_tumor_bam_for_intermediate_phasing",
         type=str2bool,
         default=None,
-        help="EXPERIMENTAL: Use the heterozygous SNPs in normal VCF called by Clair3 for intermediate phasing. Option: {True, False}. Default: True."
+        help="EXPERIMENTAL: Use the heterozygous SNPs in normal VCF called by Clair3 and the tumor BAM for intermediate phasing. Option: {True, False}. Default: True."
     )
 
     variant_phasing_group.add_argument(
-        "--use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing",
+        "--use_heterozygous_snp_in_tumor_sample_and_tumor_bam_for_intermediate_phasing",
         type=str2bool,
         default=None,
-        help="EXPERIMENTAL: Use the heterozygous SNPs in tumor VCF called by Clair3 for intermediate phasing. Option: {True, False}. Default: False."
+        help="EXPERIMENTAL: Use the heterozygous SNPs in tumor VCF called by Clair3 and the tumor BAM for intermediate phasing. Option: {True, False}. Default: False."
+    )
+
+    variant_phasing_group.add_argument(
+        "--use_heterozygous_snp_in_normal_sample_and_normal_bam_for_intermediate_phasing",
+        type=str2bool,
+        default=None,
+        help="EXPERIMENTAL: Use the heterozygous SNPs in normal VCF called by Clair3 and the normal BAM for intermediate phasing. Option: {True, False}. Default: False."
+    )
+
+    variant_phasing_group.add_argument(
+        "--use_heterozygous_snp_in_tumor_sample_and_normal_bam_for_intermediate_phasing",
+        type=str2bool,
+        default=None,
+        help="EXPERIMENTAL: Use the heterozygous SNPs in tumor VCF called by Clair3 and the normal BAM for intermediate phasing. Option: {True, False}. Default: False."
     )
 
     optional_params.add_argument(
@@ -1827,14 +1859,31 @@ def somatic_parser():
         help="EXPERIMENTAL: Use the longphase instead of whatshap for intermediate haplotagging. Option: {True, False}. Default: True."
     )
 
+    # options for internal process control
+    ## Deprecated since v0.3.1. Use the heterozygous SNPs in normal VCF called by Clair3 for intermediate phasing. Option: {True, False}. Default: True.
+    variant_phasing_group.add_argument(
+        "--use_heterozygous_snp_in_normal_sample_for_intermediate_phasing",
+        type=str2bool,
+        default=None,
+        help=SUPPRESS
+    )
+
+    ## Deprecated since v0.3.1. Use the heterozygous SNPs in tumor VCF called by Clair3 for intermediate phasing. Option: {True, False}. Default: False.
+    variant_phasing_group.add_argument(
+        "--use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing",
+        type=str2bool,
+        default=None,
+        help=SUPPRESS
+    )
+
+    ## Use normal BAM instead of tumor BAM for intermediate phasing. Option: {True, False}. Default: False.
     optional_params.add_argument(
         "--use_normal_bam_for_intermediate_phasing",
         type=str2bool,
         default=None,
-        help="EXPERIMENTAL: Use normal BAM instead of tumor BAM for intermediate phasing. Option: {True, False}. Default: False."
+        help=SUPPRESS
     )
 
-    # options for internal process control
     ## Prefer maximized recall
     mode_group.add_argument(
         "--prefer_recall",
