@@ -661,7 +661,10 @@ def check_args(args):
         args.use_heterozygous_snp_in_normal_sample_for_intermediate_phasing = True
 
     if args.use_heterozygous_indel_for_intermediate_phasing is None:
-        args.use_heterozygous_indel_for_intermediate_phasing = True
+        args.use_heterozygous_indel_for_intermediate_phasing = False
+
+    if args.use_normal_bam_for_intermediate_phasing is None:
+        args.use_normal_bam_for_intermediate_phasing = False
 
     if args.use_longphase_for_intermediate_haplotagging is None:
         args.use_longphase_for_intermediate_haplotagging = True
@@ -834,6 +837,7 @@ def print_command_line(args):
         cmdline += '--use_heterozygous_snp_in_normal_sample_for_intermediate_phasing {} '.format(args.use_heterozygous_snp_in_normal_sample_for_intermediate_phasing) if args.use_heterozygous_snp_in_normal_sample_for_intermediate_phasing is not None else ""
         cmdline += '--use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing {} '.format(args.use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing) if args.use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing is not None else ""
         cmdline += '--use_heterozygous_indel_for_intermediate_phasing {} '.format(args.use_heterozygous_indel_for_intermediate_phasing) if args.use_heterozygous_indel_for_intermediate_phasing is not None else ""
+        cmdline += '--use_normal_bam_for_intermediate_phasing {} '.format(args.use_normal_bam_for_intermediate_phasing) if args.use_normal_bam_for_intermediate_phasing is not None else ""
         cmdline += '--use_longphase_for_intermediate_haplotagging {} '.format(args.use_longphase_for_intermediate_haplotagging) if args.use_longphase_for_intermediate_haplotagging is not None else ""
         cmdline += '--enable_verdict ' if args.enable_verdict else ""
         cmdline += '--conda_prefix {} '.format(args.conda_prefix) if args.conda_prefix is not None else ""
@@ -984,7 +988,6 @@ def somatic_calling(args):
             index_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
             commands_list.append(ht_command + ' && ' + index_command)
 
-
         echo_list.append("[INFO] Phase the Tumor BAM")
         if args.clair3_option.longphase_for_phasing is not None:
             pt_command = '( ' + time + args.parallel
@@ -992,7 +995,7 @@ def somatic_calling(args):
             pt_command += ' -j ' + str(args.threads)
             pt_command += ' ' + args.clair3_option.longphase + ' phase '
             pt_command += ' -s ' + clair3_output_path + '/vcf/{1}.vcf'
-            pt_command += ' -b ' + args.tumor_bam_fn
+            pt_command += ' -b ' + (args.tumor_bam_fn if not args.use_normal_bam_for_intermediate_phasing else args.normal_bam_fn)
             pt_command += ' -r ' + args.ref_fn
             pt_command += ' -t ' + str(args.threads)
             pt_command += ' --indels ' if args.use_heterozygous_indel_for_intermediate_phasing else ""
@@ -1814,6 +1817,13 @@ def somatic_parser():
         help="EXPERIMENTAL: Use the longphase instead of whatshap for intermediate haplotagging. Option: {True, False}. Default: True."
     )
 
+    optional_params.add_argument(
+        "--use_normal_bam_for_intermediate_phasing",
+        type=str2bool,
+        default=None,
+        help="EXPERIMENTAL: Use normal BAM instead of tumor BAM for intermediate phasing. Option: {True, False}. Default: False."
+    )
+
     # options for internal process control
     ## Prefer maximized recall
     mode_group.add_argument(
@@ -2028,7 +2038,7 @@ def main():
 
     runtime = time() - call_start_time
     logging("[INFO] Total time elapsed: %im%.2fs\n" % (int(runtime/60), int(runtime % 60)))
-    if args.enable_verdict:
+    if args.enable_verdict and os.path.exists("{}/{}_cnv_germline_tagged.vcf.gz\n".format(args.output_dir, args.output_prefix)):
         logging("[INFO] Finish calling, output file: {}/{}_cnv_germline_tagged.vcf.gz\n".format(args.output_dir, args.output_prefix))
     else:
         logging("[INFO] Finish calling, output file: {}/{}.vcf.gz\n".format(args.output_dir, args.output_prefix))
