@@ -647,7 +647,7 @@ def check_args(args):
     if args.min_bq is None and (args.platform == "ont_r10_dorado_hac_5khz" or args.platform == "ont_r10_dorado_hac_4khz" or args.platform == 'ont_r10_dorado_hac_5khz_liquid'):
         args.min_bq = 15
 
-    if args.disable_phasing:
+    if args.disable_phasing or args.use_haplotype_information_in_haplotagged_tumor_bam:
         args.phase_tumor = False
     if args.phase_tumor is None:
         if args.genotyping_mode_vcf_fn is not None:
@@ -758,6 +758,7 @@ def print_args(args):
         logging("[INFO] INDEL FULL-ALIGNMENT MODEL PATH: {}".format(args.indel_full_alignment_model_path))
     logging("[INFO] NORMAL VCF FILE PATH: {}".format(args.normal_vcf_fn))
     logging("[INFO] DISABLE PHASING: {}".format(args.disable_phasing))
+    logging("[INFO] USE HAPLOTYPE INFORMATION IN HAPLOTAGGED TUMOR BAM: {}".format(args.use_haplotype_information_in_haplotagged_tumor_bam))
     logging("[INFO] ENABLE DRY RUN: {}".format(args.dry_run))
     logging("[INFO] ENABLE INDEL CALLING: {}".format(args.enable_indel_calling))
     logging("[INFO] ENABLE PRINTING REFERENCE CALLS: {}".format(args.print_ref_calls))
@@ -812,6 +813,7 @@ def print_command_line(args):
         cmdline += '--parallel {} '.format(args.parallel) if args.parallel != "parallel" else ""
         cmdline += '--normal_vcf_fn {} '.format(args.normal_vcf_fn) if args.normal_vcf_fn is not None else ""
         cmdline += '--disable_phasing ' if args.disable_phasing else ""
+        cmdline += '--use_haplotype_information_in_haplotagged_tumor_bam ' if args.use_haplotype_information_in_haplotagged_tumor_bam else ""
         cmdline += '--enable_indel_calling ' if args.enable_indel_calling else ""
         cmdline += '--indel_output_prefix {} '.format(args.indel_output_prefix) if args.indel_output_prefix != "indel" else ""
         cmdline += '--indel_pileup_model_path {} '.format(args.indel_pileup_model_path) if args.indel_pileup_model_path is not None else ""
@@ -1704,13 +1706,21 @@ def somatic_parser():
         help="EXPERIMENTAL: Path to normal VCF file with pattern *.vcf.gz. Setting this will skip varaint calling on normal BAM file input"
     )
 
-    ont_params = parser.add_argument_group('ONT parameters')
-    ont_params.add_argument(
+
+    halotagging_group = optional_params.add_mutually_exclusive_group(required=False)
+    halotagging_group.add_argument(
         "--disable_phasing",
         action='store_true',
         help="EXPERIMENTAL: Disable phasing with longphase or whatshap. Usually leads to significant performance loss."
     )
 
+    halotagging_group.add_argument(
+        "--use_haplotype_information_in_haplotagged_tumor_bam",
+        action='store_true',
+        help="EXPERIMENTAL: Use haplotagged tumor bam as input, If enabled, will skip internal phasing and haplotagging, and the haplotype information will be acquired from haplotagged BAM. Default: Disable."
+    )
+
+    ont_params = parser.add_argument_group('ONT parameters')
     ont_params.add_argument(
         "--enable_indel_calling",
         action='store_true',
