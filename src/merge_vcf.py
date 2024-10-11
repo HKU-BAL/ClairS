@@ -68,6 +68,19 @@ def mark_low_qual(row, quality_score_for_pass):
 
     return '\t'.join(columns)
 
+def mark_high_normal_af(row, indel_max_af_in_normal):
+    if row == '' or "PASS" not in row:
+        return row
+    columns = row.split('\t')
+    tag_list = columns[8].split(':')
+    naf_index = tag_list.index('NAF') if 'NAF' in tag_list else -1
+    if naf_index == -1:
+        return row
+    af = float(columns[9].split(':')[naf_index])
+    if af > indel_max_af_in_normal:
+        columns[6] = "LowQual"
+        columns[5] = '0.000'
+    return '\t'.join(columns)
 
 def update_GQ(columns):
     INFO = columns[8]
@@ -225,6 +238,8 @@ def merge_vcf(args):
         for pos in all_pos:
             #Mark low QUAL
             row = mark_low_qual(contig_dict[contig][pos], quality_score_for_pass)
+            if args.indel_max_af_in_normal is not None:
+                row = mark_high_normal_af(row, args.indel_max_af_in_normal)
             output_vcf_writer.vcf_writer.write(row)
     output_vcf_writer.close()
 
@@ -267,6 +282,9 @@ def main():
 
     parser.add_argument('--cmdline', type=str_none, default=None,
                         help="If defined, added command line into VCF header")
+
+    parser.add_argument('--indel_max_af_in_normal', type=float, default=None,
+                        help=SUPPRESS)
 
     # options for advanced users
     parser.add_argument('--qual', type=float, default=None,
