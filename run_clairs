@@ -83,7 +83,14 @@ Clair3Option = namedtuple('Clair3Option', [
     'longphase'
 ])
 
+supported_platforms = ['ont_r10_dorado_sup_5khz_ssrs', 'ont_r10_dorado_sup_5khz_ss', 'ont_r10_dorado_sup_5khz', 'ont_r10_dorado_sup_4khz', 'ont_r10_dorado_hac_5khz',
+                       'ont_r10_dorado_hac_4khz', 'ont_r10_guppy', 'ont_r9_guppy', 'ilmn', 'hifi_sequel2', 'hifi_revio',
+                       ]
 
+indel_supported_platforms = ['ont_r10_dorado_sup_5khz_ssrs', 'ont_r10_dorado_sup_5khz_ss', 'ont_r10_guppy', 'ont_r10', 'ont', 'hifi_revio', 'hifi_sequel2', 'ont_r10_dorado_sup_5khz',
+                       'ont_r10_dorado_hac_5khz', 'ont_r10_dorado_sup_4khz', 'ont_r10_dorado_hac_5khz_liquid']
+
+extend_supported_platforms = supported_platforms + ['ont_r10', 'ont_r9', 'ont', 'ont_r10_dorado_hac_5khz_liquid']
 
 
 class Tee(object):
@@ -499,7 +506,7 @@ def check_clair3_options(args):
             args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'clairs_models', 'clair3_models', 'hifi_revio')
         elif args.platform == "ont_r10_dorado_4khz" or args.platform == "ont_r10_dorado_sup_4khz":
             args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'clairs_models', 'clair3_models', 'r1041_e82_400bps_sup_v410')
-        elif args.platform == "ont_r10_dorado_5khz" or args.platform == "ont_r10_dorado_sup_5khz":
+        elif args.platform == "ont_r10_dorado_5khz" or args.platform.startswith("ont_r10_dorado_sup_5khz"):
             args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'clairs_models', 'clair3_models', 'r1041_e82_400bps_sup_v420')
         elif args.platform == "ont_r10_dorado_hac_5khz" or args.platform == "ont_r10_dorado_hac_5khz_liquid":
             args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'clairs_models', 'clair3_models', 'r1041_e82_400bps_hac_v420')
@@ -585,8 +592,8 @@ def check_args(args):
         sys.exit(log_error("[ERROR] Tumor BAM index file {} or {} not found. Please run `samtools index $BAM` first.".format(args.tumor_bam_fn + '.bai',
                                                                                       args.tumor_bam_fn + '.crai')))
 
-    if args.enable_indel_calling and args.platform not in {'ont_r10_guppy', 'ont_r10', 'ont', 'hifi_revio', 'hifi_sequel2', 'ont_r10_dorado_sup_5khz', 'ont_r10_dorado_hac_5khz', 'ont_r10_dorado_sup_4khz', 'ont_r10_dorado_hac_5khz_liquid'}:
-        sys.exit(log_error("[ERROR] Indel calling only support 'ont_r10_guppy', 'ont_r10_dorado_sup_5khz', 'ont_r10_dorado_hac_5khz', 'ont_r10_dorado_sup_4khz', 'ont_r10_dorado_hac_5khz_liquid', and 'hifi_revio' platforms"))
+    if args.enable_indel_calling and args.platform not in set(indel_supported_platforms):
+        sys.exit(log_error("[ERROR] Indel calling only support {} platforms".format(','.join(indel_supported_platforms))))
 
     if args.genotyping_mode_vcf_fn is not None and args.hybrid_mode_vcf_fn is not None:
         sys.exit(log_error("[ERROR] Please provide either --genotyping_mode_vcf_fn or --hybrid_mode_vcf_fn only"))
@@ -622,16 +629,18 @@ def check_args(args):
         args.snv_min_af = param.snv_min_af
     if args.indel_min_af is None:
         if args.enable_indel_calling:
-            args.indel_min_af = 0.05
+            if args.platform.startswith('ont'):
+                args.indel_min_af = 0.1
+            else:
+                args.indel_min_af = 0.05
         else:
             args.indel_min_af = 1.0
     if args.min_coverage is None:
         args.min_coverage = param.min_coverage
     if args.chunk_size is None:
         args.chunk_size = 5000000
-    if args.platform not in {'ont_r10', 'ont_r9', 'ont_r10_guppy', 'ont_r9_guppy', 'ont', 'ilmn', 'hifi_sequel2', 'hifi_revio', \
-                             'ont_r10_dorado_sup_4khz', 'ont_r10_dorado_sup_5khz', 'ont_r10_dorado_hac_5khz', 'ont_r10_dorado_hac_4khz', 'ont_r10_dorado_hac_5khz_liquid'}:
-        logging(log_error('[ERROR] Invalid platform input, optional: {ont_r10_dorado_sup_4khz, ont_r10_dorado_sup_5khz, ont_r10_dorado_hac_5khz, ont_r10_dorado_hac_4khz, ont_r10_dorado_hac_5khz_liquid, ont_r10_guppy, ont_r9_guppy, ilmn, hifi_sequel2, hifi_revio}'))
+    if args.platform not in set(extend_supported_platforms):
+        logging(log_error('[ERROR] Invalid platform input, optional: {}'.format(', '.join(supported_platforms))))
 
     if args.qual is None:
         if args.prefer_balance:
@@ -683,7 +692,7 @@ def check_args(args):
         args.use_heterozygous_indel_for_intermediate_phasing = False
 
     if args.use_longphase_for_intermediate_haplotagging is None:
-        args.use_longphase_for_intermediate_haplotagging = True
+        args.use_longphase_for_intermediate_haplotagging = False
 
     if args.enable_verdict:
         ref_contigs_set = set()
@@ -725,10 +734,11 @@ def check_args(args):
         args.phase_normal = False
 
     legal_range_from(param_name="threads", x=args.threads, min_num=1, exit_out_of_range=True)
-    legal_range_from(param_name="qual", x=args.qual, min_num=0, exit_out_of_range=True)
+    legal_range_from(param_name="qual", x=args.qual, min_num=-1, exit_out_of_range=True)
     legal_range_from(param_name="min_coverage", x=args.min_coverage, min_num=0, exit_out_of_range=True)
     legal_range_from(param_name="snv_min_af", x=args.snv_min_af, min_num=0, max_num=1, exit_out_of_range=True)
     legal_range_from(param_name="indel_min_af", x=args.indel_min_af, min_num=0, max_num=1, exit_out_of_range=True)
+    legal_range_from(param_name="indel_max_af_in_normal", x=args.indel_max_af_in_normal, min_num=0, max_num=1, exit_out_of_range=True)
     legal_range_from(param_name="chunk_size", x=args.chunk_size, min_num=0, exit_out_of_range=True)
 
     args.output_path = create_output_folder(args)
@@ -814,6 +824,8 @@ def print_command_line(args):
         cmdline += '--hybrid_mode_vcf_fn {} '.format(args.hybrid_mode_vcf_fn) if args.hybrid_mode_vcf_fn is not None else ""
         cmdline += '--qual {} '.format(args.qual) if args.qual is not None else ""
         cmdline += '--snv_min_af {} '.format(args.snv_min_af) if args.snv_min_af is not None else ""
+        cmdline += '--indel_min_af {} '.format(args.indel_min_af) if args.indel_min_af is not None else ""
+        cmdline += '--indel_max_af_in_normal {} '.format(args.indel_max_af_in_normal) if args.indel_max_af_in_normal is not None else ""
         cmdline += '--min_coverage {} '.format(args.min_coverage) if args.min_coverage is not None else ""
         cmdline += '--chunk_size {} '.format(args.chunk_size) if args.chunk_size is not None else ""
         cmdline += '--sample_name {} '.format(args.sample_name) if args.sample_name != "SAMPLE" else ""
@@ -1101,7 +1113,7 @@ def somatic_calling(args):
     ec_command += ' --ctg_name {1} '
     ec_command += ' --platform ' + args.platform
     ec_command += ' --min_coverage ' + str(args.min_coverage)
-    ec_command += ' --min_bq ' + str(args.min_bq) if args.min_bq is not None else ""
+    ec_command += (' --min_bq ' + str(args.min_bq)) if args.min_bq is not None else ""
     ec_command += ' --bed_fn ' + os.path.join(args.output_dir, 'tmp', 'split_beds', '{1}')
     ec_command += ' --candidates_folder ' + args.output_dir + '/tmp/candidates'
     ec_command += ' --output_depth True '
@@ -1128,7 +1140,7 @@ def somatic_calling(args):
     cpt_command += ' --tumor_bam_fn ' + args.tumor_bam_fn
     cpt_command += ' --ref_fn ' + args.ref_fn
     cpt_command += ' --ctg_name {1/.}'
-    cpt_command += ' --min_bq ' + str(args.min_bq) if args.min_bq is not None else ""
+    cpt_command += (' --min_bq ' + str(args.min_bq)) if args.min_bq is not None else ""
     cpt_command += ' --samtools ' + args.samtools
     cpt_command += ' --candidates_bed_regions {1}'
     cpt_command += ' --tensor_can_fn ' + args.output_dir + '/tmp/pileup_tensor_can/{1/} '
@@ -1551,7 +1563,7 @@ def somatic_parser():
         required=True,
         type=str,
         default=None,
-        help="Select the sequencing platform of the input. Possible options: {ont_r10_dorado_sup_4khz, ont_r10_dorado_sup_5khz, ont_r10_dorado_hac_5khz, ont_r10_dorado_hac_4khz, ont_r10_guppy, ont_r9_guppy, ilmn, hifi_sequel2, hifi_revio}."
+        help="Select the sequencing platform of the input. Possible options: {ont_r10_dorado_sup_4khz, ont_r10_dorado_sup_5khz_ss, ont_r10_dorado_sup_5khz_ssrs, ont_r10_dorado_hac_5khz, ont_r10_dorado_hac_4khz, ont_r10_guppy, ont_r9_guppy, ilmn, hifi_sequel2, hifi_revio}."
     )
 
     optional_params = parser.add_argument_group('Optional parameters')
@@ -1627,6 +1639,20 @@ def somatic_parser():
         type=float,
         default=None,
         help="Minimal SNV AF required for a variant to be called. Decrease SNV_MIN_AF might increase a bit of sensitivity, but in trade of precision, speed and accuracy. Default: 0.05."
+    )
+
+    optional_params.add_argument(
+        "--indel_min_af",
+        type=float,
+        default=None,
+        help="Minimal Indel AF required for a variant to be called. Decrease INDEL_MIN_AF might increase a bit of sensitivity, but in trade of precision, speed and accuracy. Default: 0.1 for ONT, 0.05 for other platforms."
+    )
+
+    optional_params.add_argument(
+        "--indel_max_af_in_normal",
+        type=float,
+        default=None,
+        help="Maximal Indel AF allowed in normal BAM for a called variant If set, variants with NAF<INDEL_MAX_AF_IN_NORMAL will be marked LowQual. Default: None."
     )
 
     optional_params.add_argument(
@@ -1966,14 +1992,6 @@ def somatic_parser():
         "-g",
         "--use_gpu",
         action='store_true',
-        help=SUPPRESS
-    )
-
-    ## Minimum Indel AF required for a candidate variant
-    optional_params.add_argument(
-        "--indel_min_af",
-        type=float,
-        default=None,
         help=SUPPRESS
     )
 
