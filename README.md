@@ -29,24 +29,8 @@ For somatic variant calling using tumor only sample, please try [ClairS-TO](http
 
 ## Performance figures
 
-### ONT Q20+ chemistry SNV performance
-
-- HCC1395/HCC1395BL tumor/normal of ONT R10.4.1 data
-- Truth:High confidence (HighConf) and medium confidence (MedConf) SNV from the SEQC2 HCC1395/BL truths ([Fang et al., 2021](https://www.nature.com/articles/s41587-021-00993-6)), the TVAF (tumor variant allele frequency) of which is ≥0.05 in the above dataset
-
-#### The precision-recall curve of different combinations of tumor and normal coverages
-
-![](./images/ont_pr_curve_result.png)
-
-#### The performance of ClairS at multiple VAF ranges and multiple tumor coverages with the normal coverage fixed at 25x
-
-![](./images/ont_vaf_1_result.png)
-
-#### The performance of ClairS at multiple VAF ranges and multiple normal coverages with the tumor coverage fixed at 50x
-
-![](./images/ont_vaf_2_result.png)
-
-
+### ONT Q20+ chemistry performance
+The latest performance figures as of Oct 10th, 2024 (ClairS v0.4.0) is available in this [technical note]().
 
 ### PacBio Revio SNV performance
 
@@ -91,8 +75,9 @@ For somatic variant calling using tumor only sample, please try [ClairS-TO](http
 ------
 
 ## Latest Updates
-*v0.3.1 (Aug 16)* : 1. Added four options i. `--use_heterozygous_snp_in_tumor_sample_and_normal_bam_for_intermediate_phasing`, ii. `--use_heterozygous_snp_in_normal_sample_and_normal_bam_for_intermediate_phasing`, iii. `--use_heterozygous_snp_in_tumor_sample_and_tumor_bam_for_intermediate_phasing`, and iv. `--use_heterozygous_snp_in_normal_sample_and_tumor_bam_for_intermediate_phasing`. iii is equivalent to `--use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing` added in v0.2.0. iv is equivalent to `--use_heterozygous_snp_in_normal_sample_for_intermediate_phasing` added in v0.2.0. Use normal bam for intermediate phasing was a request from @[Sergey Aganezov](https://github.com/aganezov). When the coverage of normal and tumor are similar, using normal bam for intermediate phasing has negligible difference from using tumor bam in our experiments using HCC1395/BL. 2. Added `--haplotagged_tumor_bam_provided_so_skip_intermediate_phasing_and_haplotagging` to use the haplotype information provided in the tumor bam directly and skip intermediate phasing and haplotagging. This option is useful when using ClairS in a pipeline in which the phasing of the tumor bam is done before running ClairS. BAM haplotagged by WhatsHap and LongPhase are accepted. 3. Bumped up Clair3 dependency to version 1.0.10, LongPhase to version 1.7.3.
+*v0.4.0 (Oct 11)* : This version is a major update. The new features and benchmarks are explained in a technical note titled [“Improving the performance of ClairS and ClairS-TO with new real cancer cell-line datasets and PoN”](). A summary of changes: 1. Starting from this version, ClairS will provide two model types. `ssrs` is a model trained initially with synthetic samples and then real samples augmented (e.g., `ont_r10_dorado_sup_5khz_ssrs`), `ss` is a model trained from synthetic samples (e.g., `ont_r10_dorado_sup_5khz_ss`). The `ssrs` model provides better performance and fits most usage scenarios. `ss` model can be used when missing a cancer-type in model training is a concern. In v0.4.0, four real cancer cell-line datasets (HCC1937/BL, HCC1954/BL, H1437/BL, and H2009/BL) covering two cancer types (breast cancer, lung cancer) published by [Park et al.](https://www.biorxiv.org/content/10.1101/2024.08.16.608331v1) were used for `ssrs` model training. 2. Added BQ jittering in model training to address the BQ distribution difference between the training and calling datasets that leads to performance drop. 3. Added the `--indel_min_af` option and adjusted the default minimum allelic fraction requirement to 0.1 for Indels in ONT platform.
 
+*v0.3.1 (Aug 16)* : 1. Added four options i. `--use_heterozygous_snp_in_tumor_sample_and_normal_bam_for_intermediate_phasing`, ii. `--use_heterozygous_snp_in_normal_sample_and_normal_bam_for_intermediate_phasing`, iii. `--use_heterozygous_snp_in_tumor_sample_and_tumor_bam_for_intermediate_phasing`, and iv. `--use_heterozygous_snp_in_normal_sample_and_tumor_bam_for_intermediate_phasing`. iii is equivalent to `--use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing` added in v0.2.0. iv is equivalent to `--use_heterozygous_snp_in_normal_sample_for_intermediate_phasing` added in v0.2.0. Use normal bam for intermediate phasing was a request from @[Sergey Aganezov](https://github.com/aganezov). When the coverage of normal and tumor are similar, using normal bam for intermediate phasing has negligible difference from using tumor bam in our experiments using HCC1395/BL. 2. Added `--haplotagged_tumor_bam_provided_so_skip_intermediate_phasing_and_haplotagging` to use the haplotype information provided in the tumor bam directly and skip intermediate phasing and haplotagging. This option is useful when using ClairS in a pipeline in which the phasing of the tumor bam is done before running ClairS. BAM haplotagged by WhatsHap and LongPhase are accepted. 3. Bumped up Clair3 dependency to version 1.0.10, LongPhase to version 1.7.3.
 
 *v0.3.0 (Jul 5)* : 1. Added a module called “verdict” (Option `--enable_verdict`) to statistically classify a called variant into either a germline, somatic, or subclonal somatic variant based on the CNV profile and tumor purity estimation. Please find out more technical details about the Verdict module [here](docs/verdict.md). 2. Improved model training speed, reduced model training time cost by about three times.
 
@@ -143,19 +128,22 @@ ClairS trained both pileup and full-alignment models using GIAB samples, and car
 
 |  Platform   |       Model name       |    Chemistry /Instruments    |    Basecaller    | Option (`-p/--platform`) |   Reference   | Aligner  |
 | :---------: | :--------------------: | :--------------------------: | :----------------------: | :-----------: | :------: | ----------- |
-| ONT | r1041_e82_400bps_sup_v420 | R10.4.1, 5khz | Dorado SUP | `ont_r10_dorado_sup_5khz` | GRCh38_no_alt | Minimap2 |
+| ONT<sup>1</sup> | r1041_e82_400bps_sup_v420 | R10.4.1, 5khz | Dorado SUP | `ont_r10_dorado_sup_5khz_ssrs` | GRCh38_no_alt | Minimap2 |
+| ONT<sup>1</sup> | r1041_e82_400bps_sup_v420 | R10.4.1, 5khz | Dorado SUP | `ont_r10_dorado_sup_5khz_ss` | GRCh38_no_alt | Minimap2 |
 | ONT | r1041_e82_400bps_sup_v410 | R10.4.1, 4khz | Dorado SUP | `ont_r10_dorado_sup_4khz` | GRCh38_no_alt | Minimap2 |
 | ONT | r1041_e82_400bps_hac_v420 | R10.4.1, 5khz | Dorado HAC | `ont_r10_dorado_hac_5khz` | GRCh38_no_alt | Minimap2 |
 | ONT | r1041_e82_400bps_hac_v410 | R10.4.1, 4khz | Dorado HAC | `ont_r10_dorado_hac_4khz` | GRCh38_no_alt | Minimap2 |
 |     ONT     | r104_e81_sup_g5015 |        R10.4/R10.4.1, 4khz         |        Guppy5 SUP        | `ont_r10_guppy` | GRCh38_no_alt | Minimap2 |
-|    ONT <sup>1</sup>    |  r941_prom_sup_g5014   |            R9.4.1, 4khz            |            Guppy5 SUP            |         `ont_r9_guppy`         | GRCh38_no_alt | Minimap2 |
+|    ONT <sup>2</sup>    |  r941_prom_sup_g5014   |            R9.4.1, 4khz            |            Guppy5 SUP            |         `ont_r9_guppy`         | GRCh38_no_alt | Minimap2 |
 |  Illumina   |          ilmn          |        NovaSeq/HiseqX        |        -        |          `ilmn`          |    GRCh38     | BWA-MEM  |
-| PacBio HiFi <sup>2</sup> |          hifi_sequel2          | Sequel II with Chemistry 2.0 | - |          `hifi_sequel2`          | GRCh38_no_alt | Minimap2 |
+| PacBio HiFi <sup>3</sup> |          hifi_sequel2          | Sequel II with Chemistry 2.0 | - |          `hifi_sequel2`          | GRCh38_no_alt | Minimap2 |
 | PacBio HIFI | hifi_revio | Revio with SMRTbell prep kit 3.0 | - | `hifi_revio` | GRCh38_no_alt | Minimap2 |
 
-**Caveats <sup>1</sup>**: Although the r9(`r941_prom_sup_g5014`) model was trained on synthetic samples with r9.4.1 real data, the minimal AF cutoff, minimal coverage, and post-calling filtering parameters for the r9 model are copied from the r10 model, and are not optimized due to lack of real r9 data on a cancer sample with known truths.
+**Caveats <sup>1</sup>**: Starting from v0.4.0 version, ClairS will provide two model types. `ssrs` is a model trained initially with synthetic samples and then real samples augmented (e.g., `ont_r10_dorado_sup_5khz_ssrs`), `ss` is a model trained from synthetic samples (e.g., `ont_r10_dorado_sup_5khz_ss`). The `ssrs` model provides better performance and fits most usage scenarios. `ss` model can be used when missing a cancer-type in model training is a concern. In v0.4.0, four real cancer cell-line datasets (HCC1937, HCC1954, H1437, and H2009) covering two cancer types (breast cancer, lung cancer) published by [Park et al.](https://www.biorxiv.org/content/10.1101/2024.08.16.608331v1) were used for `ssrs` model training.
 
-**Caveats <sup>2</sup>**: The PacBio HiFi Sequel II model is experimental. It was trained but not tested with any real data with known truths. HG003 54x and HG004 52x were used, thus tumor depth coverage higher than 50x may suffer from lower recall rate. For testing, please downsample both tumor and normal to ~40x for the best performance of this experimental model.
+**Caveats <sup>2</sup>**: Although the r9(`r941_prom_sup_g5014`) model was trained on synthetic samples with r9.4.1 real data, the minimal AF cutoff, minimal coverage, and post-calling filtering parameters for the r9 model are copied from the r10 model, and are not optimized due to lack of real r9 data on a cancer sample with known truths.
+
+**Caveats <sup>3</sup>**: The PacBio HiFi Sequel II model is experimental. It was trained but not tested with any real data with known truths. HG003 54x and HG004 52x were used, thus tumor depth coverage higher than 50x may suffer from lower recall rate. For testing, please downsample both tumor and normal to ~40x for the best performance of this experimental model.
 
 
 ------
