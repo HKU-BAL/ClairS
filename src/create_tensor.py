@@ -32,6 +32,7 @@ import sys
 import shlex
 import logging
 import random
+import math
 
 from subprocess import PIPE
 from copy import deepcopy
@@ -68,6 +69,22 @@ TUMOR_HAP_TYPE = dict(zip((1, 0, 2), (30, 60, 90)))  # set tumor hap tag
 # NORMAL_HAP_TYPE = dict(zip((1, 0, 2), (13, 50, 37)))  # set normal hap tag
 # TUMOR_HAP_TYPE = dict(zip((1, 0, 2), (75, 100, 88)))  # set tumor hap tag
 ACGT_NUM = dict(zip("ACGT+-*#N", (100, 25, 75, 50, -50, -100, -100, -100, 100)))
+
+
+def add_gaussian_noise(data):
+    noise_scale = 5
+
+    def generate_normal_noise():
+        u1 = random.uniform(0, 1)
+        u2 = random.uniform(0, 1)
+        z0 = math.sqrt(-2.0 * math.log(u1)) * math.cos(2.0 * math.pi * u2)
+        return z0 * noise_scale
+
+    noise = round(generate_normal_noise())
+
+    noisy_data = [max(1, min((item - noise), 90)) for item in data]
+
+    return noisy_data
 
 
 def normalize_bq(x, platform='ont'):
@@ -122,7 +139,8 @@ class Position(object):
         self.read_name_dict = dict(zip(self.read_name_list, self.base_list))
         self.update_info = True
         self.mapping_quality = [normalize_mq(phredscore2raw_score(item)) for item in self.raw_mapping_quality]
-        self.base_quality = [normalize_bq(phredscore2raw_score(item), platform) for item in self.raw_base_quality]
+        # self.base_quality = [normalize_bq(phredscore2raw_score(item), platform) for item in self.raw_base_quality]
+        self.base_quality = [normalize_bq(item, platform) for item in self.raw_base_quality]
 
         for read_name, base_info, bq, mq in zip(self.read_name_list, self.base_list, self.base_quality,
                                                 self.mapping_quality):
@@ -689,6 +707,8 @@ def create_tensor(args):
     add_hetero_phasing = phasing_info_in_bam = args.add_hetero_phasing
     keep_phase_only = args.keep_phase_only
     extend_bp = param.extend_bp
+    add_bq_disturbance = args.add_bq_disturbance
+
     minimum_snv_af_for_candidate = args.snv_min_af
     minimum_indel_af_for_candidate = args.indel_min_af
     min_coverage = args.min_coverage
@@ -865,6 +885,14 @@ def create_tensor(args):
                 continue
             pileup_bases = columns[4]
             raw_base_quality = columns[5]
+            
+            base_quality = [phredscore2raw_score(item) for item in raw_base_quality]
+
+            if add_bq_disturbance:
+                random.seed(ctg_start)
+                new_base_quality = add_gaussian_noise(base_quality)
+                base_quality = new_base_quality
+
             raw_mapping_quality = columns[6]
             read_name_list = columns[7].split(',')
             reference_base = reference_sequence[pos - reference_start].upper()
@@ -908,7 +936,7 @@ def create_tensor(args):
                                         ref_base=reference_base,
                                         read_name_list=read_name_list,
                                         base_list=base_list,
-                                        raw_base_quality=raw_base_quality,
+                                        raw_base_quality=base_quality,
                                         raw_mapping_quality=raw_mapping_quality,
                                         af=af,
                                         depth=depth)
@@ -1105,6 +1133,9 @@ def main():
                         help=SUPPRESS)
 
     parser.add_argument('--truth_vcf_fn', type=str, default=None,
+                        help=SUPPRESS)
+    
+    parser.add_argument('--add_bq_disturbance', type=str2bool, default=0,
                         help=SUPPRESS)
 
     args = parser.parse_args()
