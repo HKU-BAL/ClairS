@@ -738,7 +738,8 @@ def check_args(args):
     legal_range_from(param_name="min_coverage", x=args.min_coverage, min_num=0, exit_out_of_range=True)
     legal_range_from(param_name="snv_min_af", x=args.snv_min_af, min_num=0, max_num=1, exit_out_of_range=True)
     legal_range_from(param_name="indel_min_af", x=args.indel_min_af, min_num=0, max_num=1, exit_out_of_range=True)
-    legal_range_from(param_name="indel_max_af_in_normal", x=args.indel_max_af_in_normal, min_num=0, max_num=1, exit_out_of_range=True)
+    if args.indel_max_af_in_normal is not None:
+        legal_range_from(param_name="indel_max_af_in_normal", x=args.indel_max_af_in_normal, min_num=0, max_num=1, exit_out_of_range=True)
     legal_range_from(param_name="chunk_size", x=args.chunk_size, min_num=0, exit_out_of_range=True)
 
     args.output_path = create_output_folder(args)
