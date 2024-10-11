@@ -32,6 +32,7 @@ import sys
 import shlex
 import logging
 import random
+import math
 from subprocess import PIPE
 
 from argparse import ArgumentParser, SUPPRESS
@@ -63,6 +64,23 @@ phase_channel = [
 channel_size = len(channel)
 BASE2INDEX = dict(zip(channel, tuple(range(channel_size))))
 base_index = dict(zip(phase_channel, list(range(16))))
+
+
+def add_gaussian_noise(data):
+    noise_scale = 5
+
+    def generate_normal_noise():
+        u1 = random.uniform(0, 1)
+        u2 = random.uniform(0, 1)
+        z0 = math.sqrt(-2.0 * math.log(u1)) * math.cos(2.0 * math.pi * u2)
+        return z0 * noise_scale
+
+    noise = round(generate_normal_noise())
+
+    noisy_data = [max(1, min((item - noise), 90)) for item in data]
+
+    return noisy_data
+
 
 def evc_base_from(base):
     if base == 'N':
@@ -288,6 +306,7 @@ def create_tensor(args):
     tensor_can_output_path = args.tensor_can_fn
     is_candidates_bed_regions_given = candidates_bed_regions is not None
     extend_bp = param.extend_bp
+    add_bq_disturbance = args.add_bq_disturbance
 
     minimum_snp_af_for_candidate = args.snv_min_af
     minimum_indel_af_for_candidate = args.indel_min_af
@@ -477,6 +496,11 @@ def create_tensor(args):
             mapping_quality = [ord(mq) - 33 for mq in raw_mapping_quality]
             base_quality = [ord(mq) - 33 for mq in raw_base_quality]
 
+            if add_bq_disturbance:
+                random.seed(ctg_start)
+                new_base_quality = add_gaussian_noise(base_quality)
+                base_quality = new_base_quality
+                            
             if phasing_info_in_bam:
                 phasing_info = columns[8].split(',')
                 for hap_idx, hap in enumerate(phasing_info):
@@ -818,6 +842,9 @@ def main():
                         help="Tumor output BAM prefix")
 
     parser.add_argument('--truth_vcf_fn', type=str, default=None,
+                        help=SUPPRESS)
+
+    parser.add_argument('--add_bq_disturbance', type=str2bool, default=0,
                         help=SUPPRESS)
 
     args = parser.parse_args()
