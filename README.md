@@ -32,8 +32,10 @@ For somatic variant calling using tumor only sample, please try [ClairS-TO](http
 ### ONT Q20+ chemistry performance
 The latest performance figures as of Oct 10th, 2024 (ClairS v0.4.0) is available in this [technical note](docs/Improving_the_performance_of_ClairS_and_ClairS-TO_with_new_real_cancer_cell-line_datasets_and_PoN.pdf).
 
-Performance comparison between “ClairS v0.4.0 with the SS model”, “ClairS v0.4.0 with the SS+RS model”, and “DeepSomatic v1.7.0”, at (a) different coverages, and (b) at different AF ranges for SNV and Indel, respectively.
-![](./images/ont_performance.png)
+Performance comparison between “ClairS v0.4.0 with the SS model”, “ClairS v0.4.0 with the SS+RS model”, and “DeepSomatic v1.7.0”, at (a) different coverages, and (b) at different AF ranges for SNV and Indel, respectively.  
+  
+![](./images/ont_performance.png)  
+
 ### PacBio Revio SNV performance
 
 - HCC1395/HCC1395BL tumor/normal of PacBio Revio data, using SMRTbell prep kit 3.0
