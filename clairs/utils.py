@@ -42,7 +42,7 @@ from itertools import product
 from shared.interval_tree import bed_tree_from, is_region_in
 from shared.utils import subprocess_popen, IUPAC_base_to_num_dict as BASE2NUM
 
-FILTERS = tables.Filters(complib='blosc:lz4hc', complevel=5)
+FILTERS = tables.Filters(complib='blosc:zstd', complevel=5)
 shuffle_bin_size = 3000
 PREFIX_CHAR_STR = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 

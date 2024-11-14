@@ -57,7 +57,7 @@ def subprocess_popen(args, stdin=None, stdout=PIPE, stderr=stderr, bufsize=83886
     return Popen(args, stdin=stdin, stdout=stdout, stderr=stderr, bufsize=bufsize, universal_newlines=True)
 
 
-def vcf_reader(vcf_fn, contig_name, bed_tree=None, add_hetero_pos=False):
+def vcf_reader(vcf_fn, contig_name, bed_tree=None, add_hetero_pos=False, filter_tag=None, use_real_sample=False):
     homo_variant_set = set()
     variant_set = set()
     variant_info = defaultdict()
@@ -75,23 +75,54 @@ def vcf_reader(vcf_fn, contig_name, bed_tree=None, add_hetero_pos=False):
         ctg_name = columns[0]
         if contig_name and contig_name != ctg_name:
             continue
-        pos = int(columns[1])
-        ref_base = columns[3]
-        alt_base = columns[4]
-        variant_set.add(pos)
-        variant_info[pos] = (ref_base, alt_base)
-        if bed_tree and not is_region_in(tree=bed_tree, contig_name=contig_name, region_start=pos):
-            continue
 
-        genotype_info = columns[9].split(':')
-        genotype = genotype_info[0]
-        g1, g2 = genotype.replace('|', "/").split('/')
-        if g1 == "1" and g2 == "1":
-            homo_variant_set.add(pos)
-            homo_variant_info[pos] = (ref_base, alt_base)
-        if add_hetero_pos and (g1 == "1" and g2 == "0" or g1 == "0" and g2 == "1"):
-            hetero_variant_set.add(pos)
-            hetero_variant_info[pos] = (ref_base, alt_base)
+        if use_real_sample:
+            if filter_tag is not None:
+                filter = columns[6]
+                if filter != filter_tag:
+                    continue
+            pos = int(columns[1])
+            ref_base = columns[3]
+            alt_base = columns[4]
+            if ',' in alt_base:
+                continue
+            variant_set.add(pos)
+            variant_info[pos] = (ref_base, alt_base)
+            if bed_tree and not is_region_in(tree=bed_tree, contig_name=contig_name, region_start=pos):
+                continue
+
+            if filter_tag is not None and filter_tag == 'GERMLINE':
+                genotype_info = columns[-1].split(':')
+                genotype = genotype_info[0]
+                g1, g2 = genotype.replace('|', "/").split('/')
+                if g1 == "1" and g2 == "1":
+                    homo_variant_set.add(pos)
+                    homo_variant_info[pos] = (ref_base, alt_base)
+                if add_hetero_pos and (g1 == "1" and g2 == "0" or g1 == "0" and g2 == "1"):
+                    hetero_variant_set.add(pos)
+                    hetero_variant_info[pos] = (ref_base, alt_base)
+            else:
+                homo_variant_set.add(pos)
+                homo_variant_info[pos] = (ref_base, alt_base)
+
+        else:
+            pos = int(columns[1])
+            ref_base = columns[3]
+            alt_base = columns[4]
+            variant_set.add(pos)
+            variant_info[pos] = (ref_base, alt_base)
+            if bed_tree and not is_region_in(tree=bed_tree, contig_name=contig_name, region_start=pos):
+                continue
+
+            genotype_info = columns[9].split(':')
+            genotype = genotype_info[0]
+            g1, g2 = genotype.replace('|', "/").split('/')
+            if g1 == "1" and g2 == "1":
+                homo_variant_set.add(pos)
+                homo_variant_info[pos] = (ref_base, alt_base)
+            if add_hetero_pos and (g1 == "1" and g2 == "0" or g1 == "0" and g2 == "1"):
+                hetero_variant_set.add(pos)
+                hetero_variant_info[pos] = (ref_base, alt_base)
 
     return homo_variant_set, homo_variant_info, hetero_variant_set, hetero_variant_info, variant_set, variant_info
 
@@ -223,7 +254,6 @@ def filter_germline_candidates(args, truths, variant_info, alt_dict, paired_alt_
             truth_not_pass_af += 1
             if gen_vcf:
                 low_confident_germline_truths.append((pos, variant_type + INFO + 'germline_no_read_support'))
-
             continue
 
         # discard the germline variants, if normal and tumor have large distinct
@@ -282,7 +312,6 @@ def filter_reference_candidates(args, truths, alt_dict, paired_alt_dict, gen_vcf
                                                                         alt_info_dict=alt_dict[pos].alt_dict,
                                                                         ref_base=ref_base)
 
-        is_indel = '-' in most_frequent_alt_base or '+' in most_frequent_alt_base
         if most_frequent_alt_base is None or tumor_af is None:
             continue
         tumor_af = float(tumor_af)
@@ -405,6 +434,9 @@ def get_candidates(args):
     output_vcf_fn = args.output_vcf_fn
     gen_vcf = output_vcf_fn is not None
     sample_normal_af = args.sample_normal_af
+    normal_bam_fn = args.normal_bam_fn
+    tumor_bam_fn = args.tumor_bam_fn
+    use_real_sample = args.use_real_sample
     ref_fn = args.ref_fn
     platform = args.platform
     proportion = args.proportion
@@ -418,120 +450,222 @@ def get_candidates(args):
     maximum_germline_somatic_ratio = args.maximum_germline_somatic_ratio
     maximum_reference_somatic_ratio = args.maximum_reference_somatic_ratio
 
-    normal_homo_variant_set, normal_homo_variant_info, normal_hetero_variant_set, normal_hetero_variant_info, normal_variant_set, normal_variant_info = vcf_reader(
-        vcf_fn=normal_vcf_fn, contig_name=contig_name, bed_tree=bed_tree, add_hetero_pos=add_hetero_pos)
-    tumor_homo_variant_set, tumor_homo_variant_info, tumor_hetero_variant_set, tumor_hetero_variant_info, tumor_variant_set, tumor_variant_info = vcf_reader(
-        vcf_fn=tumor_vcf_fn, contig_name=contig_name, bed_tree=bed_tree, add_hetero_pos=add_hetero_pos)
-    tumor_alt_dict = get_ref_candidates(args=args,
-                                        fn=tumor_reference_cans_fn,
-                                        contig_name=contig_name,
-                                        bed_tree=bed_tree,
-                                        variant_info=tumor_variant_info,
-                                        select_indel_candidates=args.select_indel_candidates)
-    normal_alt_dict = get_ref_candidates(args=args,
-                                         fn=normal_reference_cans_fn,
-                                         contig_name=contig_name,
-                                         bed_tree=bed_tree,
-                                         variant_info=tumor_variant_info,
-                                         select_indel_candidates=args.select_indel_candidates)
+    if use_real_sample:
+        tumor_homo_variant_set, tumor_homo_variant_info, tumor_hetero_variant_set, tumor_hetero_variant_info, tumor_variant_set, tumor_variant_info = vcf_reader(
+            vcf_fn=tumor_vcf_fn, contig_name=contig_name, bed_tree=bed_tree, add_hetero_pos=add_hetero_pos,
+            filter_tag="PASS", use_real_sample=use_real_sample)
+        normal_homo_variant_set, normal_homo_variant_info, normal_hetero_variant_set, normal_hetero_variant_info, normal_variant_set, normal_variant_info = vcf_reader(
+            vcf_fn=tumor_vcf_fn, contig_name=contig_name, add_hetero_pos=add_hetero_pos, filter_tag="GERMLINE", use_real_sample=use_real_sample)
 
-    normal_ref_cans_list = [pos for pos in normal_alt_dict if
-                            pos not in tumor_variant_set and pos not in normal_variant_set]
-    tumor_ref_cans_list = [pos for pos in tumor_alt_dict if
-                           pos not in tumor_variant_set and pos not in normal_variant_set]
-    intersection_pos_set = normal_homo_variant_set.intersection(tumor_homo_variant_set)
+        tumor_alt_dict = get_ref_candidates(args=args,
+                                            fn=tumor_reference_cans_fn,
+                                            contig_name=contig_name,
+                                            bed_tree=bed_tree,
+                                            select_indel_candidates=args.select_indel_candidates)
+        normal_alt_dict = get_ref_candidates(args=args,
+                                             fn=normal_reference_cans_fn,
+                                             contig_name=contig_name,
+                                             bed_tree=bed_tree,
+                                             select_indel_candidates=args.select_indel_candidates)
 
-    same_alt_pos_set = set()
-    for pos in intersection_pos_set:
-        if normal_homo_variant_info[pos] != tumor_homo_variant_info[pos]:
-            continue
-        same_alt_pos_set.add(pos)
+        homo_germline = [(item, 'homo_germline') for item in list(normal_homo_variant_set)]
+        hetero_germline = [(item, 'hetero_germline') for item in list(normal_hetero_variant_set)]
 
-    hetero_list_with_same_repre = []
-    if add_hetero_pos:
-        for pos, (ref_base, alt_base) in tumor_hetero_variant_info.items():
-            if pos in normal_hetero_variant_set:
-                ref_base_2, alt_base_2 = normal_hetero_variant_info[pos]
-                if ref_base == ref_base_2 and alt_base == alt_base_2:
-                    hetero_list_with_same_repre.append(pos)
+        homo_germline, homo_low_confident_germline_truths = filter_germline_candidates(args=args,
+                                                                                       truths=homo_germline,
+                                                                                       variant_info=normal_variant_info,
+                                                                                       alt_dict=tumor_alt_dict,
+                                                                                       paired_alt_dict=normal_alt_dict,
+                                                                                       gen_vcf=gen_vcf,
+                                                                                       INFO="Homo",
+                                                                                       platform=platform)
+        # need add hetero, otherwise, in real case, the performance of hetero variants are too bad
+        hetero_germline, hetero_low_confident_germline_truths = filter_germline_candidates(args=args,
+                                                                                           truths=hetero_germline,
+                                                                                           variant_info=normal_variant_info,
+                                                                                           alt_dict=tumor_alt_dict,
+                                                                                           paired_alt_dict=normal_alt_dict,
+                                                                                           gen_vcf=gen_vcf,
+                                                                                           INFO="Hetero",
+                                                                                           platform=platform)
 
-    homo_germline = [(item, 'homo_germline') for item in list(same_alt_pos_set)]
-    hetero_germline = [(item, 'hetero_germline') for item in hetero_list_with_same_repre]
-    ref_list = tumor_ref_cans_list
-    if sample_normal_af is not None:
-        random.seed(0)
-        ref_list += random.sample(normal_ref_cans_list, int(len(normal_ref_cans_list) * sample_normal_af))
+        add_germline = True
+        if not add_germline:
+            # exclude germline variants if we exclude germline variants into training
+            # exclude gerlmine variants when create VCF and fp BED region
+            homo_germline = []
+            hetero_germline = []
 
-    references = [(item, 'ref') for item in ref_list]
-    homo_germline, homo_low_confident_germline_truths = filter_germline_candidates(args=args,
-                                                                                   truths=homo_germline,
-                                                                                   variant_info=tumor_variant_info,
-                                                                                   alt_dict=tumor_alt_dict,
-                                                                                   paired_alt_dict=normal_alt_dict,
-                                                                                   gen_vcf=gen_vcf,
-                                                                                   INFO="Homo",
-                                                                                   platform=platform)
-    # need add hetero, otherwise, in real case, the performance of hetero variants are too bad
-    hetero_germline, hetero_low_confident_germline_truths = filter_germline_candidates(args=args,
-                                                                                       truths=hetero_germline,
+        normal_ref_cans_list = [pos for pos in normal_alt_dict if
+                                pos not in tumor_variant_set and pos not in normal_variant_set]
+        tumor_ref_cans_list = [pos for pos in tumor_alt_dict if
+                               pos not in tumor_variant_set and pos not in normal_variant_set]
+        ref_list = tumor_ref_cans_list
+        if sample_normal_af is not None:
+            random.seed(0)
+            ref_list += random.sample(normal_ref_cans_list, int(len(normal_ref_cans_list) * sample_normal_af))
+        references = [(item, 'ref') for item in ref_list]
+
+        references, low_confident_reference_candidates = filter_reference_candidates(args=args,
+                                                                                     truths=references,
+                                                                                     alt_dict=tumor_alt_dict,
+                                                                                     paired_alt_dict=normal_alt_dict,
+                                                                                     gen_vcf=gen_vcf,
+                                                                                     INFO="Ref")
+
+        if maximum_non_variant_ratio is not None:
+            # random sample reference calls in training mode, with seed
+            random.seed(0)
+            references = random.sample(references, int(len(references) * maximum_non_variant_ratio))
+            random.seed(0)
+            homo_germline = random.sample(homo_germline, int(len(homo_germline) * maximum_non_variant_ratio))
+            random.seed(0)
+            hetero_germline = random.sample(hetero_germline, int(len(hetero_germline) * maximum_non_variant_ratio))
+
+        if args.use_reference_candidates_only:
+            homo_germline = []
+            hetero_germline = []
+
+        homo_somatic_set = sorted(list(tumor_homo_variant_set))
+        hetero_somatic_set = sorted(list(tumor_hetero_variant_set))
+        homo_somatic = [(item, 'homo_somatic') for item in homo_somatic_set]
+        # skip hetero variant here
+        hetero_somatic = [(item, 'hetero_somatic') for item in hetero_somatic_set] if add_hetero_pos else []
+
+        if args.use_reference_candidates_only:
+            homo_somatic = []
+            hetero_somatic = []
+
+        homo_somatic, homo_low_confident_truths = filter_somatic_candidates(args=args,
+                                                                            truths=homo_somatic,
+                                                                            variant_info=tumor_variant_info,
+                                                                            alt_dict=tumor_alt_dict,
+                                                                            paired_alt_dict=normal_alt_dict,
+                                                                            gen_vcf=gen_vcf)
+
+        hetero_somatic, hetero_low_confident_truths = filter_somatic_candidates(args=args,
+                                                                                truths=hetero_somatic,
+                                                                                variant_info=tumor_variant_info,
+                                                                                alt_dict=tumor_alt_dict,
+                                                                                paired_alt_dict=normal_alt_dict,
+                                                                                gen_vcf=gen_vcf,
+                                                                                INFO="Hetero")
+
+    else:
+        normal_homo_variant_set, normal_homo_variant_info, normal_hetero_variant_set, normal_hetero_variant_info, normal_variant_set, normal_variant_info = vcf_reader(
+            vcf_fn=normal_vcf_fn, contig_name=contig_name, bed_tree=bed_tree, add_hetero_pos=add_hetero_pos)
+        tumor_homo_variant_set, tumor_homo_variant_info, tumor_hetero_variant_set, tumor_hetero_variant_info, tumor_variant_set, tumor_variant_info = vcf_reader(
+            vcf_fn=tumor_vcf_fn, contig_name=contig_name, bed_tree=bed_tree, add_hetero_pos=add_hetero_pos)
+        tumor_alt_dict = get_ref_candidates(args=args,
+                                            fn=tumor_reference_cans_fn,
+                                            contig_name=contig_name,
+                                            bed_tree=bed_tree,
+                                            variant_info=tumor_variant_info,
+                                            select_indel_candidates=args.select_indel_candidates)
+        normal_alt_dict = get_ref_candidates(args=args,
+                                             fn=normal_reference_cans_fn,
+                                             contig_name=contig_name,
+                                             bed_tree=bed_tree,
+                                             variant_info=tumor_variant_info,
+                                             select_indel_candidates=args.select_indel_candidates)
+
+        normal_ref_cans_list = [pos for pos in normal_alt_dict if
+                                pos not in tumor_variant_set and pos not in normal_variant_set]
+        tumor_ref_cans_list = [pos for pos in tumor_alt_dict if
+                               pos not in tumor_variant_set and pos not in normal_variant_set]
+        intersection_pos_set = normal_homo_variant_set.intersection(tumor_homo_variant_set)
+
+        same_alt_pos_set = set()
+        for pos in intersection_pos_set:
+            if normal_homo_variant_info[pos] != tumor_homo_variant_info[pos]:
+                continue
+            same_alt_pos_set.add(pos)
+
+        hetero_list_with_same_repre = []
+        if add_hetero_pos:
+            for pos, (ref_base, alt_base) in tumor_hetero_variant_info.items():
+                if pos in normal_hetero_variant_set:
+                    ref_base_2, alt_base_2 = normal_hetero_variant_info[pos]
+                    if ref_base == ref_base_2 and alt_base == alt_base_2:
+                        hetero_list_with_same_repre.append(pos)
+
+        homo_germline = [(item, 'homo_germline') for item in list(same_alt_pos_set)]
+        hetero_germline = [(item, 'hetero_germline') for item in hetero_list_with_same_repre]
+        ref_list = tumor_ref_cans_list
+        if sample_normal_af is not None:
+            random.seed(0)
+            ref_list += random.sample(normal_ref_cans_list, int(len(normal_ref_cans_list) * sample_normal_af))
+
+        references = [(item, 'ref') for item in ref_list]
+        homo_germline, homo_low_confident_germline_truths = filter_germline_candidates(args=args,
+                                                                                       truths=homo_germline,
                                                                                        variant_info=tumor_variant_info,
                                                                                        alt_dict=tumor_alt_dict,
                                                                                        paired_alt_dict=normal_alt_dict,
                                                                                        gen_vcf=gen_vcf,
-                                                                                       INFO="Hetero",
+                                                                                       INFO="Homo",
                                                                                        platform=platform)
+        # need add hetero, otherwise, in real case, the performance of hetero variants are too bad
+        hetero_germline, hetero_low_confident_germline_truths = filter_germline_candidates(args=args,
+                                                                                           truths=hetero_germline,
+                                                                                           variant_info=tumor_variant_info,
+                                                                                           alt_dict=tumor_alt_dict,
+                                                                                           paired_alt_dict=normal_alt_dict,
+                                                                                           gen_vcf=gen_vcf,
+                                                                                           INFO="Hetero",
+                                                                                           platform=platform)
 
-    add_germline = True
-    if not add_germline:
-        # exclude germline variants if we exclude germline variants into training
-        # exclude gerlmine variants when create VCF and fp BED region
-        homo_germline = []
-        hetero_germline = []
+        add_germline = True
+        if not add_germline:
+            # exclude germline variants if we exclude germline variants into training
+            # exclude gerlmine variants when create VCF and fp BED region
+            homo_germline = []
+            hetero_germline = []
 
-    references, low_confident_reference_candidates = filter_reference_candidates(args=args,
-                                                                                 truths=references,
-                                                                                 alt_dict=tumor_alt_dict,
-                                                                                 paired_alt_dict=normal_alt_dict,
-                                                                                 gen_vcf=gen_vcf,
-                                                                                 INFO="Ref")
+        references, low_confident_reference_candidates = filter_reference_candidates(args=args,
+                                                                                     truths=references,
+                                                                                     alt_dict=tumor_alt_dict,
+                                                                                     paired_alt_dict=normal_alt_dict,
+                                                                                     gen_vcf=gen_vcf,
+                                                                                     INFO="Ref")
 
-    if maximum_non_variant_ratio is not None:
-        # random sample reference calls in training mode, with seed
-        random.seed(0)
-        references = random.sample(references, int(len(references) * maximum_non_variant_ratio))
-        random.seed(0)
-        homo_germline = random.sample(homo_germline, int(len(homo_germline) * maximum_non_variant_ratio))
-        random.seed(0)
-        hetero_germline = random.sample(hetero_germline, int(len(hetero_germline) * maximum_non_variant_ratio))
+        if maximum_non_variant_ratio is not None:
+            # random sample reference calls in training mode, with seed
+            random.seed(0)
+            references = random.sample(references, int(len(references) * maximum_non_variant_ratio))
+            random.seed(0)
+            homo_germline = random.sample(homo_germline, int(len(homo_germline) * maximum_non_variant_ratio))
+            random.seed(0)
+            hetero_germline = random.sample(hetero_germline, int(len(hetero_germline) * maximum_non_variant_ratio))
 
-    if args.use_reference_candidates_only:
-        homo_germline = []
-        hetero_germline = []
+        if args.use_reference_candidates_only:
+            homo_germline = []
+            hetero_germline = []
 
-    homo_somatic_set = sorted(list(tumor_homo_variant_set - normal_variant_set))
-    hetero_somatic_set = sorted(list(tumor_hetero_variant_set - normal_variant_set))
-    homo_somatic = [(item, 'homo_somatic') for item in homo_somatic_set]
-    # skip hetero variant here
-    hetero_somatic = [(item, 'hetero_somatic') for item in hetero_somatic_set] if add_hetero_pos else []
+        homo_somatic_set = sorted(list(tumor_homo_variant_set - normal_variant_set))
+        hetero_somatic_set = sorted(list(tumor_hetero_variant_set - normal_variant_set))
+        homo_somatic = [(item, 'homo_somatic') for item in homo_somatic_set]
+        # skip hetero variant here
+        hetero_somatic = [(item, 'hetero_somatic') for item in hetero_somatic_set] if add_hetero_pos else []
 
-    if args.use_reference_candidates_only:
-        homo_somatic = []
-        hetero_somatic = []
+        if args.use_reference_candidates_only:
+            homo_somatic = []
+            hetero_somatic = []
 
-    homo_somatic, homo_low_confident_truths = filter_somatic_candidates(args=args,
-                                                                        truths=homo_somatic,
-                                                                        variant_info=tumor_variant_info,
-                                                                        alt_dict=tumor_alt_dict,
-                                                                        paired_alt_dict=normal_alt_dict,
-                                                                        gen_vcf=gen_vcf)
-
-    hetero_somatic, hetero_low_confident_truths = filter_somatic_candidates(args=args,
-                                                                            truths=hetero_somatic,
+        homo_somatic, homo_low_confident_truths = filter_somatic_candidates(args=args,
+                                                                            truths=homo_somatic,
                                                                             variant_info=tumor_variant_info,
                                                                             alt_dict=tumor_alt_dict,
                                                                             paired_alt_dict=normal_alt_dict,
-                                                                            gen_vcf=gen_vcf,
-                                                                            INFO="Hetero")
+                                                                            gen_vcf=gen_vcf)
+
+        hetero_somatic, hetero_low_confident_truths = filter_somatic_candidates(args=args,
+                                                                                truths=hetero_somatic,
+                                                                                variant_info=tumor_variant_info,
+                                                                                alt_dict=tumor_alt_dict,
+                                                                                paired_alt_dict=normal_alt_dict,
+                                                                                gen_vcf=gen_vcf,
+                                                                                INFO="Hetero")
 
     # exclude nearby truth in training
     if exclude_flanking_truth:
@@ -563,8 +697,10 @@ def get_candidates(args):
 
     tp_list = homo_somatic + hetero_somatic
 
+    germlines = []
+
     if maximum_germline_somatic_ratio is not None:
-        if len(references) > int(maximum_germline_somatic_ratio * len(tp_list)):
+        if len(homo_germline + hetero_germline) > int(maximum_germline_somatic_ratio * len(tp_list)):
             random.seed(0)
             print("[INFO] Sampled germline candidates from {} to {}".format(len(homo_germline + hetero_germline), int(maximum_germline_somatic_ratio * len(tp_list))))
             germlines = random.sample(homo_germline + hetero_germline, int(maximum_germline_somatic_ratio * len(tp_list)))
@@ -627,45 +763,84 @@ def get_candidates(args):
     region_num = len(pos_list) // split_bed_size + 1 if len(
         pos_list) % split_bed_size else len(pos_list) // split_bed_size
 
-    for idx in range(region_num):
-        # a windows region for create tensor # samtools mpileup not include last position
-        split_output = pos_list[idx * split_bed_size: (idx + 1) * split_bed_size]
+    if use_real_sample:
+        for idx in range(region_num):
+            # a windows region for create tensor # samtools mpileup not include last position
+            split_output = pos_list[idx * split_bed_size: (idx + 1) * split_bed_size]
 
-        split_output = [(item[0] - flanking_base_num, item[0] + flanking_base_num + 2, item[1]) for item in
-                        split_output]
+            split_output = [(item[0] - flanking_base_num, item[0] + flanking_base_num + 2, item[1]) for item in
+                            split_output]
+            if args.select_indel_candidates:
+                output_path = os.path.join(split_folder,
+                                           '{}.{}_{}_{}_indel'.format(contig_name, idx, region_num, sample_prefix))
+            else:
+                output_path = os.path.join(split_folder,
+                                           '{}.{}_{}_{}'.format(contig_name, idx, region_num, sample_prefix))
+            all_candidates_regions.append(
+                output_path + ' ' + contig_name + ' ' + normal_output_bam_prefix + ' ' + tumor_output_bam_prefix + ' ' + tumor_vcf_fn + ' ' + normal_bam_fn + ' ' + tumor_bam_fn)
+            with open(output_path, 'w') as output_file:
+                output_file.write('\n'.join(
+                    ['\t'.join([contig_name, str(x[0] - 1), str(x[1] - 1), x[2]]) for x in
+                     split_output]) + '\n')  # bed format
+
         if args.select_indel_candidates:
-            output_path = os.path.join(split_folder,
-                                       '{}.{}_{}_por{}_cov{}_{}_indel'.format(contig_name, idx, region_num,
-                                                                     int(proportion * 100),
-                                                                     int(synthetic_coverage),
-                                                                     sample_prefix))
+            all_candidate_path = os.path.join(split_folder,
+                                              'INDEL_CANDIDATES_FILE_{}_{}'.format(contig_name, sample_prefix))
         else:
-            output_path = os.path.join(split_folder,
-                                       '{}.{}_{}_por{}_cov{}_{}'.format(contig_name, idx, region_num, int(proportion * 100),
-                                                                     int(synthetic_coverage),
-                                                                       sample_prefix))
-        all_candidates_regions.append(output_path + ' ' + str(proportion) + ' ' + str(synthetic_coverage) +
-                                      ' ' + contig_name + ' ' + normal_output_bam_prefix + ' ' + tumor_output_bam_prefix)
-        with open(output_path, 'w') as output_file:
-            output_file.write('\n'.join(
-                ['\t'.join([contig_name, str(x[0] - 1), str(x[1] - 1), x[2]]) for x in
-                 split_output]) + '\n')  # bed format
+            all_candidate_path = os.path.join(split_folder,
+                                              'CANDIDATES_FILE_{}_{}'.format(contig_name, sample_prefix))
+        if len(all_candidates_regions) > 0:
+            with open(all_candidate_path, 'w') as output_file:
+                output_file.write('\n'.join(all_candidates_regions) + '\n')
 
-    if args.select_indel_candidates:
-        all_candidate_path = os.path.join(split_folder,
-                                          'INDEL_CANDIDATES_FILE_{}_{}_{}_{}'.format(contig_name, proportion, synthetic_coverage, sample_prefix))
+        extra_info = "homo/hetero somatic exclude by flanking position:{}/{}".format(len(homo_exclude_truth_set), len(
+            hetero_exclude_truth_set)) if exclude_flanking_truth else ""
+        print(
+            '[INFO] {} homo germline:{} hetero germline:{} references:{} homo somatic:{} hetero somatic:{} {}\n'.format(
+                contig_name, len(homo_germline), len(hetero_germline), len(references), len(homo_somatic),
+                len(hetero_somatic), extra_info))
+
     else:
-        all_candidate_path = os.path.join(split_folder,
-                                          'CANDIDATES_FILE_{}_{}_{}_{}'.format(contig_name, proportion, synthetic_coverage, sample_prefix))
-    with open(all_candidate_path, 'w') as output_file:
-        output_file.write('\n'.join(all_candidates_regions) + '\n')
+        for idx in range(region_num):
+            # a windows region for create tensor # samtools mpileup not include last position
+            split_output = pos_list[idx * split_bed_size: (idx + 1) * split_bed_size]
 
-    extra_info = "homo/hetero somatic exclude by flanking position:{}/{}".format(len(homo_exclude_truth_set), len(
-        hetero_exclude_truth_set)) if exclude_flanking_truth else ""
-    print(
-        '[INFO] {}-{} homo germline:{} hetero germline:{} references:{} homo somatic:{} hetero somatic:{} {}\n'.format(
-            contig_name, proportion, len(homo_germline), len(hetero_germline), len(references), len(homo_somatic),
-            len(hetero_somatic), extra_info))
+            split_output = [(item[0] - flanking_base_num, item[0] + flanking_base_num + 2, item[1]) for item in
+                            split_output]
+            if args.select_indel_candidates:
+                output_path = os.path.join(split_folder,
+                                           '{}.{}_{}_por{}_cov{}_{}_indel'.format(contig_name, idx, region_num,
+                                                                         int(proportion * 100),
+                                                                         int(synthetic_coverage),
+                                                                         sample_prefix))
+            else:
+                output_path = os.path.join(split_folder,
+                                           '{}.{}_{}_por{}_cov{}_{}'.format(contig_name, idx, region_num, int(proportion * 100),
+                                                                         int(synthetic_coverage),
+                                                                           sample_prefix))
+            all_candidates_regions.append(output_path + ' ' + str(proportion) + ' ' + str(synthetic_coverage) +
+                                          ' ' + contig_name + ' ' + normal_output_bam_prefix + ' ' + tumor_output_bam_prefix)
+            with open(output_path, 'w') as output_file:
+                output_file.write('\n'.join(
+                    ['\t'.join([contig_name, str(x[0] - 1), str(x[1] - 1), x[2]]) for x in
+                     split_output]) + '\n')  # bed format
+
+        if args.select_indel_candidates:
+            all_candidate_path = os.path.join(split_folder,
+                                              'INDEL_CANDIDATES_FILE_{}_{}_{}_{}'.format(contig_name, proportion, synthetic_coverage, sample_prefix))
+        else:
+            all_candidate_path = os.path.join(split_folder,
+                                              'CANDIDATES_FILE_{}_{}_{}_{}'.format(contig_name, proportion, synthetic_coverage, sample_prefix))
+        if len(all_candidates_regions) > 0:
+            with open(all_candidate_path, 'w') as output_file:
+                output_file.write('\n'.join(all_candidates_regions) + '\n')
+
+        extra_info = "homo/hetero somatic exclude by flanking position:{}/{}".format(len(homo_exclude_truth_set), len(
+            hetero_exclude_truth_set)) if exclude_flanking_truth else ""
+        print(
+            '[INFO] {}-{} homo germline:{} hetero germline:{} references:{} homo somatic:{} hetero somatic:{} {}\n'.format(
+                contig_name, proportion, len(homo_germline), len(hetero_germline), len(references), len(homo_somatic),
+                len(hetero_somatic), extra_info))
 
 
 def main():
@@ -674,8 +849,11 @@ def main():
     parser.add_argument('--platform', type=str, default='ont',
                         help="Select the sequencing platform of the input. Default: %(default)s")
 
-    parser.add_argument('--bam_fn', type=str, default="input.bam",
-                        help="Sorted BAM file input, required")
+    parser.add_argument('--normal_bam_fn', type=str, default="normal.bam",
+                        help="Sorted normal BAM file input")
+
+    parser.add_argument('--tumor_bam_fn', type=str, default="tumor.bam",
+                        help="Sorted tumor BAM file input")
 
     parser.add_argument('--ref_fn', type=str, default=None,
                         help="Reference fasta file input, required")
@@ -755,6 +933,9 @@ def main():
 
     ## Maximum non-variant ratio against variant in the training data
     parser.add_argument('--maximum_non_variant_ratio', type=float, default=None,
+                        help=SUPPRESS)
+
+    parser.add_argument('--use_real_sample', type=str2bool, default=0,
                         help=SUPPRESS)
 
     args = parser.parse_args()

@@ -254,24 +254,24 @@ def find_tumor_alt_match(center_pos,
                          read_name_dict,
                          all_nearby_read_name,
                          truths_variant_dict,
-                         normal_output_bam_prefix= 'n',
+                         normal_output_bam_prefix='n',
                          tumor_output_bam_prefix='t',
-                         proportion=None):
-    # if proportion is not None and float(proportion) == 1.0:
-    #     # all reads are from tumor reads
-    #     tumor_reads = all_nearby_read_name
-    #     normal_reads = []
-    # else:
-    tumor_reads = [read_name for read_name in all_nearby_read_name if read_name.startswith(tumor_output_bam_prefix)]
-    normal_reads = [read_name for read_name in all_nearby_read_name if read_name.startswith(normal_output_bam_prefix)]
+                         use_real_sample=False):
     ref_base, alt_base = truths_variant_dict[center_pos].reference_bases, truths_variant_dict[center_pos].alternate_bases[0]
     is_ins = len(alt_base) > 1 and len(ref_base) == 1
     is_del = len(ref_base) > 1 and len(alt_base) == 1
     is_snp = len(ref_base) == 1 and len(alt_base) == 1
-
-    matched_read_name_set = set()
-    normal_read_name_set = set(normal_reads)
-    tumor_read_name_set = set(tumor_reads)
+    if use_real_sample:
+        tumor_reads = [read_name for read_name in all_nearby_read_name]
+        matched_read_name_set = set()
+        normal_read_name_set = None
+        tumor_read_name_set = set(tumor_reads)
+    else:
+        tumor_reads = [read_name for read_name in all_nearby_read_name if read_name.startswith(tumor_output_bam_prefix)]
+        normal_reads = [read_name for read_name in all_nearby_read_name if read_name.startswith(normal_output_bam_prefix)]
+        matched_read_name_set = set()
+        normal_read_name_set = set(normal_reads)
+        tumor_read_name_set = set(tumor_reads)
     for read_name in tumor_reads:
         if read_name in read_name_dict:
             base, indel = read_name_dict[read_name]
@@ -307,7 +307,7 @@ def create_tensor(args):
     is_candidates_bed_regions_given = candidates_bed_regions is not None
     extend_bp = param.extend_bp
     add_bq_disturbance = args.add_bq_disturbance
-
+    use_real_sample = args.use_real_sample
     minimum_snp_af_for_candidate = args.snv_min_af
     minimum_indel_af_for_candidate = args.indel_min_af
     min_coverage = args.min_coverage
@@ -338,7 +338,10 @@ def create_tensor(args):
 
     if is_truth_vcf_provided:
         from shared.vcf import VcfReader
-        unified_vcf_reader = VcfReader(vcf_fn=truth_vcf_fn, ctg_name=ctg_name, is_var_format=False)
+        if use_real_sample:
+            unified_vcf_reader = VcfReader(vcf_fn=truth_vcf_fn, ctg_name=ctg_name, is_var_format=False, filter_tag="PASS")
+        else:
+            unified_vcf_reader = VcfReader(vcf_fn=truth_vcf_fn, ctg_name=ctg_name, is_var_format=False)
         unified_vcf_reader.read_vcf()
         truths_variant_dict = unified_vcf_reader.variant_dict
 
@@ -458,7 +461,6 @@ def create_tensor(args):
     hap_dict = defaultdict(int)
     extend_bp_distance = no_of_positions + param.extend_bp
 
-
     extend_bed_tree = bed_tree_from(bed_file_path=extend_bed,
                                     contig_name=ctg_name,
                                     bed_ctg_start=extend_start,
@@ -494,13 +496,12 @@ def create_tensor(args):
                 continue
 
             mapping_quality = [ord(mq) - 33 for mq in raw_mapping_quality]
-            base_quality = [ord(mq) - 33 for mq in raw_base_quality]
-
+            base_quality = [ord(bq) - 33 for bq in raw_base_quality]
             if add_bq_disturbance:
                 random.seed(ctg_start)
                 new_base_quality = add_gaussian_noise(base_quality)
                 base_quality = new_base_quality
-                            
+
             if phasing_info_in_bam:
                 phasing_info = columns[8].split(',')
                 for hap_idx, hap in enumerate(phasing_info):
@@ -564,23 +565,18 @@ def create_tensor(args):
         if sum([1 for tensor in pileup_tensors[start_index:end_index] if len(tensor) == 0]) > 0:
             continue
 
-        use_tensor_sample_mode = tensor_sample_mode and (
-                candidates_type_dict[pos] == 'homo_somatic' or candidates_type_dict[
-            pos] == 'hetero_somatic') and pos in truths_variant_dict and training_mode
-
+        use_tensor_sample_mode = tensor_sample_mode and (candidates_type_dict[pos] == 'homo_somatic' or candidates_type_dict[pos] == 'hetero_somatic') and pos in truths_variant_dict and training_mode
         tensor_string_list = []
         alt_info_list = []
         if pos not in alt_info_dict:
             continue
         if use_tensor_sample_mode:
-
             base_list, read_name_list = pileup_info_dict[pos][0], pileup_info_dict[pos][1]
             read_name_dict = dict(zip(read_name_list, base_list))
             center_pos = pos
             all_nearby_read_name = []
             start_pos, end_pos = center_pos - flanking_base_num, center_pos + flanking_base_num + 1
             for p in range(start_pos, end_pos):
-
                 if p in pileup_info_dict:
                     all_nearby_read_name += pileup_info_dict[p][1]
             all_nearby_read_name = list(OrderedDict.fromkeys(all_nearby_read_name))  # have sorted by order
@@ -591,14 +587,14 @@ def create_tensor(args):
                                                                                                             truths_variant_dict,
                                                                                                             normal_output_bam_prefix=normal_output_bam_prefix,
                                                                                                             tumor_output_bam_prefix=tumor_output_bam_prefix,
-                                                                                                            proportion=proportion)
+                                                                                                            use_real_sample=use_real_sample)
 
             if len(tumor_reads_meet_alt_info_set) == 0:
                 print("No reads support tumor alternative in pos:{}".format(center_pos))
                 continue
             min_tumor_support_read_num = param.min_tumor_support_read_num
             tumor_read_name_list = list(tumor_read_name_set)
-            normal_read_name_list = list(normal_read_name_set)
+            normal_read_name_list = list(normal_read_name_set) if not use_real_sample else []
             tumor_reads_num = len(tumor_read_name_set)
             tumor_reads_meet_alt_info_num = len(tumor_reads_meet_alt_info_set)
             tumor_read_porportion = tumor_reads_meet_alt_info_num / float(tumor_reads_num)
@@ -832,6 +828,7 @@ def main():
 
     parser.add_argument('--add_phasing_info', type=str2bool, default=0,
                         help=SUPPRESS)
+
     parser.add_argument('--proportion', type=float, default=1.0,
                         help=SUPPRESS)
 
@@ -845,6 +842,9 @@ def main():
                         help=SUPPRESS)
 
     parser.add_argument('--add_bq_disturbance', type=str2bool, default=0,
+                        help=SUPPRESS)
+
+    parser.add_argument('--use_real_sample', type=str2bool, default=0,
                         help=SUPPRESS)
 
     args = parser.parse_args()

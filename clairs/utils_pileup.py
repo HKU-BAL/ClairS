@@ -42,7 +42,7 @@ from itertools import product
 from shared.interval_tree import bed_tree_from, is_region_in
 from shared.utils import subprocess_popen, IUPAC_base_to_num_dict as BASE2NUM
 
-FILTERS = tables.Filters(complib='blosc:lz4hc', complevel=5)
+FILTERS = tables.Filters(complib='blosc:zstd', complevel=5)
 shuffle_bin_size = 3000
 PREFIX_CHAR_STR = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
@@ -285,7 +285,6 @@ def check_bin_af_distrbution(path):
         normal_max = np.concatenate([normal_max, np.max(normal_part, axis=1)], axis=0)
         tumor_max = np.concatenate([tumor_max, np.max(tumor_part, axis=1)], axis=0)
         all_label = np.concatenate([all_label, label], axis=0)
-        total_germline += sum(table.root.label[:, 1])
         total_germline += sum(table.root.label[:, 1])
         total_somatic += sum(table.root.label[:, 2])
         if fn_idx > 10:

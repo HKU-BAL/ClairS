@@ -330,7 +330,7 @@ def train_model_torch_dataset(args):
         tensor_shape = param.input_shape_dict[platform]
 
     if chkpnt_fn is not None:
-        model = torch.load(chkpnt_fn)
+        model = torch.load(chkpnt_fn, map_location=torch.device(device))
 
     output = model(input)
 
@@ -363,8 +363,8 @@ def train_model_torch_dataset(args):
     if validation_fn:
         val_list = os.listdir(validation_fn)
         logging.info("[INFO] total {} validation bin files: {}".format(len(val_list), ','.join(val_list)))
-        train_dataset = BinFileDataset(bin_list, args.bin_fn, chunk_size, batch_size, debug_mode=False, discard_germline = discard_germline, \
-                                       add_af_in_label = param.add_af_in_label, smoothing=smoothing, pileup=args.pileup)
+        train_dataset = BinFileDataset(bin_list, args.bin_fn, chunk_size, batch_size, debug_mode=False, discard_germline=discard_germline, \
+                                       add_af_in_label=param.add_af_in_label, smoothing=smoothing, pileup=args.pileup)
         train_chunk_num = len(train_dataset)
 
         val_dataset = BinFileDataset(val_list, validation_fn, chunk_size, batch_size, debug_mode=debug_mode, discard_germline=discard_germline, \
@@ -373,7 +373,7 @@ def train_model_torch_dataset(args):
         total_chunks = train_chunk_num + validate_chunk_num
     else:
         total_dataset = BinFileDataset(bin_list, args.bin_fn, chunk_size, batch_size, debug_mode=debug_mode, discard_germline=discard_germline, \
-                                       add_af_in_label = param.add_af_in_label, smoothing=smoothing, pileup=args.pileup)
+                                       add_af_in_label=param.add_af_in_label, smoothing=smoothing, pileup=args.pileup)
         total_chunks = len(total_dataset)
         training_dataset_percentage = param.trainingDatasetPercentage if add_validation_dataset else None
         if add_validation_dataset:
@@ -471,11 +471,11 @@ def train_model_torch_dataset(args):
                 data, label = batch_tuple
             t.set_description('EPOCH {}'.format(epoch))
             if not args.pileup:
-                    data = data.reshape(-1, param.channel_size, param.matrix_depth_dict[platform], param.no_of_positions)
-                    data = data.to(device) / 100.0
+                data = data.reshape(-1, param.channel_size, param.matrix_depth_dict[platform], param.no_of_positions)
+                data = data.to(device) / 100.0
             else:
-                    data = data.reshape(-1, param.no_of_positions, param.pileup_channel_size*2)
-                    data = data.to(device)
+                data = data.reshape(-1, param.no_of_positions, param.pileup_channel_size*2)
+                data = data.to(device)
             label = label.reshape(-1, 3).to(device)
             label = label.to(device)
             output_logit = model(data).contiguous()
@@ -592,6 +592,7 @@ def train_model_torch_dataset(args):
     if add_validation_dataset:
         val_dataset.dataset.close()
 
+
 def train_model(args):
     apply_focal_loss = param.apply_focal_loss
     discard_germline = param.discard_germline
@@ -639,7 +640,7 @@ def train_model(args):
         tensor_shape = param.input_shape_dict[platform]
 
     if chkpnt_fn is not None:
-        model = torch.load(chkpnt_fn)
+        model = torch.load(chkpnt_fn, map_location=torch.device(device))
 
     output = model(input)
 
