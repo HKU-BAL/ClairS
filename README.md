@@ -79,6 +79,8 @@ Performance comparison between “ClairS v0.4.0 with the SS model”, “ClairS 
 ------
 
 ## Latest Updates
+*v0.4.1 (Nov 29)* : Added ssrs model for PacBio Revio (`hifi_revio_ssrs`) and illumina (`ilmn_ssrs`) platforms.
+
 *v0.4.0 (Oct 11)* : This version is a major update. The new features and benchmarks are explained in a technical note titled [“Improving the performance of ClairS and ClairS-TO with new real cancer cell-line datasets and PoN”](docs/Improving_the_performance_of_ClairS_and_ClairS-TO_with_new_real_cancer_cell-line_datasets_and_PoN.pdf). A summary of changes: 1. Starting from this version, ClairS will provide two model types. `ssrs` is a model trained initially with synthetic samples and then real samples augmented (e.g., `ont_r10_dorado_sup_5khz_ssrs`), `ss` is a model trained from synthetic samples (e.g., `ont_r10_dorado_sup_5khz_ss`). The `ssrs` model provides better performance and fits most usage scenarios. `ss` model can be used when missing a cancer-type in model training is a concern. In v0.4.0, four real cancer cell-line datasets (HCC1937/BL, HCC1954/BL, H1437/BL, and H2009/BL) covering two cancer types (breast cancer, lung cancer) published by [Park et al.](https://www.biorxiv.org/content/10.1101/2024.08.16.608331v1) were used for `ssrs` model training. 2. Added BQ jittering in model training to address the BQ distribution difference between the training and calling datasets that leads to performance drop. 3. Added the `--indel_min_af` option and adjusted the default minimum allelic fraction requirement to 0.1 for Indels in ONT platform.
 
 *v0.3.1 (Aug 16)* : 1. Added four options i. `--use_heterozygous_snp_in_tumor_sample_and_normal_bam_for_intermediate_phasing`, ii. `--use_heterozygous_snp_in_normal_sample_and_normal_bam_for_intermediate_phasing`, iii. `--use_heterozygous_snp_in_tumor_sample_and_tumor_bam_for_intermediate_phasing`, and iv. `--use_heterozygous_snp_in_normal_sample_and_tumor_bam_for_intermediate_phasing`. iii is equivalent to `--use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing` added in v0.2.0. iv is equivalent to `--use_heterozygous_snp_in_normal_sample_for_intermediate_phasing` added in v0.2.0. Use normal bam for intermediate phasing was a request from @[Sergey Aganezov](https://github.com/aganezov). When the coverage of normal and tumor are similar, using normal bam for intermediate phasing has negligible difference from using tumor bam in our experiments using HCC1395/BL. 2. Added `--haplotagged_tumor_bam_provided_so_skip_intermediate_phasing_and_haplotagging` to use the haplotype information provided in the tumor bam directly and skip intermediate phasing and haplotagging. This option is useful when using ClairS in a pipeline in which the phasing of the tumor bam is done before running ClairS. BAM haplotagged by WhatsHap and LongPhase are accepted. 3. Bumped up Clair3 dependency to version 1.0.10, LongPhase to version 1.7.3.
@@ -130,18 +132,20 @@ Check [Usage](#Usage) for more options.
 
 ClairS trained both pileup and full-alignment models using GIAB samples, and carry on benchmarking on HCC1395-HCC1395BL pair dataset. All models were trained with chr20 excluded (including only chr1-19, 21, 22). 
 
-|  Platform   |       Model name       |    Chemistry /Instruments    |    Basecaller    | Option (`-p/--platform`) |   Reference   | Aligner  |
-| :---------: | :--------------------: | :--------------------------: | :----------------------: | :-----------: | :------: | ----------- |
-| ONT<sup>1</sup> | r1041_e82_400bps_sup_v420 | R10.4.1, 5khz | Dorado SUP | `ont_r10_dorado_sup_5khz_ssrs` | GRCh38_no_alt | Minimap2 |
-| ONT<sup>1</sup> | r1041_e82_400bps_sup_v420 | R10.4.1, 5khz | Dorado SUP | `ont_r10_dorado_sup_5khz_ss` | GRCh38_no_alt | Minimap2 |
-| ONT | r1041_e82_400bps_sup_v410 | R10.4.1, 4khz | Dorado SUP | `ont_r10_dorado_sup_4khz` | GRCh38_no_alt | Minimap2 |
-| ONT | r1041_e82_400bps_hac_v420 | R10.4.1, 5khz | Dorado HAC | `ont_r10_dorado_hac_5khz` | GRCh38_no_alt | Minimap2 |
-| ONT | r1041_e82_400bps_hac_v410 | R10.4.1, 4khz | Dorado HAC | `ont_r10_dorado_hac_4khz` | GRCh38_no_alt | Minimap2 |
-|     ONT     | r104_e81_sup_g5015 |        R10.4/R10.4.1, 4khz         |        Guppy5 SUP        | `ont_r10_guppy` | GRCh38_no_alt | Minimap2 |
-|    ONT <sup>2</sup>    |  r941_prom_sup_g5014   |            R9.4.1, 4khz            |            Guppy5 SUP            |         `ont_r9_guppy`         | GRCh38_no_alt | Minimap2 |
-|  Illumina   |          ilmn          |        NovaSeq/HiseqX        |        -        |          `ilmn`          |    GRCh38     | BWA-MEM  |
-| PacBio HiFi <sup>3</sup> |          hifi_sequel2          | Sequel II with Chemistry 2.0 | - |          `hifi_sequel2`          | GRCh38_no_alt | Minimap2 |
-| PacBio HIFI | hifi_revio | Revio with SMRTbell prep kit 3.0 | - | `hifi_revio` | GRCh38_no_alt | Minimap2 |
+|        Platform         |       Model name       |    Chemistry /Instruments    |    Basecaller    |    Option (`-p/--platform`)    |   Reference   | Aligner  |
+|:-----------------------:| :--------------------: | :--------------------------: | :----------------------: |:------------------------------:| :------: | ----------- |
+|     ONT<sup>1</sup>     | r1041_e82_400bps_sup_v420 | R10.4.1, 5khz | Dorado SUP | `ont_r10_dorado_sup_5khz_ssrs` | GRCh38_no_alt | Minimap2 |
+|     ONT<sup>1</sup>     | r1041_e82_400bps_sup_v420 | R10.4.1, 5khz | Dorado SUP |  `ont_r10_dorado_sup_5khz_ss`  | GRCh38_no_alt | Minimap2 |
+|           ONT           | r1041_e82_400bps_sup_v410 | R10.4.1, 4khz | Dorado SUP |   `ont_r10_dorado_sup_4khz`    | GRCh38_no_alt | Minimap2 |
+|           ONT           | r1041_e82_400bps_hac_v420 | R10.4.1, 5khz | Dorado HAC |   `ont_r10_dorado_hac_5khz`    | GRCh38_no_alt | Minimap2 |
+|           ONT           | r1041_e82_400bps_hac_v410 | R10.4.1, 4khz | Dorado HAC |   `ont_r10_dorado_hac_4khz`    | GRCh38_no_alt | Minimap2 |
+|           ONT           | r104_e81_sup_g5015 |        R10.4/R10.4.1, 4khz         |        Guppy5 SUP        |        `ont_r10_guppy`         | GRCh38_no_alt | Minimap2 |
+|     ONT<sup>2</sup>     |  r941_prom_sup_g5014   |            R9.4.1, 4khz            |            Guppy5 SUP            |         `ont_r9_guppy`         | GRCh38_no_alt | Minimap2 |
+|  Illumina<sup>1</sup>   |          ilmn          |        NovaSeq/HiseqX        |        -        |          `ilmn_ssrs`           |    GRCh38     | BWA-MEM  |
+|  Illumina<sup>1</sup>   |          ilmn          |        NovaSeq/HiseqX        |        -        |           `ilmn_ss`            |    GRCh38     | BWA-MEM  |
+| PacBio HiFi<sup>3</sup> |          hifi_sequel2          | Sequel II with Chemistry 2.0 | - |         `hifi_sequel2`         | GRCh38_no_alt | Minimap2 |
+| PacBio HIFI<sup>1</sup> | hifi_revio | Revio with SMRTbell prep kit 3.0 | - |       `hifi_revio_ssrs`        | GRCh38_no_alt | Minimap2 |
+| PacBio HIFI<sup>1</sup> | hifi_revio | Revio with SMRTbell prep kit 3.0 | - |        `hifi_revio_ss`         | GRCh38_no_alt | Minimap2 |
 
 **Caveats <sup>1</sup>**: Starting from v0.4.0 version, ClairS will provide two model types. `ssrs` is a model trained initially with synthetic samples and then real samples augmented (e.g., `ont_r10_dorado_sup_5khz_ssrs`), `ss` is a model trained from synthetic samples (e.g., `ont_r10_dorado_sup_5khz_ss`). The `ssrs` model provides better performance and fits most usage scenarios. `ss` model can be used when missing a cancer-type in model training is a concern. In v0.4.0, four real cancer cell-line datasets (HCC1937, HCC1954, H1437, and H2009) covering two cancer types (breast cancer, lung cancer) published by [Park et al.](https://www.biorxiv.org/content/10.1101/2024.08.16.608331v1) were used for `ssrs` model training.
 
