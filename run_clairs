@@ -84,11 +84,11 @@ Clair3Option = namedtuple('Clair3Option', [
 ])
 
 supported_platforms = ['ont_r10_dorado_sup_5khz_ssrs', 'ont_r10_dorado_sup_5khz_ss', 'ont_r10_dorado_sup_5khz', 'ont_r10_dorado_sup_4khz', 'ont_r10_dorado_hac_5khz',
-                       'ont_r10_dorado_hac_4khz', 'ont_r10_guppy', 'ont_r9_guppy', 'ilmn', 'hifi_sequel2', 'hifi_revio',
+                       'ont_r10_dorado_hac_4khz', 'ont_r10_guppy', 'ont_r9_guppy', 'ilmn', 'hifi_sequel2', 'hifi_revio', 'hifi_revio_ssrs', 'hifi_revio_ss','ilmn_ssrs', 'ilmn_ss'
                        ]
 
 indel_supported_platforms = ['ont_r10_dorado_sup_5khz_ssrs', 'ont_r10_dorado_sup_5khz_ss', 'ont_r10_guppy', 'ont_r10', 'ont', 'hifi_revio', 'hifi_sequel2', 'ont_r10_dorado_sup_5khz',
-                       'ont_r10_dorado_hac_5khz', 'ont_r10_dorado_sup_4khz', 'ont_r10_dorado_hac_5khz_liquid']
+                       'ont_r10_dorado_hac_5khz', 'ont_r10_dorado_sup_4khz', 'ont_r10_dorado_hac_5khz_liquid', 'hifi_revio_ssrs', 'hifi_revio_ss']
 
 extend_supported_platforms = supported_platforms + ['ont_r10', 'ont_r9', 'ont', 'ont_r10_dorado_hac_5khz_liquid']
 
@@ -502,7 +502,7 @@ def check_clair3_options(args):
         elif args.platform == 'hifi' or args.platform == 'hifi_sequel2':
             # clair3 hifi model in bioconda bin
             args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'hifi')
-        elif args.platform == "hifi_revio":
+        elif args.platform.startswith("hifi_revio"):
             args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'clairs_models', 'clair3_models', 'hifi_revio')
         elif args.platform == "ont_r10_dorado_4khz" or args.platform == "ont_r10_dorado_sup_4khz":
             args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'clairs_models', 'clair3_models', 'r1041_e82_400bps_sup_v410')
@@ -745,7 +745,7 @@ def check_args(args):
     args.output_path = create_output_folder(args)
     check_tools_version(args=args)
     args = check_threads(args=args)
-    if args.platform != 'ilmn':
+    if not args.platform.startswith('ilmn'):
         args = check_clair3_options(args)
 
     args = check_contigs_intersection(args=args, fai_fn=fai_fn)
@@ -792,6 +792,9 @@ def print_args(args):
     logging("[INFO] ENABLE INCLUDING ALL CTGS FOR CALLING: {}".format(args.include_all_ctgs))
     logging("[INFO] ENABLE REMOVING INTERMEDIATE FILES: {}".format(args.remove_intermediate_dir))
     logging("")
+
+    if args.platform.startswith('ilmn'):
+        args.platform = 'ilmn'
 
     if args.platform.startswith('ont'):
         args.platform = 'ont'
