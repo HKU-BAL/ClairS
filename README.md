@@ -21,9 +21,11 @@ The logo of ClairS was generated using DALL-E 2 with prompt "A DNA sequence with
 
 A preprint describing ClairS's algorithms and results is at [bioRxiv](https://www.biorxiv.org/content/10.1101/2023.08.17.553778v1).
 
-For germline variant calling, please try [Clair3](https://github.com/HKU-BAL/Clair3). 
+For germline variant calling using **DNA-seq** sample, please try [Clair3](https://github.com/HKU-BAL/Clair3). 
 
-For somatic variant calling using tumor only sample, please try [ClairS-TO](https://github.com/HKU-BAL/ClairS-TO).
+For germline variant calling using **long-read RNA-seq** sample, please try [Clair3-RNA](https://github.com/HKU-BAL/Clair3-RNA).
+
+For somatic variant calling using **tumor only** sample, please try [ClairS-TO](https://github.com/HKU-BAL/ClairS-TO).
 
 ------
 
