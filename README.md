@@ -203,7 +203,6 @@ singularity pull docker://hkubal/clairs:latest
 singularity exec \
   -B ${INPUT_DIR},${OUTPUT_DIR} \
   clairs_latest.sif \
-  hkubal/clairs:latest \
   /opt/bin/run_clairs \
   --tumor_bam_fn ${INPUT_DIR}/tumor.bam \      ## use your tumor bam file name here
   --normal_bam_fn ${INPUT_DIR}/normal.bam \    ## use your normal bam file name here
