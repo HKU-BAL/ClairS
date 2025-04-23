@@ -42,8 +42,7 @@ from sys import stderr
 from subprocess import PIPE, run, Popen
 
 from clairs.call_variants import output_vcf_from_probability, OutputConfig
-from shared.utils import IUPAC_base_to_ACGT_base_dict as BASE2ACGT, BASIC_BASES, str2bool, file_path_from, log_error, \
-    log_warning, subprocess_popen, TensorStdout
+from shared.utils import str2bool, subprocess_popen, TensorStdout
 import shared.param as param
 
 
@@ -68,7 +67,8 @@ def print_output_message(
         normal_alt_info,
         tumor_alt_info,
         probabilities,
-        extra_infomation_string=""
+        extra_infomation_string="",
+        force_outputting_somatic_variant=False
 ):
     global call_fn
     if call_fn is not None:
@@ -80,7 +80,8 @@ def print_output_message(
             tumor_alt_info,
             probabilities,
             output_config=output_config,
-            vcf_writer=output_file
+            vcf_writer=output_file,
+            force_outputting_somatic_variant=force_outputting_somatic_variant
         )
     else:
         output_file.write("{}\t{}\t{}\t{}\t{}\t{}\t{}\n".format(
@@ -286,7 +287,7 @@ def get_bins(tensor_file_path, batch_size=10000, pileup=False, platform='ont'):
         f.wait()
 
 
-def batch_output(output_file, batch_chr_pos_seq, normal_alt_info_list, tumor_alt_info_list, batch_Y):
+def batch_output(output_file, batch_chr_pos_seq, normal_alt_info_list, tumor_alt_info_list, batch_Y, force_outputting_somatic_variant=False):
     batch_size = len(batch_chr_pos_seq)
 
     batch_probabilities = batch_Y[:, :param.label_shape_cum[0]]
@@ -313,6 +314,7 @@ def batch_output(output_file, batch_chr_pos_seq, normal_alt_info_list, tumor_alt
             normal_alt_info,
             tumor_alt_info,
             probabilities,
+            force_outputting_somatic_variant
         )
 
 
@@ -322,6 +324,7 @@ def output_with(
         normal_alt_info,
         tumor_alt_info,
         probabilities,
+        force_outputting_somatic_variant=False
 ):
     if type(chr_pos_seq) == np.ndarray:
         chr_pos_seq = chr_pos_seq[0].decode()
@@ -342,7 +345,8 @@ def output_with(
         normal_alt_info,
         tumor_alt_info,
         probabilities,
-        ""
+        "",
+        force_outputting_somatic_variant
     )
 
 
@@ -422,7 +426,7 @@ def predict(args):
     test_pos = None
 
     if param.use_tf:
-        import clairs.model_tf as model_path
+        import clairs as model_path
         model = model_path.Clair3_P()
         model.load_weights(args.chkpnt_fn)
 
@@ -475,7 +479,7 @@ def predict(args):
                 total += len(input_tensor)
                 thread_pool.append(Thread(
                     target=batch_output,
-                    args=(output_file, position, normal_alt_info_list, tumor_alt_info_list, prediction)
+                    args=(output_file, position, normal_alt_info_list, tumor_alt_info_list, prediction, args.force_outputting_somatic_variant)
                 ))
 
             if not is_finish_loaded_all_mini_batches:
@@ -522,7 +526,7 @@ def predict(args):
                 prediction = model(input_matrix)
             prediction = softmax(prediction)
             prediction = prediction.cpu().numpy()
-            batch_output(output_file, position, normal_alt_info_list, tumor_alt_info_list, prediction)
+            batch_output(output_file, position, normal_alt_info_list, tumor_alt_info_list, prediction, args.force_outputting_somatic_variant)
             total += len(input_tensor)
 
     run_time = "%.1fs" % (time() - variant_call_start_time)
@@ -628,6 +632,9 @@ def main():
                         help=SUPPRESS)
 
     parser.add_argument('--flanking', type=int, default=None,
+                        help=SUPPRESS)
+
+    parser.add_argument('--force_outputting_somatic_variant', action='store_true',
                         help=SUPPRESS)
 
     args = parser.parse_args()

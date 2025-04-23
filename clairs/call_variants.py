@@ -125,6 +125,7 @@ def output_vcf_from_probability(
         probabilities,
         output_config=None,
         vcf_writer=None,
+        force_outputting_somatic_variant=False
 ):
     def decode_alt_info(alt_info):
         alt_info = alt_info.rstrip().split('-')
@@ -148,9 +149,15 @@ def output_vcf_from_probability(
     somatic_arg_index = param.somatic_arg_index
     alternate_base = reference_base
     arg_index = argmax(probabilities)
-    is_reference = arg_index == 0
-    is_germline = arg_index == 1
-    is_tumor = arg_index == somatic_arg_index
+    if force_outputting_somatic_variant:
+        is_reference = False
+        is_germline = arg_index == 1
+        is_tumor = arg_index == somatic_arg_index or arg_index == 0
+    else:
+        is_reference = arg_index == 0
+        is_germline = arg_index == 1
+        is_tumor = arg_index == somatic_arg_index
+
     maximum_probability = probabilities[arg_index]
 
     def rank_somatic_alt(tumor_alt_info_dict, normal_alt_info_dict, tumor_read_depth, normal_read_depth):
@@ -393,7 +400,9 @@ def call_variants_from_probability(args):
             tumor_alt_info,
             probabilities,
             output_config=output_config,
-            vcf_writer=vcf_writer)
+            vcf_writer=vcf_writer,
+            force_outputting_somatic_variant=args.force_outputting_somatic_variant
+            )
 
     logging.info("Total time elapsed: %.2f s" % (time() - variant_call_start_time))
 
@@ -480,6 +489,9 @@ def main():
 
     ## Use bin file from pytables to speed up calling.
     parser.add_argument('--is_from_tables', action='store_true',
+                        help=SUPPRESS)
+
+    parser.add_argument('--force_outputting_somatic_variant', action='store_true',
                         help=SUPPRESS)
 
     args = parser.parse_args()
