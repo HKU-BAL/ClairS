@@ -329,6 +329,9 @@ docker run -it hkubal/clairs:latest /opt/bin/run_clairs --help
   --print_ref_calls     Show reference calls (0/0) in VCF file.
   --print_germline_calls
                         Show germline calls in VCF file.
+  --pileup_model_only   Only run the pileup model. Default: False.
+  --force_outputting_somatic_variant
+                        Force outputting somatic variants even if the QUAL is lower than the reference. Default: False.
   -d, --dry_run         Print the commands that will be ran.
   --python PYTHON       Absolute path of python, python3 >= 3.9 is required.
   --pypy PYPY           Absolute path of pypy3, pypy3 >= 3.6 is required.
