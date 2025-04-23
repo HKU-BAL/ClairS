@@ -902,201 +902,202 @@ def somatic_calling(args):
     except subprocess.CalledProcessError as e:
         time = ''
 
-    if args.clair3_path is not None and args.platform != 'ilmn' and args.phase_tumor:
+    if not args.pileup_model_only:
+        if args.clair3_path is not None and args.platform != 'ilmn' and args.phase_tumor:
 
-        if args.normal_vcf_fn:
-            normal_vcf_fn = args.normal_vcf_fn
-        else:
-            normal_vcf_fn = clair3_output_path + '/clair3_normal_output/merge_output.vcf.gz'
-            echo_list.append("[INFO] Call Germline Variants in Normal BAM using Clair3")
-            clair3_normal_command = '( ' + time + args.clair3_path + '/run_clair3.sh'
-            clair3_normal_command += ' --bam_fn ' + args.normal_bam_fn
-            clair3_normal_command += ' --ref_fn ' + args.ref_fn
-            clair3_normal_command += ' --model_path ' + args.clair3_model_path
-            clair3_normal_command += ' --platform ' + args.platform
-            clair3_normal_command += ' --threads ' + str(args.threads)
-            clair3_normal_command += ' --output ' + clair3_output_path + '/clair3_normal_output'
-            clair3_normal_command += ' --ctg_name=' + args.clair3_option.ctg_name_str
-            clair3_normal_command += ' --samtools=' + args.samtools
-            clair3_normal_command += ' --pypy=' + args.pypy
-            clair3_normal_command += ' --python=' + args.python
-            clair3_normal_command += ' --min_coverage=' + args.clair3_option.min_coverage
-            clair3_normal_command += ' --snp_min_af=' + args.clair3_option.snp_min_af
-            clair3_normal_command += ' --indel_min_af=' + args.clair3_option.indel_min_af
-            if args.clair3_option.longphase_for_phasing is True:
-                clair3_normal_command += ' --longphase_for_phasing '
-            clair3_normal_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/1_CLAIR3_NORMAL.log'
-            commands_list.append(clair3_normal_command)
-
-        echo_list.append("[INFO] Call Germline Variant in Tumor BAM using Clair3")
-        clair3_tumor_command = '( ' + time + args.clair3_path + '/run_clair3.sh'
-        clair3_tumor_command += ' --bam_fn ' + args.tumor_bam_fn
-        clair3_tumor_command += ' --ref_fn ' + args.ref_fn
-        clair3_tumor_command += ' --model_path ' + args.clair3_model_path
-        clair3_tumor_command += ' --platform ' + args.platform
-        clair3_tumor_command += ' --threads ' + str(args.threads)
-        clair3_tumor_command += ' --output ' + clair3_output_path + '/clair3_tumor_output'
-        clair3_tumor_command += ' --ctg_name=' + args.clair3_option.ctg_name_str
-        clair3_tumor_command += ' --samtools=' + args.samtools
-        clair3_tumor_command += ' --pypy=' + args.pypy
-        clair3_tumor_command += ' --python=' + args.python
-        clair3_tumor_command += ' --min_coverage=' + args.clair3_option.min_coverage
-        clair3_tumor_command += ' --snp_min_af=' + args.clair3_option.snp_min_af
-        clair3_tumor_command += ' --indel_min_af=' + args.clair3_option.indel_min_af
-        if args.clair3_option.longphase_for_phasing is True:
-            clair3_tumor_command += ' --longphase_for_phasing '
-        clair3_tumor_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/2_CLAIR3_TUMOR.log'
-        commands_list.append(clair3_tumor_command)
-
-        echo_list.append("[INFO] Select Heterozygous SNP for Phasing")
-        ssp_command = '( ' + time + args.parallel
-        ssp_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_1_select_hetero_snp_for_phasing.log'
-        ssp_command += ' -j ' + str(args.threads)
-        ssp_command += ' ' + args.pypy + ' ' + main_entry + ' select_hetero_snp_for_phasing'
-        ssp_command += ' --tumor_vcf_fn ' + clair3_output_path + '/clair3_tumor_output/merge_output.vcf.gz'
-        ssp_command += ' --normal_vcf_fn ' + normal_vcf_fn
-        ssp_command += ' --output_folder ' + clair3_output_path + '/vcf'
-        ssp_command += ' --ctg_name {1}'
-        ssp_command += ' --use_heterozygous_snp_in_normal_sample_for_intermediate_phasing True' if args.use_heterozygous_snp_in_normal_sample_for_intermediate_phasing else ""
-        ssp_command += ' --use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing True' if args.use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing else ""
-        ssp_command += ' --use_heterozygous_indel_for_intermediate_phasing True' if args.use_heterozygous_indel_for_intermediate_phasing else ""
-        ssp_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-        ssp_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/1_select_hetero_snp_for_phasing.log'
-        commands_list.append(ssp_command)
-
-        if args.phase_normal:
-            echo_list.append("[INFO] Phase the Normal BAM")
-            if args.clair3_option.longphase_for_phasing is not None:
-                pn_command = '( ' + time + args.parallel
-                pn_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_2_phase_normal.log'
-                pn_command += ' -j ' + str(args.threads)
-                pn_command += ' ' + args.longphase + ' phase '
-                pn_command += ' -s ' + clair3_output_path + '/vcf/{1}.vcf'
-                pn_command += ' -b ' + args.normal_bam_fn
-                pn_command += ' -r ' + args.ref_fn
-                pn_command += ' -t ' + str(args.threads)
-                pn_command += ' --indels ' if args.use_heterozygous_indel_for_intermediate_phasing else ""
-                pn_command += ' -o ' + clair3_output_path + '/phased_output/normal_phased_{1}'
-                pn_command += ' --ont' if args.platform == 'ont' else ' --pb'
-                pn_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-                pn_command += ' && ' + args.parallel
-                pn_command += ' -j ' + str(args.threads)
-                pn_command += ' bgzip -f ' + clair3_output_path + '/phased_output/normal_phased_{1}.vcf'
-                pn_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-                pn_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/2_phase_normal.log'
+            if args.normal_vcf_fn:
+                normal_vcf_fn = args.normal_vcf_fn
             else:
-                pn_command = '( ' + time + args.parallel
-                pn_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_2_phase_normal.log'
-                pn_command += ' -j ' + str(args.threads)
-                pn_command += ' ' + args.whatshap + ' phase '
-                pn_command += ' --output ' + clair3_output_path + '/phased_output/normal_phased_{1}.vcf.gz'
-                pn_command += ' --reference ' + args.ref_fn
-                pn_command += ' --chromosome {1}'
-                pn_command += ' --distrust-genotypes'
-                pn_command += ' --ignore-read-groups'
-                pn_command += ' ' + clair3_output_path + '/vcf/{1}.vcf'
-                pn_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-                pn_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/2_phase_normal.log'
+                normal_vcf_fn = clair3_output_path + '/clair3_normal_output/merge_output.vcf.gz'
+                echo_list.append("[INFO] Call Germline Variants in Normal BAM using Clair3")
+                clair3_normal_command = '( ' + time + args.clair3_path + '/run_clair3.sh'
+                clair3_normal_command += ' --bam_fn ' + args.normal_bam_fn
+                clair3_normal_command += ' --ref_fn ' + args.ref_fn
+                clair3_normal_command += ' --model_path ' + args.clair3_model_path
+                clair3_normal_command += ' --platform ' + args.platform
+                clair3_normal_command += ' --threads ' + str(args.threads)
+                clair3_normal_command += ' --output ' + clair3_output_path + '/clair3_normal_output'
+                clair3_normal_command += ' --ctg_name=' + args.clair3_option.ctg_name_str
+                clair3_normal_command += ' --samtools=' + args.samtools
+                clair3_normal_command += ' --pypy=' + args.pypy
+                clair3_normal_command += ' --python=' + args.python
+                clair3_normal_command += ' --min_coverage=' + args.clair3_option.min_coverage
+                clair3_normal_command += ' --snp_min_af=' + args.clair3_option.snp_min_af
+                clair3_normal_command += ' --indel_min_af=' + args.clair3_option.indel_min_af
+                if args.clair3_option.longphase_for_phasing is True:
+                    clair3_normal_command += ' --longphase_for_phasing '
+                clair3_normal_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/1_CLAIR3_NORMAL.log'
+                commands_list.append(clair3_normal_command)
+
+            echo_list.append("[INFO] Call Germline Variant in Tumor BAM using Clair3")
+            clair3_tumor_command = '( ' + time + args.clair3_path + '/run_clair3.sh'
+            clair3_tumor_command += ' --bam_fn ' + args.tumor_bam_fn
+            clair3_tumor_command += ' --ref_fn ' + args.ref_fn
+            clair3_tumor_command += ' --model_path ' + args.clair3_model_path
+            clair3_tumor_command += ' --platform ' + args.platform
+            clair3_tumor_command += ' --threads ' + str(args.threads)
+            clair3_tumor_command += ' --output ' + clair3_output_path + '/clair3_tumor_output'
+            clair3_tumor_command += ' --ctg_name=' + args.clair3_option.ctg_name_str
+            clair3_tumor_command += ' --samtools=' + args.samtools
+            clair3_tumor_command += ' --pypy=' + args.pypy
+            clair3_tumor_command += ' --python=' + args.python
+            clair3_tumor_command += ' --min_coverage=' + args.clair3_option.min_coverage
+            clair3_tumor_command += ' --snp_min_af=' + args.clair3_option.snp_min_af
+            clair3_tumor_command += ' --indel_min_af=' + args.clair3_option.indel_min_af
+            if args.clair3_option.longphase_for_phasing is True:
+                clair3_tumor_command += ' --longphase_for_phasing '
+            clair3_tumor_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/2_CLAIR3_TUMOR.log'
+            commands_list.append(clair3_tumor_command)
+
+            echo_list.append("[INFO] Select Heterozygous SNP for Phasing")
+            ssp_command = '( ' + time + args.parallel
+            ssp_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_1_select_hetero_snp_for_phasing.log'
+            ssp_command += ' -j ' + str(args.threads)
+            ssp_command += ' ' + args.pypy + ' ' + main_entry + ' select_hetero_snp_for_phasing'
+            ssp_command += ' --tumor_vcf_fn ' + clair3_output_path + '/clair3_tumor_output/merge_output.vcf.gz'
+            ssp_command += ' --normal_vcf_fn ' + normal_vcf_fn
+            ssp_command += ' --output_folder ' + clair3_output_path + '/vcf'
+            ssp_command += ' --ctg_name {1}'
+            ssp_command += ' --use_heterozygous_snp_in_normal_sample_for_intermediate_phasing True' if args.use_heterozygous_snp_in_normal_sample_for_intermediate_phasing else ""
+            ssp_command += ' --use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing True' if args.use_heterozygous_snp_in_tumor_sample_for_intermediate_phasing else ""
+            ssp_command += ' --use_heterozygous_indel_for_intermediate_phasing True' if args.use_heterozygous_indel_for_intermediate_phasing else ""
+            ssp_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
+            ssp_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/1_select_hetero_snp_for_phasing.log'
+            commands_list.append(ssp_command)
+
+            if args.phase_normal:
+                echo_list.append("[INFO] Phase the Normal BAM")
+                if args.clair3_option.longphase_for_phasing is not None:
+                    pn_command = '( ' + time + args.parallel
+                    pn_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_2_phase_normal.log'
+                    pn_command += ' -j ' + str(args.threads)
+                    pn_command += ' ' + args.longphase + ' phase '
+                    pn_command += ' -s ' + clair3_output_path + '/vcf/{1}.vcf'
+                    pn_command += ' -b ' + args.normal_bam_fn
+                    pn_command += ' -r ' + args.ref_fn
+                    pn_command += ' -t ' + str(args.threads)
+                    pn_command += ' --indels ' if args.use_heterozygous_indel_for_intermediate_phasing else ""
+                    pn_command += ' -o ' + clair3_output_path + '/phased_output/normal_phased_{1}'
+                    pn_command += ' --ont' if args.platform == 'ont' else ' --pb'
+                    pn_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
+                    pn_command += ' && ' + args.parallel
+                    pn_command += ' -j ' + str(args.threads)
+                    pn_command += ' bgzip -f ' + clair3_output_path + '/phased_output/normal_phased_{1}.vcf'
+                    pn_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
+                    pn_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/2_phase_normal.log'
+                else:
+                    pn_command = '( ' + time + args.parallel
+                    pn_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_2_phase_normal.log'
+                    pn_command += ' -j ' + str(args.threads)
+                    pn_command += ' ' + args.whatshap + ' phase '
+                    pn_command += ' --output ' + clair3_output_path + '/phased_output/normal_phased_{1}.vcf.gz'
+                    pn_command += ' --reference ' + args.ref_fn
+                    pn_command += ' --chromosome {1}'
+                    pn_command += ' --distrust-genotypes'
+                    pn_command += ' --ignore-read-groups'
+                    pn_command += ' ' + clair3_output_path + '/vcf/{1}.vcf'
+                    pn_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
+                    pn_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/2_phase_normal.log'
+
+                tabix_command = args.parallel + ' -j ' + str(args.threads)
+                tabix_command += ' tabix' + ' -f -p vcf'
+                tabix_command += ' ' + clair3_output_path + '/phased_output/normal_phased_{1}.vcf.gz'
+                tabix_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
+                commands_list.append(pn_command + ' && ' + tabix_command)
+
+                echo_list.append("[INFO] Haplotag the Normal BAM")
+                ht_command = '( ' + time + args.parallel
+                ht_command += ' --joblog ' + args.output_dir + '/logs/parallel_3_haplotag_normal.log'
+                ht_command += ' -j ' + str(args.threads)
+                ht_command += ' ' + args.whatshap + ' haplotag'
+                ht_command += ' --output ' + clair3_output_path + '/phased_output/normal_{1}.bam'
+                ht_command += ' --reference ' + args.ref_fn
+                ht_command += ' --regions {1} '
+                ht_command += ' --ignore-read-groups'
+                ht_command += ' ' + clair3_output_path + '/phased_output/normal_phased_{1}.vcf.gz'
+                ht_command += ' ' + args.normal_bam_fn
+                ht_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
+                ht_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/3_normal_haplotag.log'
+
+                index_command = args.parallel + ' -j ' + str(args.threads)
+                index_command += ' ' + args.samtools + ' index '
+                index_command += ' -@' + str(args.threads)
+                index_command += ' ' + clair3_output_path + '/phased_output/normal_{1}.bam'
+                index_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
+                commands_list.append(ht_command + ' && ' + index_command)
+
+            echo_list.append("[INFO] Phase the Tumor BAM")
+            if args.clair3_option.longphase_for_phasing is not None:
+                pt_command = '( ' + time + args.parallel
+                pt_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_4_phase_tumor.log'
+                pt_command += ' -j ' + str(args.threads)
+                pt_command += ' ' + args.clair3_option.longphase + ' phase '
+                pt_command += ' -s ' + clair3_output_path + '/vcf/{1}.vcf'
+                pt_command += ' -b ' + (args.tumor_bam_fn if not args.use_normal_bam_for_intermediate_phasing else args.normal_bam_fn)
+                pt_command += ' -r ' + args.ref_fn
+                pt_command += ' -t ' + str(args.threads)
+                pt_command += ' --indels ' if args.use_heterozygous_indel_for_intermediate_phasing else ""
+                pt_command += ' -o ' + clair3_output_path + '/phased_output/tumor_phased_{1}'
+                pt_command += ' --ont' if args.platform == 'ont' else ' --pb'
+                pt_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
+                pt_command += ' && ' + args.parallel
+                pt_command += ' -j ' + str(args.threads)
+                pt_command += ' bgzip -f ' + clair3_output_path + '/phased_output/tumor_phased_{1}.vcf'
+                pt_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
+                pt_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/4_phase_tumor.log'
+            else:
+                pt_command = '( ' + time + args.parallel
+                pt_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_4_phase_tumor.log'
+                pt_command += ' -j ' + str(args.threads)
+                pt_command += ' ' + args.whatshap + ' phase '
+                pt_command += ' --output ' + clair3_output_path + '/phased_output/tumor_phased_{1}.vcf.gz'
+                pt_command += ' --reference ' + args.ref_fn
+                pt_command += ' --chromosome {1}'
+                pt_command += ' --distrust-genotypes'
+                pt_command += ' --ignore-read-groups'
+                pt_command += ' ' + clair3_output_path + '/vcf/{1}.vcf'
+                pt_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
+                pt_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/4_phase_tumor.log'
 
             tabix_command = args.parallel + ' -j ' + str(args.threads)
             tabix_command += ' tabix' + ' -f -p vcf'
-            tabix_command += ' ' + clair3_output_path + '/phased_output/normal_phased_{1}.vcf.gz'
+            tabix_command += ' ' + clair3_output_path + '/phased_output/tumor_phased_{1}.vcf.gz'
             tabix_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-            commands_list.append(pn_command + ' && ' + tabix_command)
+            commands_list.append(pt_command + ' && ' + tabix_command)
 
-            echo_list.append("[INFO] Haplotag the Normal BAM")
-            ht_command = '( ' + time + args.parallel
-            ht_command += ' --joblog ' + args.output_dir + '/logs/parallel_3_haplotag_normal.log'
-            ht_command += ' -j ' + str(args.threads)
-            ht_command += ' ' + args.whatshap + ' haplotag'
-            ht_command += ' --output ' + clair3_output_path + '/phased_output/normal_{1}.bam'
-            ht_command += ' --reference ' + args.ref_fn
-            ht_command += ' --regions {1} '
-            ht_command += ' --ignore-read-groups'
-            ht_command += ' ' + clair3_output_path + '/phased_output/normal_phased_{1}.vcf.gz'
-            ht_command += ' ' + args.normal_bam_fn
-            ht_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-            ht_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/3_normal_haplotag.log'
+            echo_list.append("[INFO] Haplotag the Tumor BAM")
+            if args.use_longphase_for_intermediate_haplotagging:
+                ht_command = '( ' + time + args.parallel
+                ht_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_5_haplotag_tumor.log'
+                ht_command += ' -j ' + str(args.threads)
+                ht_command += ' ' + args.longphase + ' haplotag'
+                ht_command += ' -o ' + clair3_output_path + '/phased_output/tumor_{1}'
+                ht_command += ' --reference ' + args.ref_fn
+                ht_command += ' --region {1} '
+                ht_command += ' -s ' + clair3_output_path + '/phased_output/tumor_phased_{1}.vcf.gz'
+                ht_command += ' -b ' + args.tumor_bam_fn
+                ht_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
+                ht_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/5_tumor_haplotag.log'
+            else:
+                ht_command = '( ' + time + args.parallel
+                ht_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_5_haplotag_tumor.log'
+                ht_command += ' -j ' + str(args.threads)
+                ht_command += ' ' + args.whatshap + ' haplotag'
+                ht_command += ' --output ' + clair3_output_path + '/phased_output/tumor_{1}.bam'
+                ht_command += ' --reference ' + args.ref_fn
+                ht_command += ' --regions {1} '
+                ht_command += ' --ignore-read-groups'
+                ht_command += ' ' + clair3_output_path + '/phased_output/tumor_phased_{1}.vcf.gz'
+                ht_command += ' ' + args.tumor_bam_fn
+                ht_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
+                ht_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/5_tumor_haplotag.log'
 
             index_command = args.parallel + ' -j ' + str(args.threads)
             index_command += ' ' + args.samtools + ' index '
             index_command += ' -@' + str(args.threads)
-            index_command += ' ' + clair3_output_path + '/phased_output/normal_{1}.bam'
+            index_command += ' ' + clair3_output_path + '/phased_output/tumor_{1}.bam'
             index_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
             commands_list.append(ht_command + ' && ' + index_command)
-
-        echo_list.append("[INFO] Phase the Tumor BAM")
-        if args.clair3_option.longphase_for_phasing is not None:
-            pt_command = '( ' + time + args.parallel
-            pt_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_4_phase_tumor.log'
-            pt_command += ' -j ' + str(args.threads)
-            pt_command += ' ' + args.clair3_option.longphase + ' phase '
-            pt_command += ' -s ' + clair3_output_path + '/vcf/{1}.vcf'
-            pt_command += ' -b ' + (args.tumor_bam_fn if not args.use_normal_bam_for_intermediate_phasing else args.normal_bam_fn)
-            pt_command += ' -r ' + args.ref_fn
-            pt_command += ' -t ' + str(args.threads)
-            pt_command += ' --indels ' if args.use_heterozygous_indel_for_intermediate_phasing else ""
-            pt_command += ' -o ' + clair3_output_path + '/phased_output/tumor_phased_{1}'
-            pt_command += ' --ont' if args.platform == 'ont' else ' --pb'
-            pt_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-            pt_command += ' && ' + args.parallel
-            pt_command += ' -j ' + str(args.threads)
-            pt_command += ' bgzip -f ' + clair3_output_path + '/phased_output/tumor_phased_{1}.vcf'
-            pt_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-            pt_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/4_phase_tumor.log'
-        else:
-            pt_command = '( ' + time + args.parallel
-            pt_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_4_phase_tumor.log'
-            pt_command += ' -j ' + str(args.threads)
-            pt_command += ' ' + args.whatshap + ' phase '
-            pt_command += ' --output ' + clair3_output_path + '/phased_output/tumor_phased_{1}.vcf.gz'
-            pt_command += ' --reference ' + args.ref_fn
-            pt_command += ' --chromosome {1}'
-            pt_command += ' --distrust-genotypes'
-            pt_command += ' --ignore-read-groups'
-            pt_command += ' ' + clair3_output_path + '/vcf/{1}.vcf'
-            pt_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-            pt_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/4_phase_tumor.log'
-
-        tabix_command = args.parallel + ' -j ' + str(args.threads)
-        tabix_command += ' tabix' + ' -f -p vcf'
-        tabix_command += ' ' + clair3_output_path + '/phased_output/tumor_phased_{1}.vcf.gz'
-        tabix_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-        commands_list.append(pt_command + ' && ' + tabix_command)
-
-        echo_list.append("[INFO] Haplotag the Tumor BAM")
-        if args.use_longphase_for_intermediate_haplotagging:
-            ht_command = '( ' + time + args.parallel
-            ht_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_5_haplotag_tumor.log'
-            ht_command += ' -j ' + str(args.threads)
-            ht_command += ' ' + args.longphase + ' haplotag'
-            ht_command += ' -o ' + clair3_output_path + '/phased_output/tumor_{1}'
-            ht_command += ' --reference ' + args.ref_fn
-            ht_command += ' --region {1} '
-            ht_command += ' -s ' + clair3_output_path + '/phased_output/tumor_phased_{1}.vcf.gz'
-            ht_command += ' -b ' + args.tumor_bam_fn
-            ht_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-            ht_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/5_tumor_haplotag.log'
-        else:
-            ht_command = '( ' + time + args.parallel
-            ht_command += ' --joblog ' + args.output_dir + '/logs/clair3_log/parallel_5_haplotag_tumor.log'
-            ht_command += ' -j ' + str(args.threads)
-            ht_command += ' ' + args.whatshap + ' haplotag'
-            ht_command += ' --output ' + clair3_output_path + '/phased_output/tumor_{1}.bam'
-            ht_command += ' --reference ' + args.ref_fn
-            ht_command += ' --regions {1} '
-            ht_command += ' --ignore-read-groups'
-            ht_command += ' ' + clair3_output_path + '/phased_output/tumor_phased_{1}.vcf.gz'
-            ht_command += ' ' + args.tumor_bam_fn
-            ht_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-            ht_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/5_tumor_haplotag.log'
-
-        index_command = args.parallel + ' -j ' + str(args.threads)
-        index_command += ' ' + args.samtools + ' index '
-        index_command += ' -@' + str(args.threads)
-        index_command += ' ' + clair3_output_path + '/phased_output/tumor_{1}.bam'
-        index_command += ' :::: ' + args.output_dir + '/tmp/CONTIGS'
-        commands_list.append(ht_command + ' && ' + index_command)
 
     # Pileup calling
     #STEP 1: EXTRACT CANDIDATES
@@ -1133,7 +1134,7 @@ def somatic_calling(args):
     ec_command += ' --output_fn CANDIDATES_FILES '
     commands_list.append(ec_command)
 
-    ##STEP 2: CREATE PAIR TENSOR
+    #STEP 2: CREATE PAIR TENSOR
     echo_list.append("[INFO] STEP 2: Pileup Model Calling\n")
     echo_list[-1] += ("[INFO] Create Paired Tensors")
     cpt_command = '( ' + time + args.parallel
@@ -1153,7 +1154,7 @@ def somatic_calling(args):
     cpt_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/2-1_CPT.log'
     commands_list += [cpt_command]
 
-    ## STEP 3: PREDICT
+    # STEP 3: PREDICT
     echo_list.append("[INFO] Pileup Model Prediction")
     p_predict_command = '( ' + time + args.parallel
     p_predict_command += ' --joblog ' + args.output_dir + '/logs/parallel_2-2_predict.log'
@@ -1168,6 +1169,7 @@ def somatic_calling(args):
     p_predict_command += ' --pileup '
     p_predict_command += ' --show_ref ' if args.print_ref_calls else ""
     p_predict_command += ' --show_germline ' if args.print_germline_calls else ""
+    p_predict_command += ' --force_outputting_somatic_variant ' if args.force_outputting_somatic_variant else ""
     p_predict_command += ' :::: ' + args.output_dir + '/tmp/candidates/CANDIDATES_FILES'
     p_predict_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/2-2_PREDICT.log'
     commands_list += [p_predict_command]
@@ -1182,139 +1184,148 @@ def somatic_calling(args):
     p_mv_command += ' --output_fn ' + args.output_dir + '/tmp/vcf_output/pileup.vcf'
     commands_list += [p_mv_command]
 
-    # ## Full-alignment calling
-    normal_bam_fn = clair3_output_path + '/phased_output/normal_{1/.}.bam' if args.phase_normal else args.normal_bam_fn
-    tumor_bam_fn = clair3_output_path + '/phased_output/tumor_{1/.}.bam' if args.phase_tumor else args.tumor_bam_fn
-    tumor_bam_prefix = clair3_output_path + '/phased_output/tumor_' if args.phase_tumor else args.tumor_bam_fn
+    if args.pileup_model_only:
+        echo_list.append("[INFO] Merge Pileup VCFs")
+        p_lv_command = "ln -sf {} {}".format(args.output_dir + '/tmp/vcf_output/pileup.vcf',
+                                                args.output_dir + '/snv_pileup.vcf')
+        p_lv_command += " && " + "bgzip -f {}".format(args.output_dir + '/snv_pileup.vcf')
+        p_lv_command += " && " + "tabix -f -p vcf {}".format(args.output_dir + '/snv_pileup.vcf.gz')
+        commands_list += [p_lv_command]
 
-    echo_list.append("[INFO] STEP 3: Full-alignment Model Calling\n")
-    echo_list[-1] += "[INFO] Create Full-alignment Paired Tensors"
-    cpt_fa_command = '( ' + time + args.parallel
-    cpt_fa_command += ' --joblog ' + args.output_dir + '/logs/parallel_3-1_create_pair_tensor_fa.log'
-    cpt_fa_command += ' -j ' + str(args.threads)
-    cpt_fa_command += ' ' + args.pypy + ' ' + main_entry + ' create_pair_tensor'
-    cpt_fa_command += ' --normal_bam_fn ' + normal_bam_fn
-    cpt_fa_command += ' --tumor_bam_fn ' + tumor_bam_fn
-    cpt_fa_command += ' --ref_fn ' + args.ref_fn
-    cpt_fa_command += ' --ctg_name {1/.}'
-    cpt_fa_command += ' --samtools ' + args.samtools
-    cpt_fa_command += ' --candidates_bed_regions {1}'
-    cpt_fa_command += ' --tensor_can_fn ' + args.output_dir + '/tmp/fa_tensor_can/{1/} '
-    cpt_fa_command += ' --platform ' + args.platform
-    cpt_fa_command += ' :::: ' + args.output_dir + '/tmp/candidates/CANDIDATES_FILES'
-    cpt_fa_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/3-1_CPT.log'
-    commands_list += [cpt_fa_command]
+    if not args.pileup_model_only:
+        ## Full-alignment calling
+        normal_bam_fn = clair3_output_path + '/phased_output/normal_{1/.}.bam' if args.phase_normal else args.normal_bam_fn
+        tumor_bam_fn = clair3_output_path + '/phased_output/tumor_{1/.}.bam' if args.phase_tumor else args.tumor_bam_fn
+        tumor_bam_prefix = clair3_output_path + '/phased_output/tumor_' if args.phase_tumor else args.tumor_bam_fn
 
-    ## STEP 3: PREDICT
-    echo_list.append("[INFO] Full-alignment Model Prediction")
-    fa_predict_command = '( ' + time + args.parallel
-    fa_predict_command += ' --joblog ' + args.output_dir + '/logs/parallel_3-2_predict.log'
-    fa_predict_command += ' -j ' + str(args.threads)
-    fa_predict_command += ' ' + args.python + ' ' + main_entry + ' predict'
-    fa_predict_command += ' --tensor_fn ' + args.output_dir + '/tmp/fa_tensor_can/{1/} '
-    fa_predict_command += ' --call_fn ' + args.output_dir + '/tmp/vcf_output/fa_{1/}.vcf'
-    fa_predict_command += ' --chkpnt_fn ' + args.full_alignment_model_path
-    fa_predict_command += ' --use_gpu ' + str(args.use_gpu)
-    fa_predict_command += ' --platform ' + args.platform
-    fa_predict_command += ' --ctg_name {1/.}'
-    fa_predict_command += ' --show_ref ' if args.print_ref_calls else ""
-    fa_predict_command += ' --show_germline ' if args.print_germline_calls else ""
-    fa_predict_command += ' :::: ' + args.output_dir + '/tmp/candidates/CANDIDATES_FILES'
-    fa_predict_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/3-2_PREDICT.log'
-    commands_list += [fa_predict_command]
+        echo_list.append("[INFO] STEP 3: Full-alignment Model Calling\n")
+        echo_list[-1] += "[INFO] Create Full-alignment Paired Tensors"
+        cpt_fa_command = '( ' + time + args.parallel
+        cpt_fa_command += ' --joblog ' + args.output_dir + '/logs/parallel_3-1_create_pair_tensor_fa.log'
+        cpt_fa_command += ' -j ' + str(args.threads)
+        cpt_fa_command += ' ' + args.pypy + ' ' + main_entry + ' create_pair_tensor'
+        cpt_fa_command += ' --normal_bam_fn ' + normal_bam_fn
+        cpt_fa_command += ' --tumor_bam_fn ' + tumor_bam_fn
+        cpt_fa_command += ' --ref_fn ' + args.ref_fn
+        cpt_fa_command += ' --ctg_name {1/.}'
+        cpt_fa_command += ' --samtools ' + args.samtools
+        cpt_fa_command += ' --candidates_bed_regions {1}'
+        cpt_fa_command += ' --tensor_can_fn ' + args.output_dir + '/tmp/fa_tensor_can/{1/} '
+        cpt_fa_command += ' --platform ' + args.platform
+        cpt_fa_command += ' :::: ' + args.output_dir + '/tmp/candidates/CANDIDATES_FILES'
+        cpt_fa_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/3-1_CPT.log'
+        commands_list += [cpt_fa_command]
 
-    ## STEP 4: MERGE VCF
-    echo_list.append("[INFO] Merge Full-alignment VCFs")
-    fa_mv_command = args.pypy + ' ' + main_entry + ' sort_vcf'
-    fa_mv_command += ' --ref_fn ' + args.ref_fn
-    fa_mv_command += ' --contigs_fn ' + os.path.join(args.output_dir, 'tmp', 'CONTIGS')
-    fa_mv_command += ' --input_dir ' + args.output_dir + '/tmp/vcf_output'
-    fa_mv_command += ' --vcf_fn_prefix ' + 'fa_'
-    fa_mv_command += ' --output_fn ' + args.output_dir + '/tmp/vcf_output/full_alignment.vcf'
-    commands_list += [fa_mv_command]
+        ## STEP 3: PREDICT
+        echo_list.append("[INFO] Full-alignment Model Prediction")
+        fa_predict_command = '( ' + time + args.parallel
+        fa_predict_command += ' --joblog ' + args.output_dir + '/logs/parallel_3-2_predict.log'
+        fa_predict_command += ' -j ' + str(args.threads)
+        fa_predict_command += ' ' + args.python + ' ' + main_entry + ' predict'
+        fa_predict_command += ' --tensor_fn ' + args.output_dir + '/tmp/fa_tensor_can/{1/} '
+        fa_predict_command += ' --call_fn ' + args.output_dir + '/tmp/vcf_output/fa_{1/}.vcf'
+        fa_predict_command += ' --chkpnt_fn ' + args.full_alignment_model_path
+        fa_predict_command += ' --use_gpu ' + str(args.use_gpu)
+        fa_predict_command += ' --platform ' + args.platform
+        fa_predict_command += ' --ctg_name {1/.}'
+        fa_predict_command += ' --show_ref ' if args.print_ref_calls else ""
+        fa_predict_command += ' --show_germline ' if args.print_germline_calls else ""
+        fa_predict_command += ' --force_outputting_somatic_variant ' if args.force_outputting_somatic_variant else ""
+        fa_predict_command += ' :::: ' + args.output_dir + '/tmp/candidates/CANDIDATES_FILES'
+        fa_predict_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/3-2_PREDICT.log'
+        commands_list += [fa_predict_command]
 
-    # short-read realignment
-    if args.platform == 'ilmn':
-        echo_list.append("[INFO] STEP 4: Short-read realignment")
-        realign_command = '( ' + time + args.python + ' ' + main_entry + ' realign_variants'
-        realign_command += ' --bam_fn ' + args.tumor_bam_fn
-        realign_command += ' --ref_fn ' + args.ref_fn
-        realign_command += ' --pileup_vcf_fn ' + args.output_dir + '/tmp/vcf_output/pileup.vcf'
-        realign_command += ' --full_alignment_vcf_fn ' + args.output_dir + '/tmp/vcf_output/full_alignment.vcf'
-        realign_command += ' --output_dir ' + args.output_dir + '/tmp/vcf_output'
-        realign_command += ' --samtools ' + args.samtools
-        realign_command += ' --python ' + args.python
-        realign_command += ' --threads ' + str(args.threads)
-        realign_command += ' --enable_realignment ' + str(args.enable_realignment)
-        realign_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/4_REALIGN.log'
-        commands_list += [realign_command]
+        ## STEP 4: MERGE VCF
+        echo_list.append("[INFO] Merge Full-alignment VCFs")
+        fa_mv_command = args.pypy + ' ' + main_entry + ' sort_vcf'
+        fa_mv_command += ' --ref_fn ' + args.ref_fn
+        fa_mv_command += ' --contigs_fn ' + os.path.join(args.output_dir, 'tmp', 'CONTIGS')
+        fa_mv_command += ' --input_dir ' + args.output_dir + '/tmp/vcf_output'
+        fa_mv_command += ' --vcf_fn_prefix ' + 'fa_'
+        fa_mv_command += ' --output_fn ' + args.output_dir + '/tmp/vcf_output/full_alignment.vcf'
+        commands_list += [fa_mv_command]
 
-    #graph postprocessing
-    else:
-        echo_list.append("[INFO] STEP 4: Haplotype filtering")
-        hap_g_command = '( ' + time + args.pypy + ' ' + main_entry + ' haplotype_filtering'
-        hap_g_command += ' --tumor_bam_fn ' + tumor_bam_prefix
-        hap_g_command += ' --ref_fn ' + args.ref_fn
-        hap_g_command += ' --germline_vcf_fn ' + clair3_output_path + '/clair3_tumor_output/merge_output.vcf.gz'
-        hap_g_command += ' --pileup_vcf_fn ' + args.output_dir + '/tmp/vcf_output/pileup.vcf'
-        hap_g_command += ' --full_alignment_vcf_fn ' + args.output_dir + '/tmp/vcf_output/full_alignment.vcf'
-        hap_g_command += ' --output_dir ' + args.output_dir + '/tmp/vcf_output'
-        hap_g_command += ' --samtools ' + args.samtools
-        hap_g_command += ' --pypy3 ' + args.pypy
-        hap_g_command += ' --parallel ' + args.parallel
-        hap_g_command += ' --threads ' + str(args.threads)
-        hap_g_command += ' --debug ' if args.debug else ''
-        hap_g_command += ' --show_ref ' if args.print_ref_calls else ''
-        hap_g_command += ' --apply_post_processing False' if not args.apply_post_processing else ''
-        hap_g_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/4_HAP_FILTER.log'
-        commands_list += [hap_g_command]
+        # short-read realignment
+        if args.platform == 'ilmn':
+            echo_list.append("[INFO] STEP 4: Short-read realignment")
+            realign_command = '( ' + time + args.python + ' ' + main_entry + ' realign_variants'
+            realign_command += ' --bam_fn ' + args.tumor_bam_fn
+            realign_command += ' --ref_fn ' + args.ref_fn
+            realign_command += ' --pileup_vcf_fn ' + args.output_dir + '/tmp/vcf_output/pileup.vcf'
+            realign_command += ' --full_alignment_vcf_fn ' + args.output_dir + '/tmp/vcf_output/full_alignment.vcf'
+            realign_command += ' --output_dir ' + args.output_dir + '/tmp/vcf_output'
+            realign_command += ' --samtools ' + args.samtools
+            realign_command += ' --python ' + args.python
+            realign_command += ' --threads ' + str(args.threads)
+            realign_command += ' --enable_realignment ' + str(args.enable_realignment)
+            realign_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/4_REALIGN.log'
+            commands_list += [realign_command]
 
-    echo_list.append("[INFO] STEP 5: Merge and sort VCF")
-    sort_vcf_command = '( ' + time + args.pypy + ' ' + main_entry + ' merge_vcf'
-    sort_vcf_command += ' --ref_fn ' + args.ref_fn
-    sort_vcf_command += ' --pileup_vcf_fn ' + args.output_dir + '/tmp/vcf_output/pileup_filter.vcf'
-    sort_vcf_command += ' --full_alignment_vcf_fn ' + args.output_dir + '/tmp/vcf_output/full_alignment_filter.vcf'
-    sort_vcf_command += ' --output_fn ' + args.output_dir + '/{}.vcf'.format(args.output_prefix)
-    sort_vcf_command += ' --platform ' + args.platform
-    sort_vcf_command += ' --qual ' + str(args.qual)
-    sort_vcf_command += ' --sample_name ' + str(args.sample_name)
-    sort_vcf_command += ' --enable_indel_calling ' + str(args.enable_indel_calling)
-    sort_vcf_command += ' --prefer_recall ' + str(args.prefer_recall)
-    sort_vcf_command += ' --cmdline ' + args.output_dir + '/tmp/CMD'
-    sort_vcf_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/5_MV.log'
-    commands_list += [sort_vcf_command]
+        #graph postprocessing
+        else:
+            echo_list.append("[INFO] STEP 4: Haplotype filtering")
+            hap_g_command = '( ' + time + args.pypy + ' ' + main_entry + ' haplotype_filtering'
+            hap_g_command += ' --tumor_bam_fn ' + tumor_bam_prefix
+            hap_g_command += ' --ref_fn ' + args.ref_fn
+            hap_g_command += ' --germline_vcf_fn ' + clair3_output_path + '/clair3_tumor_output/merge_output.vcf.gz'
+            hap_g_command += ' --pileup_vcf_fn ' + args.output_dir + '/tmp/vcf_output/pileup.vcf'
+            hap_g_command += ' --full_alignment_vcf_fn ' + args.output_dir + '/tmp/vcf_output/full_alignment.vcf'
+            hap_g_command += ' --output_dir ' + args.output_dir + '/tmp/vcf_output'
+            hap_g_command += ' --samtools ' + args.samtools
+            hap_g_command += ' --pypy3 ' + args.pypy
+            hap_g_command += ' --parallel ' + args.parallel
+            hap_g_command += ' --threads ' + str(args.threads)
+            hap_g_command += ' --debug ' if args.debug else ''
+            hap_g_command += ' --show_ref ' if args.print_ref_calls else ''
+            hap_g_command += ' --apply_post_processing False' if not args.apply_post_processing else ''
+            hap_g_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/4_HAP_FILTER.log'
+            commands_list += [hap_g_command]
 
-    if args.genotyping_mode_vcf_fn is not None or args.hybrid_mode_vcf_fn is not None:
-        echo_list.append("[INFO] Add reference calls to the output VCF output")
-        genotyping_command = args.pypy + ' ' + main_entry + ' add_back_missing_variants_in_genotyping'
-        genotyping_command += ' --genotyping_mode_vcf_fn ' + str(args.genotyping_mode_vcf_fn)
-        genotyping_command += ' --hybrid_mode_vcf_fn ' + str(args.hybrid_mode_vcf_fn)
-        genotyping_command += ' --call_fn ' + args.output_dir + '/{}.vcf.gz'.format(args.output_prefix)
-        genotyping_command += ' --output_fn ' + args.output_dir + '/{}.vcf'.format(args.output_prefix)
-        genotyping_command += ' --candidates_folder ' + args.output_dir + '/tmp/candidates'
-        genotyping_command += ' 2>&1 | tee ' + args.output_dir + '/logs/6_GT.log'
-        commands_list += [genotyping_command]
+        echo_list.append("[INFO] STEP 5: Merge and sort VCF")
+        sort_vcf_command = '( ' + time + args.pypy + ' ' + main_entry + ' merge_vcf'
+        sort_vcf_command += ' --ref_fn ' + args.ref_fn
+        sort_vcf_command += ' --pileup_vcf_fn ' + args.output_dir + '/tmp/vcf_output/pileup_filter.vcf'
+        sort_vcf_command += ' --full_alignment_vcf_fn ' + args.output_dir + '/tmp/vcf_output/full_alignment_filter.vcf'
+        sort_vcf_command += ' --output_fn ' + args.output_dir + '/{}.vcf'.format(args.output_prefix)
+        sort_vcf_command += ' --platform ' + args.platform
+        sort_vcf_command += ' --qual ' + str(args.qual)
+        sort_vcf_command += ' --sample_name ' + str(args.sample_name)
+        sort_vcf_command += ' --enable_indel_calling ' + str(args.enable_indel_calling)
+        sort_vcf_command += ' --prefer_recall ' + str(args.prefer_recall)
+        sort_vcf_command += ' --cmdline ' + args.output_dir + '/tmp/CMD'
+        sort_vcf_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/5_MV.log'
+        commands_list += [sort_vcf_command]
 
-    if args.enable_verdict:
-        echo_list.append("[INFO] Add CNV germline tagging to output VCF")
-        cnv_germline_tagging_command = args.python + ' ' + main_entry + ' cnv_germline_tagging'
-        cnv_germline_tagging_command += ' --tumor_bam_fn ' + args.tumor_bam_fn
-        cnv_germline_tagging_command += ' --normal_bam_fn ' + args.normal_bam_fn
-        cnv_germline_tagging_command += ' --input_vcf_fn ' + args.output_dir + '/{}.vcf.gz'.format(args.output_prefix)
-        cnv_germline_tagging_command += ' --allele_counter ' + str(args.allele_counter_dir)
-        cnv_germline_tagging_command += ' --cnv_resource_dir ' + str(args.cnv_resource_dir)
-        cnv_germline_tagging_command += ' --output_fn ' + args.output_dir + '/{}_cnv_germline_tagged.vcf'.format(args.output_prefix)
-        cnv_germline_tagging_command += ' --output_dir ' + args.output_dir + '/tmp/cnv_output'
-        cnv_germline_tagging_command += ' --parallel ' + args.parallel
-        cnv_germline_tagging_command += ' --python ' + args.python
-        cnv_germline_tagging_command += ' --contig_fn ' + args.output_dir + '/tmp/CONTIGS'
-        cnv_germline_tagging_command += ' --threads ' + str(args.threads)
-        cnv_germline_tagging_command += ' 2>&1 | tee ' + args.output_dir + '/logs/7_CGT.log'
-        commands_list += [cnv_germline_tagging_command]
+        if args.genotyping_mode_vcf_fn is not None or args.hybrid_mode_vcf_fn is not None:
+            echo_list.append("[INFO] Add reference calls to the output VCF output")
+            genotyping_command = args.pypy + ' ' + main_entry + ' add_back_missing_variants_in_genotyping'
+            genotyping_command += ' --genotyping_mode_vcf_fn ' + str(args.genotyping_mode_vcf_fn)
+            genotyping_command += ' --hybrid_mode_vcf_fn ' + str(args.hybrid_mode_vcf_fn)
+            genotyping_command += ' --call_fn ' + args.output_dir + '/{}.vcf.gz'.format(args.output_prefix)
+            genotyping_command += ' --output_fn ' + args.output_dir + '/{}.vcf'.format(args.output_prefix)
+            genotyping_command += ' --candidates_folder ' + args.output_dir + '/tmp/candidates'
+            genotyping_command += ' 2>&1 | tee ' + args.output_dir + '/logs/6_GT.log'
+            commands_list += [genotyping_command]
 
+        if args.enable_verdict:
+            echo_list.append("[INFO] Add CNV germline tagging to output VCF")
+            cnv_germline_tagging_command = args.python + ' ' + main_entry + ' cnv_germline_tagging'
+            cnv_germline_tagging_command += ' --tumor_bam_fn ' + args.tumor_bam_fn
+            cnv_germline_tagging_command += ' --normal_bam_fn ' + args.normal_bam_fn
+            cnv_germline_tagging_command += ' --input_vcf_fn ' + args.output_dir + '/{}.vcf.gz'.format(args.output_prefix)
+            cnv_germline_tagging_command += ' --allele_counter ' + str(args.allele_counter_dir)
+            cnv_germline_tagging_command += ' --cnv_resource_dir ' + str(args.cnv_resource_dir)
+            cnv_germline_tagging_command += ' --output_fn ' + args.output_dir + '/{}_cnv_germline_tagged.vcf'.format(args.output_prefix)
+            cnv_germline_tagging_command += ' --output_dir ' + args.output_dir + '/tmp/cnv_output'
+            cnv_germline_tagging_command += ' --parallel ' + args.parallel
+            cnv_germline_tagging_command += ' --python ' + args.python
+            cnv_germline_tagging_command += ' --contig_fn ' + args.output_dir + '/tmp/CONTIGS'
+            cnv_germline_tagging_command += ' --threads ' + str(args.threads)
+            cnv_germline_tagging_command += ' 2>&1 | tee ' + args.output_dir + '/logs/7_CGT.log'
+            commands_list += [cnv_germline_tagging_command]
 
     if args.enable_indel_calling:
-        ##STEP 2: CREATE PAIR TENSOR
+        #STEP 2: CREATE PAIR TENSOR
         echo_list.append("[INFO] STEP 6: Indel Pileup Model Calling\n")
         echo_list[-1] += ("[INFO] Create Paired Tensors")
         indel_cpt_command = args.pypy + ' ' + main_entry + ' concat_files'
@@ -1337,7 +1348,7 @@ def somatic_calling(args):
         indel_cpt_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/6-1_CPTI.log'
         commands_list += [indel_cpt_command]
 
-        ## INDEL PREDICT
+        # INDEL PREDICT
         echo_list.append("[INFO] Indel Pileup Model Prediction")
         indel_p_predict_command = '( ' + time + args.parallel
         indel_p_predict_command += ' --joblog ' + args.output_dir + '/logs/parallel_6-2_predict_indel.log'
@@ -1353,6 +1364,7 @@ def somatic_calling(args):
         indel_p_predict_command += ' --enable_indel_calling True '
         indel_p_predict_command += ' --show_ref ' if args.print_ref_calls else ""
         indel_p_predict_command += ' --show_germline ' if args.print_germline_calls else ""
+        indel_p_predict_command += ' --force_outputting_somatic_variant ' if args.force_outputting_somatic_variant else ""
         indel_p_predict_command += ' :::: ' + args.output_dir + '/tmp/candidates/INDEL_CANDIDATES_FILES'
         indel_p_predict_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/6-2_PREDICT_INDEL.log'
         commands_list += [indel_p_predict_command]
@@ -1367,104 +1379,114 @@ def somatic_calling(args):
         indel_p_mv_command += ' --output_fn ' + args.output_dir + '/tmp/vcf_output/indel_pileup.vcf'
         commands_list += [indel_p_mv_command]
 
-        echo_list.append("[INFO] STEP 7: Indel Full-alignment Model Calling\n")
-        echo_list[-1] += "[INFO] Create Full-alignment Paired Tensors"
-        indel_cpt_fa_command = '( ' + time + args.parallel
-        indel_cpt_fa_command += ' --joblog ' + args.output_dir + '/logs/parallel_7-1_create_pair_tensor_fa_indel.log'
-        indel_cpt_fa_command += ' -j ' + str(args.threads)
-        indel_cpt_fa_command += ' ' + args.pypy + ' ' + main_entry + ' create_pair_tensor'
-        indel_cpt_fa_command += ' --normal_bam_fn ' + normal_bam_fn
-        indel_cpt_fa_command += ' --tumor_bam_fn ' + tumor_bam_fn
-        indel_cpt_fa_command += ' --ref_fn ' + args.ref_fn
-        indel_cpt_fa_command += ' --ctg_name {1/.}'
-        indel_cpt_fa_command += ' --samtools ' + args.samtools
-        indel_cpt_fa_command += ' --candidates_bed_regions {1}'
-        indel_cpt_fa_command += ' --tensor_can_fn ' + args.output_dir + '/tmp/fa_tensor_can/indel_{1/} '
-        indel_cpt_fa_command += ' --platform ' + args.platform
-        indel_cpt_fa_command += ' :::: ' + args.output_dir + '/tmp/candidates/INDEL_CANDIDATES_FILES'
-        indel_cpt_fa_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/7-1_CPTI.log'
-        commands_list += [indel_cpt_fa_command]
+        if args.pileup_model_only:
+            echo_list.append("[INFO] Merge Pileup VCFs")
+            indel_p_lv_command = "ln -sf {} {}".format(args.output_dir + '/tmp/vcf_output/indel_pileup.vcf',
+                                                 args.output_dir + '/indel_pileup.vcf')
+            indel_p_lv_command += " && " + "bgzip -f {}".format(args.output_dir + '/indel_pileup.vcf')
+            indel_p_lv_command += " && " + "tabix -f -p vcf {}".format(args.output_dir + '/indel_pileup.vcf.gz')
+            commands_list += [indel_p_lv_command]
 
-        ## STEP 3: INDEL PREDICT
-        echo_list.append("[INFO] Indel Full-alignment Model Prediction")
-        indel_fa_predict_command = '( ' + time + args.parallel
-        indel_fa_predict_command += ' --joblog ' + args.output_dir + '/logs/parallel_7-2_predict.log'
-        indel_fa_predict_command += ' -j ' + str(args.threads)
-        indel_fa_predict_command += ' ' + args.python + ' ' + main_entry + ' predict'
-        indel_fa_predict_command += ' --tensor_fn ' + args.output_dir + '/tmp/fa_tensor_can/indel_{1/} '
-        indel_fa_predict_command += ' --call_fn ' + args.output_dir + '/tmp/vcf_output/indel_fa_{1/}.vcf'
-        indel_fa_predict_command += ' --chkpnt_fn ' + args.indel_full_alignment_model_path
-        indel_fa_predict_command += ' --use_gpu ' + str(args.use_gpu)
-        indel_fa_predict_command += ' --platform ' + args.platform
-        indel_fa_predict_command += ' --ctg_name {1/.}'
-        indel_fa_predict_command += ' --enable_indel_calling True '
-        indel_fa_predict_command += ' --show_ref ' if args.print_ref_calls else ""
-        indel_fa_predict_command += ' --show_germline ' if args.print_germline_calls else ""
-        indel_fa_predict_command += ' :::: ' + args.output_dir + '/tmp/candidates/INDEL_CANDIDATES_FILES'
-        indel_fa_predict_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/7-2_PREDICT_INDEL.log'
-        commands_list += [indel_fa_predict_command]
+        if not args.pileup_model_only:
+            echo_list.append("[INFO] STEP 7: Indel Full-alignment Model Calling\n")
+            echo_list[-1] += "[INFO] Create Full-alignment Paired Tensors"
+            indel_cpt_fa_command = '( ' + time + args.parallel
+            indel_cpt_fa_command += ' --joblog ' + args.output_dir + '/logs/parallel_7-1_create_pair_tensor_fa_indel.log'
+            indel_cpt_fa_command += ' -j ' + str(args.threads)
+            indel_cpt_fa_command += ' ' + args.pypy + ' ' + main_entry + ' create_pair_tensor'
+            indel_cpt_fa_command += ' --normal_bam_fn ' + normal_bam_fn
+            indel_cpt_fa_command += ' --tumor_bam_fn ' + tumor_bam_fn
+            indel_cpt_fa_command += ' --ref_fn ' + args.ref_fn
+            indel_cpt_fa_command += ' --ctg_name {1/.}'
+            indel_cpt_fa_command += ' --samtools ' + args.samtools
+            indel_cpt_fa_command += ' --candidates_bed_regions {1}'
+            indel_cpt_fa_command += ' --tensor_can_fn ' + args.output_dir + '/tmp/fa_tensor_can/indel_{1/} '
+            indel_cpt_fa_command += ' --platform ' + args.platform
+            indel_cpt_fa_command += ' :::: ' + args.output_dir + '/tmp/candidates/INDEL_CANDIDATES_FILES'
+            indel_cpt_fa_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/7-1_CPTI.log'
+            commands_list += [indel_cpt_fa_command]
 
-        ## STEP 4: MERGE INDEL VCF
-        echo_list.append("[INFO] Merge Full-alignment VCFs")
-        indel_fa_mv_command = args.pypy + ' ' + main_entry + ' sort_vcf'
-        indel_fa_mv_command += ' --ref_fn ' + args.ref_fn
-        indel_fa_mv_command += ' --contigs_fn ' + os.path.join(args.output_dir, 'tmp', 'CONTIGS')
-        indel_fa_mv_command += ' --input_dir ' + args.output_dir + '/tmp/vcf_output'
-        indel_fa_mv_command += ' --vcf_fn_prefix ' + 'indel_fa_'
-        indel_fa_mv_command += ' --output_fn ' + args.output_dir + '/tmp/vcf_output/indel_full_alignment.vcf'
-        commands_list += [indel_fa_mv_command]
+            ## STEP 3: INDEL PREDICT
+            echo_list.append("[INFO] Indel Full-alignment Model Prediction")
+            indel_fa_predict_command = '( ' + time + args.parallel
+            indel_fa_predict_command += ' --joblog ' + args.output_dir + '/logs/parallel_7-2_predict.log'
+            indel_fa_predict_command += ' -j ' + str(args.threads)
+            indel_fa_predict_command += ' ' + args.python + ' ' + main_entry + ' predict'
+            indel_fa_predict_command += ' --tensor_fn ' + args.output_dir + '/tmp/fa_tensor_can/indel_{1/} '
+            indel_fa_predict_command += ' --call_fn ' + args.output_dir + '/tmp/vcf_output/indel_fa_{1/}.vcf'
+            indel_fa_predict_command += ' --chkpnt_fn ' + args.indel_full_alignment_model_path
+            indel_fa_predict_command += ' --use_gpu ' + str(args.use_gpu)
+            indel_fa_predict_command += ' --platform ' + args.platform
+            indel_fa_predict_command += ' --ctg_name {1/.}'
+            indel_fa_predict_command += ' --enable_indel_calling True '
+            indel_fa_predict_command += ' --show_ref ' if args.print_ref_calls else ""
+            indel_fa_predict_command += ' --show_germline ' if args.print_germline_calls else ""
+            indel_fa_predict_command += ' --force_outputting_somatic_variant ' if args.force_outputting_somatic_variant else ""
+            indel_fa_predict_command += ' :::: ' + args.output_dir + '/tmp/candidates/INDEL_CANDIDATES_FILES'
+            indel_fa_predict_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/7-2_PREDICT_INDEL.log'
+            commands_list += [indel_fa_predict_command]
 
-        indel_pileup_fn = args.output_dir + '/tmp/vcf_output/indel_pileup.vcf'
-        indel_fa_fn = args.output_dir + '/tmp/vcf_output/indel_full_alignment.vcf'
-        if args.platform != 'ilmn':
-            echo_list.append("[INFO] Indel Haplotype filtering")
-            indel_hap_g_command = '( ' + time + args.pypy + ' ' + main_entry + ' haplotype_filtering'
-            indel_hap_g_command += ' --tumor_bam_fn ' + tumor_bam_prefix
-            indel_hap_g_command += ' --ref_fn ' + args.ref_fn
-            indel_hap_g_command += ' --germline_vcf_fn ' + clair3_output_path + '/clair3_tumor_output/merge_output.vcf.gz'
-            indel_hap_g_command += ' --pileup_vcf_fn ' + args.output_dir + '/tmp/vcf_output/indel_pileup.vcf'
-            indel_hap_g_command += ' --full_alignment_vcf_fn ' + args.output_dir + '/tmp/vcf_output/indel_full_alignment.vcf'
-            indel_hap_g_command += ' --output_dir ' + args.output_dir + '/tmp/vcf_output'
-            indel_hap_g_command += ' --samtools ' + args.samtools
-            indel_hap_g_command += ' --pypy3 ' + args.pypy
-            indel_hap_g_command += ' --parallel ' + args.parallel
-            indel_hap_g_command += ' --threads ' + str(args.threads)
-            indel_hap_g_command += ' --debug ' if args.debug else ''
-            indel_hap_g_command += ' --show_ref ' if args.print_ref_calls else ''
-            indel_hap_g_command += ' --is_indel '
-            indel_hap_g_command += ' --apply_post_processing False' if not args.apply_post_processing else ''
-            indel_hap_g_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/8_INDEL_HAP_FILTER.log'
-            commands_list += [indel_hap_g_command]
+            ## STEP 4: MERGE INDEL VCF
+            echo_list.append("[INFO] Merge Full-alignment VCFs")
+            indel_fa_mv_command = args.pypy + ' ' + main_entry + ' sort_vcf'
+            indel_fa_mv_command += ' --ref_fn ' + args.ref_fn
+            indel_fa_mv_command += ' --contigs_fn ' + os.path.join(args.output_dir, 'tmp', 'CONTIGS')
+            indel_fa_mv_command += ' --input_dir ' + args.output_dir + '/tmp/vcf_output'
+            indel_fa_mv_command += ' --vcf_fn_prefix ' + 'indel_fa_'
+            indel_fa_mv_command += ' --output_fn ' + args.output_dir + '/tmp/vcf_output/indel_full_alignment.vcf'
+            commands_list += [indel_fa_mv_command]
 
-            indel_pileup_fn = args.output_dir + '/tmp/vcf_output/indel_pileup_filter.vcf'
-            indel_fa_fn = args.output_dir + '/tmp/vcf_output/indel_full_alignment_filter.vcf'
+            indel_pileup_fn = args.output_dir + '/tmp/vcf_output/indel_pileup.vcf'
+            indel_fa_fn = args.output_dir + '/tmp/vcf_output/indel_full_alignment.vcf'
+            if args.platform != 'ilmn':
+                echo_list.append("[INFO] Indel Haplotype filtering")
+                indel_hap_g_command = '( ' + time + args.pypy + ' ' + main_entry + ' haplotype_filtering'
+                indel_hap_g_command += ' --tumor_bam_fn ' + tumor_bam_prefix
+                indel_hap_g_command += ' --ref_fn ' + args.ref_fn
+                indel_hap_g_command += ' --germline_vcf_fn ' + clair3_output_path + '/clair3_tumor_output/merge_output.vcf.gz'
+                indel_hap_g_command += ' --pileup_vcf_fn ' + args.output_dir + '/tmp/vcf_output/indel_pileup.vcf'
+                indel_hap_g_command += ' --full_alignment_vcf_fn ' + args.output_dir + '/tmp/vcf_output/indel_full_alignment.vcf'
+                indel_hap_g_command += ' --output_dir ' + args.output_dir + '/tmp/vcf_output'
+                indel_hap_g_command += ' --samtools ' + args.samtools
+                indel_hap_g_command += ' --pypy3 ' + args.pypy
+                indel_hap_g_command += ' --parallel ' + args.parallel
+                indel_hap_g_command += ' --threads ' + str(args.threads)
+                indel_hap_g_command += ' --debug ' if args.debug else ''
+                indel_hap_g_command += ' --show_ref ' if args.print_ref_calls else ''
+                indel_hap_g_command += ' --is_indel '
+                indel_hap_g_command += ' --apply_post_processing False' if not args.apply_post_processing else ''
+                indel_hap_g_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/8_INDEL_HAP_FILTER.log'
+                commands_list += [indel_hap_g_command]
 
-        echo_list.append("[INFO] STEP 8: Merge and sort Indel VCF")
-        indel_sort_vcf_command = '( ' + time + args.pypy + ' ' + main_entry + ' merge_vcf'
-        indel_sort_vcf_command += ' --ref_fn ' + args.ref_fn
-        indel_sort_vcf_command += ' --pileup_vcf_fn ' + indel_pileup_fn
-        indel_sort_vcf_command += ' --full_alignment_vcf_fn ' + indel_fa_fn
-        indel_sort_vcf_command += ' --output_fn ' + args.output_dir + '/{}.vcf'.format(args.indel_output_prefix)
-        indel_sort_vcf_command += ' --platform ' + args.platform
-        indel_sort_vcf_command += ' --qual ' + str(args.qual)
-        indel_sort_vcf_command += ' --sample_name ' + str(args.sample_name)
-        indel_sort_vcf_command += ' --enable_indel_calling ' + str(args.enable_indel_calling)
-        indel_sort_vcf_command += ' --indel_calling '
-        indel_sort_vcf_command += ' --prefer_recall ' + str(args.prefer_recall)
-        indel_sort_vcf_command += ' --cmdline ' + args.output_dir + '/tmp/CMD'
-        indel_sort_vcf_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/8_MVI.log'
-        commands_list += [indel_sort_vcf_command]
+                indel_pileup_fn = args.output_dir + '/tmp/vcf_output/indel_pileup_filter.vcf'
+                indel_fa_fn = args.output_dir + '/tmp/vcf_output/indel_full_alignment_filter.vcf'
 
-        if args.genotyping_mode_vcf_fn is not None or args.hybrid_mode_vcf_fn is not None:
-            echo_list.append("[INFO] Add reference calls to the output VCF output")
-            indel_genotyping_command = args.pypy + ' ' + main_entry + ' add_back_missing_variants_in_genotyping'
-            indel_genotyping_command += ' --genotyping_mode_vcf_fn ' + str(args.genotyping_mode_vcf_fn)
-            indel_genotyping_command += ' --hybrid_mode_vcf_fn ' + str(args.hybrid_mode_vcf_fn)
-            indel_genotyping_command += ' --call_fn ' + args.output_dir + '/{}.vcf.gz'.format(args.indel_output_prefix)
-            indel_genotyping_command += ' --output_fn ' + args.output_dir + '/{}.vcf'.format(args.indel_output_prefix)
-            indel_genotyping_command += ' --candidates_folder ' + args.output_dir + '/tmp/candidates'
-            indel_genotyping_command += ' 2>&1 | tee ' + args.output_dir + '/logs/9_GTI.log'
-            commands_list += [indel_genotyping_command]
+            echo_list.append("[INFO] STEP 8: Merge and sort Indel VCF")
+            indel_sort_vcf_command = '( ' + time + args.pypy + ' ' + main_entry + ' merge_vcf'
+            indel_sort_vcf_command += ' --ref_fn ' + args.ref_fn
+            indel_sort_vcf_command += ' --pileup_vcf_fn ' + indel_pileup_fn
+            indel_sort_vcf_command += ' --full_alignment_vcf_fn ' + indel_fa_fn
+            indel_sort_vcf_command += ' --output_fn ' + args.output_dir + '/{}.vcf'.format(args.indel_output_prefix)
+            indel_sort_vcf_command += ' --platform ' + args.platform
+            indel_sort_vcf_command += ' --qual ' + str(args.qual)
+            indel_sort_vcf_command += ' --sample_name ' + str(args.sample_name)
+            indel_sort_vcf_command += ' --enable_indel_calling ' + str(args.enable_indel_calling)
+            indel_sort_vcf_command += ' --indel_calling '
+            indel_sort_vcf_command += ' --prefer_recall ' + str(args.prefer_recall)
+            indel_sort_vcf_command += ' --cmdline ' + args.output_dir + '/tmp/CMD'
+            indel_sort_vcf_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/8_MVI.log'
+            commands_list += [indel_sort_vcf_command]
+
+            if args.genotyping_mode_vcf_fn is not None or args.hybrid_mode_vcf_fn is not None:
+                echo_list.append("[INFO] Add reference calls to the output VCF output")
+                indel_genotyping_command = args.pypy + ' ' + main_entry + ' add_back_missing_variants_in_genotyping'
+                indel_genotyping_command += ' --genotyping_mode_vcf_fn ' + str(args.genotyping_mode_vcf_fn)
+                indel_genotyping_command += ' --hybrid_mode_vcf_fn ' + str(args.hybrid_mode_vcf_fn)
+                indel_genotyping_command += ' --call_fn ' + args.output_dir + '/{}.vcf.gz'.format(args.indel_output_prefix)
+                indel_genotyping_command += ' --output_fn ' + args.output_dir + '/{}.vcf'.format(args.indel_output_prefix)
+                indel_genotyping_command += ' --candidates_folder ' + args.output_dir + '/tmp/candidates'
+                indel_genotyping_command += ' 2>&1 | tee ' + args.output_dir + '/logs/9_GTI.log'
+                commands_list += [indel_genotyping_command]
 
     # excute commands step by step
     skip_steps = args.skip_steps.rstrip().split(',') if args.skip_steps else None
@@ -1593,6 +1615,18 @@ def somatic_parser():
         type=str,
         default=None,
         help="The name of the contigs to be processed. Split by ',' for multiple contigs. Default: all contigs will be processed."
+    )
+
+    optional_params.add_argument(
+        '--pileup_model_only',
+        action='store_true',
+        help="Only run the pileup model. Default: False."
+    )
+
+    optional_params.add_argument(
+        '--force_outputting_somatic_variant',
+        action='store_true',
+        help="Force outputting somatic variants even if the QUAL is lower than the reference. Default: False."
     )
 
     region_group = optional_params.add_mutually_exclusive_group(required=False)
