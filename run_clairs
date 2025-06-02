@@ -642,12 +642,31 @@ def check_args(args):
     if args.platform not in set(extend_supported_platforms):
         logging(log_error('[ERROR] Invalid platform input, optional: {}'.format(', '.join(supported_platforms))))
 
+    if (args.qual is not None or args.prefer_balance or args.prefer_recall) and (args.snv_min_qual is not None or args.min_qual_for_indel is not None):
+        option = '--qual' if args.qual is not None else "--prefer_balance" if args.prefer_balance else "--prefer_recall"
+        if args.snv_min_qual is not None:
+            logging(log_warning(
+                f"[WARNING] {option} is set, but --snv_min_qual is also set, will use --snv_min_qual instead of {option} for SNV calling."))
+        if args.indel_min_qual is not None:
+            logging(log_warning(
+                f"[WARNING] {option} is set, but --indel_min_qual is also set, will use --indel_min_qual instead of {option} for Indel calling."))
+        args.qual = None
+        args.prefer_balance = False
+
     if args.qual is None:
         if args.prefer_balance:
             args.qual = param.best_thred_qual[args.platform] if args.platform in param.best_thred_qual else param.best_thred_qual['ont']
+            args.snv_min_qual = args.indel_min_qual = args.qual
         else:
             # default we enable min_thred_qual
-            args.qual = param.min_thred_qual[args.platform] if args.platform in param.min_thred_qual else param.min_thred_qual['ont']
+            if args.snv_min_qual is None and args.indel_min_qual is None:
+                args.qual = param.min_thred_qual[args.platform] if args.platform in param.min_thred_qual else param.min_thred_qual['ont']
+                args.snv_min_qual = args.indel_min_qual = args.qual
+            elif args.snv_min_qual is None:
+                args.qual = args.snv_min_qual = param.min_thred_qual[args.platform] if args.platform in param.min_thred_qual else param.min_thred_qual['ont']
+            elif args.indel_min_qual is None:
+                args.qual = args.indel_min_qual = param.min_thred_qual[args.platform] if args.platform in param.min_thred_qual else param.min_thred_qual['ont']
+
     if args.skip_steps is not None:
         check_skip_steps_legal(args)
     if args.enable_realignment and args.platform != 'ilmn':
@@ -734,7 +753,8 @@ def check_args(args):
         args.phase_normal = False
 
     legal_range_from(param_name="threads", x=args.threads, min_num=1, exit_out_of_range=True)
-    legal_range_from(param_name="qual", x=args.qual, min_num=-1, exit_out_of_range=True)
+    legal_range_from(param_name="snv_min_qual", x=args.snv_min_qual, min_num=-1, exit_out_of_range=True)
+    legal_range_from(param_name="indel_min_qual", x=args.indel_min_qual, min_num=-1, exit_out_of_range=True)
     legal_range_from(param_name="min_coverage", x=args.min_coverage, min_num=0, exit_out_of_range=True)
     legal_range_from(param_name="snv_min_af", x=args.snv_min_af, min_num=0, max_num=1, exit_out_of_range=True)
     legal_range_from(param_name="indel_min_af", x=args.indel_min_af, min_num=0, max_num=1, exit_out_of_range=True)
@@ -779,10 +799,12 @@ def print_args(args):
     logging("[INFO] LONGPHASE BINARY PATH: {}".format(args.longphase))
     logging("[INFO] CHUNK SIZE: {}".format(args.chunk_size))
     logging("[INFO] SNV MINIMUM AF: {}".format(args.snv_min_af))
+    logging("[INFO] SNV MINIMUM QUAL: {}".format(args.snv_min_qual))
     if args.enable_indel_calling:
         logging("[INFO] INDEL MINIMUM AF: {}".format(args.indel_min_af))
         logging("[INFO] INDEL PILEUP MODEL PATH: {}".format(args.indel_pileup_model_path))
         logging("[INFO] INDEL FULL-ALIGNMENT MODEL PATH: {}".format(args.indel_full_alignment_model_path))
+        logging("[INFO] INDEL MINIMUM QUAL: {}".format(args.indel_min_qual))
     logging("[INFO] NORMAL VCF FILE PATH: {}".format(args.normal_vcf_fn))
     logging("[INFO] DISABLE PHASING: {}".format(args.disable_phasing))
     logging("[INFO] ENABLE DRY RUN: {}".format(args.dry_run))
@@ -827,6 +849,8 @@ def print_command_line(args):
         cmdline += '--genotyping_mode_vcf_fn {} '.format(args.genotyping_mode_vcf_fn) if args.genotyping_mode_vcf_fn is not None else ""
         cmdline += '--hybrid_mode_vcf_fn {} '.format(args.hybrid_mode_vcf_fn) if args.hybrid_mode_vcf_fn is not None else ""
         cmdline += '--qual {} '.format(args.qual) if args.qual is not None else ""
+        cmdline += '--snv_min_qual {} '.format(args.snv_min_qual) if args.snv_min_qual is not None else ""
+        cmdline += '--indel_min_qual {} '.format(args.indel_min_qual) if args.indel_min_qual is not None else ""
         cmdline += '--snv_min_af {} '.format(args.snv_min_af) if args.snv_min_af is not None else ""
         cmdline += '--indel_min_af {} '.format(args.indel_min_af) if args.indel_min_af is not None else ""
         cmdline += '--indel_max_af_in_normal {} '.format(args.indel_max_af_in_normal) if args.indel_max_af_in_normal is not None else ""
@@ -1276,7 +1300,7 @@ def somatic_calling(args):
     sort_vcf_command += ' --full_alignment_vcf_fn ' + args.output_dir + '/tmp/vcf_output/full_alignment_filter.vcf'
     sort_vcf_command += ' --output_fn ' + args.output_dir + '/{}.vcf'.format(args.output_prefix)
     sort_vcf_command += ' --platform ' + args.platform
-    sort_vcf_command += ' --qual ' + str(args.qual)
+    sort_vcf_command += ' --qual ' + str(args.snv_min_qual)
     sort_vcf_command += ' --sample_name ' + str(args.sample_name)
     sort_vcf_command += ' --enable_indel_calling ' + str(args.enable_indel_calling)
     sort_vcf_command += ' --prefer_recall ' + str(args.prefer_recall)
@@ -1446,7 +1470,7 @@ def somatic_calling(args):
         indel_sort_vcf_command += ' --full_alignment_vcf_fn ' + indel_fa_fn
         indel_sort_vcf_command += ' --output_fn ' + args.output_dir + '/{}.vcf'.format(args.indel_output_prefix)
         indel_sort_vcf_command += ' --platform ' + args.platform
-        indel_sort_vcf_command += ' --qual ' + str(args.qual)
+        indel_sort_vcf_command += ' --qual ' + str(args.indel_min_qual)
         indel_sort_vcf_command += ' --sample_name ' + str(args.sample_name)
         indel_sort_vcf_command += ' --enable_indel_calling ' + str(args.enable_indel_calling)
         indel_sort_vcf_command += ' --indel_calling '
@@ -1635,7 +1659,21 @@ def somatic_parser():
         "--qual",
         type=int,
         default=None,
-        help="If set, variants with >QUAL will be marked as PASS, or LowQual otherwise."
+        help=SUPPRESS
+    )
+
+    optional_params.add_argument(
+        "--snv_min_qual",
+        type=int,
+        default=None,
+        help="If set, SNV variants with >SNV_MIN_QUAL will be marked as PASS, or LowQual otherwise."
+    )
+
+    optional_params.add_argument(
+        "--indel_min_qual",
+        type=int,
+        default=None,
+        help="If set, INDEL variants with >INDEL_MIN_QUAL will be marked as PASS, or LowQual otherwise."
     )
 
     optional_params.add_argument(
