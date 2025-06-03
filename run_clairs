@@ -642,7 +642,7 @@ def check_args(args):
     if args.platform not in set(extend_supported_platforms):
         logging(log_error('[ERROR] Invalid platform input, optional: {}'.format(', '.join(supported_platforms))))
 
-    if (args.qual is not None or args.prefer_balance or args.prefer_recall) and (args.snv_min_qual is not None or args.min_qual_for_indel is not None):
+    if (args.qual is not None or args.prefer_balance or args.prefer_recall) and (args.snv_min_qual is not None or args.indel_min_qual is not None):
         option = '--qual' if args.qual is not None else "--prefer_balance" if args.prefer_balance else "--prefer_recall"
         if args.snv_min_qual is not None:
             logging(log_warning(

@@ -81,6 +81,8 @@ Performance comparison between “ClairS v0.4.0 with the SS model”, “ClairS 
 ------
 
 ## Latest Updates
+*v0.4.2 (Jue 29, 2025)* : Added `--snv_min_qual` and `--indel_min_qual` options to independently set the minimum QUAL threshold for SNVs and Indels to be marked as 'PASS', while deprecating the legacy `--qual` option.
+
 *v0.4.1 (Nov 29)* : Added ssrs model for PacBio Revio (`hifi_revio_ssrs`) and illumina (`ilmn_ssrs`) platforms.
 
 *v0.4.0 (Oct 11)* : This version is a major update. The new features and benchmarks are explained in a technical note titled [“Improving the performance of ClairS and ClairS-TO with new real cancer cell-line datasets and PoN”](docs/Improving_the_performance_of_ClairS_and_ClairS-TO_with_new_real_cancer_cell-line_datasets_and_PoN.pdf). A summary of changes: 1. Starting from this version, ClairS will provide two model types. `ssrs` is a model trained initially with synthetic samples and then real samples augmented (e.g., `ont_r10_dorado_sup_5khz_ssrs`), `ss` is a model trained from synthetic samples (e.g., `ont_r10_dorado_sup_5khz_ss`). The `ssrs` model provides better performance and fits most usage scenarios. `ss` model can be used when missing a cancer-type in model training is a concern. In v0.4.0, four real cancer cell-line datasets (HCC1937/BL, HCC1954/BL, H1437/BL, and H2009/BL) covering two cancer types (breast cancer, lung cancer) published by [Park et al.](https://www.biorxiv.org/content/10.1101/2024.08.16.608331v1) were used for `ssrs` model training. 2. Added BQ jittering in model training to address the BQ distribution difference between the training and calling datasets that leads to performance drop. 3. Added the `--indel_min_af` option and adjusted the default minimum allelic fraction requirement to 0.1 for Indels in ONT platform.
@@ -312,7 +314,10 @@ docker run -it hkubal/clairs:latest /opt/bin/run_clairs --help
                         VCF file input containing candidate sites to be genotyped. Variants will only be called at the sites in the VCF file if provided.
   -H HYBRID_MODE_VCF_FN, --hybrid_mode_vcf_fn HYBRID_MODE_VCF_FN  
                         Enable hybrid calling mode that combines the de novo calling results and genotyping results at the positions in the VCF file given.
-  -q QUAL, --qual QUAL  If set, variants with >QUAL will be marked as PASS, or LowQual otherwise.
+  --snv_min_qual SNV_MIN_QUAL                                                                                                                                                                              
+                        If set, SNV variants with >SNV_MIN_QUAL will be marked as PASS, or LowQual otherwise.                                                             
+  --indel_min_qual INDEL_MIN_QUAL                                                                                                                                                                          
+                        If set, INDEL variants with >INDEL_MIN_QUAL will be marked as PASS, or LowQual otherwise.  
   --snv_min_af SNV_MIN_AF
                         Minimal SNV AF required for a variant to be called. Decrease SNV_MIN_AF might increase a bit of sensitivity, but in trade of precision, speed and accuracy. Default: 0.05.
   --min_coverage MIN_COVERAGE
