@@ -667,6 +667,18 @@ def check_args(args):
             elif args.indel_min_qual is None:
                 args.qual = args.indel_min_qual = param.min_thred_qual[args.platform] if args.platform in param.min_thred_qual else param.min_thred_qual['ont']
 
+    model_path = os.path.dirname(args.pileup_model_path)
+    config_file = os.path.join(model_path, 'model_specific_settings.conf')
+    if os.path.exists(config_file):
+        with open(config_file, 'r') as config_fp:
+            for line in config_fp:
+                if line.startswith('snv_min_qual'):
+                    args.snv_min_qual = int(line.split('=')[1].strip())
+                    print("[INFO] Set SNV minimum quality `--snv_min_qual` to {} according to the parameter config file".format(args.snv_min_qual))
+                elif line.startswith('indel_min_qual'):
+                    args.indel_min_qual = int(line.split('=')[1].strip())
+                    print("[INFO] Set Indel minimum quality `--indel_min_qual` to {} according to the parameter config file".format(args.indel_min_qual))
+
     if args.skip_steps is not None:
         check_skip_steps_legal(args)
     if args.enable_realignment and args.platform != 'ilmn':

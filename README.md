@@ -81,7 +81,9 @@ Performance comparison between “ClairS v0.4.0 with the SS model”, “ClairS 
 ------
 
 ## Latest Updates
-*v0.4.2 (Jue 29, 2025)* : Added `--snv_min_qual` and `--indel_min_qual` options to independently set the minimum QUAL threshold for SNVs and Indels to be marked as 'PASS', while deprecating the legacy `--qual` option.
+*v0.4.3 (Jul 9, 2025)* : Added parsing the `model_specific_settings.conf` file in the folder of a model and set parameters accordingly. Initially in this version, `snv_min_qual=` and `indel_min_qual=` are supported in the configuration file. 
+
+*v0.4.2 (Jun 29, 2025)* : Added `--snv_min_qual` and `--indel_min_qual` options to independently set the minimum QUAL threshold for SNVs and Indels to be marked as 'PASS', while deprecating the legacy `--qual` option.
 
 *v0.4.1 (Nov 29)* : Added ssrs model for PacBio Revio (`hifi_revio_ssrs`) and illumina (`ilmn_ssrs`) platforms.
 
