@@ -81,6 +81,8 @@ Performance comparison between “ClairS v0.4.0 with the SS model”, “ClairS 
 ------
 
 ## Latest Updates
+*v0.4.4 (Nov 18, 2025)* : Updated the ONT and PacBio ssrs model with base quality jittering and more training samples with a wider range of tumor/normal coverages and tumor purities in model training. Performance improved consistently compared with v0.4.3. 
+
 *v0.4.3 (Jul 9, 2025)* : Added parsing the `model_specific_settings.conf` file in the folder of a model and set parameters accordingly. Initially in this version, `snv_min_qual=` and `indel_min_qual=` are supported in the configuration file. 
 
 *v0.4.2 (Jun 29, 2025)* : Added `--snv_min_qual` and `--indel_min_qual` options to independently set the minimum QUAL threshold for SNVs and Indels to be marked as 'PASS', while deprecating the legacy `--qual` option.
