@@ -427,7 +427,7 @@ def predict(args):
         model.load_weights(args.chkpnt_fn)
 
     else:
-        model = torch.load(chkpnt_fn, map_location=torch.device(device))
+        model = torch.load(chkpnt_fn, map_location=torch.device(device), weights_only=False)
 
         model.eval()
 

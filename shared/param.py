@@ -1,6 +1,6 @@
 # parameters
 caller_name = "clairs"
-version = "0.4.3"
+version = "0.4.4"
 
 from itertools import accumulate
 
@@ -63,7 +63,7 @@ tumor_matrix_depth_dict = {'ont': ont_max_tumor_depth, 'ilmn': max_tumor_depth, 
 phase_normal = {'ont': False, 'ilmn': False, 'hifi': False}
 phase_tumor = {'ont': True, 'ilmn': False, 'hifi': True}
 qual_dict = {'ont': 0.8, 'ilmn': 0.95, 'hifi': 0.8}
-af_dict = {'ont': 0.5, 'ilmn': None, 'hifi': None}
+af_dict = {'ont': 0.05, 'ilmn': 0.05, 'hifi': 0.05}
 
 
 pileup_channel = ['A', 'C', 'G', 'T', 'I', 'I1', 'D', 'D1', '*', 'a', 'c', 'g', 't', 'i', 'i1', 'd', 'd1', '#']
