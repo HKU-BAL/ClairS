@@ -81,6 +81,11 @@ Performance comparison between “ClairS v0.4.0 with the SS model”, “ClairS 
 ------
 
 ## Latest Updates
+*v0.4.4 (Nov 28, 2025)* : **Documentation update**. Added the [document](docs/longphase-s_post-filter.md) to illustrate how to integrate LongPhase-S for post filter. By reconstructing somatic haplotypes and inferring tumor purity, LongPhase-S identifies false somatic variants that are inconsistent with the somatic haplotypes and flags them as “LowQual”.  ONT upgraded its sequencing kit and chemistry from 4 kHz to 5 kHz in early 2024.  While ClairS offers a 4 kHz model (ont_r10_dorado_sup_4khz) for legacy data,  the 4kHz model will not receive future updates.  Consider that some existing datasets were sequenced with 4kHz, while it is not a recommended practice to apply 5kHz model to 4kHz data, in the following table, we still give our 5kHz model's performance on COLO829/BL 4kHz data, as an anchor. 
+<div align="center">
+    <img src="images/longphase-s_benchmark.png" width = "700" alt="longphase_benchmark">
+</div>
+
 *v0.4.4 (Nov 18, 2025)* : Updated the ONT and PacBio ssrs model with base quality jittering and more training samples with a wider range of tumor/normal coverages and tumor purities in model training. Performance improved consistently compared with v0.4.3. 
 
 *v0.4.3 (Jul 9, 2025)* : Added parsing the `model_specific_settings.conf` file in the folder of a model and set parameters accordingly. Initially in this version, `snv_min_qual=` and `indel_min_qual=` are supported in the configuration file. 
