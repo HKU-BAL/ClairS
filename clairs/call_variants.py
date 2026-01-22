@@ -199,7 +199,7 @@ def output_vcf_from_probability(
             alternate_base = best_match_alt[1]
             is_SNP = True
         elif best_match_alt[0] == 'I':
-            alternate_base = best_match_alt[1:]
+            best_match_alt[1:] if best_match_alt[1] != '#' else best_match_alt[2:]
             is_INS = True
         elif best_match_alt[0] == 'D':
             alternate_base = reference_base
@@ -216,7 +216,7 @@ def output_vcf_from_probability(
             alternate_base = best_match_alt[1]
             is_SNP = True
         elif best_match_alt[0] == 'I':
-            alternate_base = best_match_alt[1:]
+            best_match_alt[1:] if best_match_alt[1] != '#' else best_match_alt[2:]
             is_INS = True
         elif best_match_alt[0] == 'D':
             alternate_base = reference_base
