@@ -27,6 +27,8 @@ For germline variant calling using **long-read RNA-seq** sample, please try [Cla
 
 For somatic variant calling using **tumor only** sample, please try [ClairS-TO](https://github.com/HKU-BAL/ClairS-TO).
 
+If you need agentic AI skill (Claude Code, Cursor, Codex…) for the ClairS, please try [Clair-skills](https://github.com/HKU-BAL/Clair-skills).
+
 ------
 
 ## Performance figures
