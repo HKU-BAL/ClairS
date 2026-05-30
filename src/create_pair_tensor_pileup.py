@@ -163,7 +163,7 @@ def decode_pileup_bases(args,
                     if key in 'ACGTN':
                         forward_ref_count += count
                     else:
-                        reverse_ref_count = count
+                        reverse_ref_count += count
                 pileup_tensor[BASE2INDEX[key]] += count
             elif key in '#*':
                 pileup_tensor[BASE2INDEX[key]] += count
@@ -224,6 +224,7 @@ def decode_pileup_bases(args,
                 pileup_tensor[BASE2INDEX["d"]] += count
                 max_del_1 = max(max_del_1, count)
     if is_candidate and forward_ref_count + reverse_ref_count > 0:
+        alt_info_set.add('R' + reference_base)
         forward_alt_info_dict['R' + reference_base] = forward_ref_count
         reverse_alt_info_dict['R' + reference_base] = reverse_ref_count
 

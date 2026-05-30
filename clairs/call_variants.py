@@ -104,6 +104,16 @@ def decode_acgt_count(alt_dict, ref_base=None, tumor_coverage=None):
     AU, CU, GU, TU = acgt_count
     return AU, CU, GU, TU
 
+
+def count_from_acgt_tuple(ref_base, acgt_count):
+    if ref_base is None:
+        return 0
+    ref_base = ref_base[0].upper()
+    if ref_base not in ACGT:
+        return 0
+    return acgt_count[ACGT.index(ref_base)]
+
+
 def split_forward_reverse_strand(alt_info_dict):
     updated_alt_info_dict = {}
     forward_alt_info_dict = dict()
@@ -156,6 +166,8 @@ def output_vcf_from_probability(
     def rank_somatic_alt(tumor_alt_info_dict, normal_alt_info_dict, tumor_read_depth, normal_read_depth):
         support_alt_dict = {}
         for tumor_alt, tumor_count in tumor_alt_info_dict.items():
+            if tumor_alt[0] == 'R':
+                continue
             tumor_af = tumor_count / float(tumor_read_depth)
             normal_count = normal_alt_info_dict[tumor_alt] if tumor_alt in normal_alt_info_dict else 0
             normal_af = normal_count / float(normal_read_depth) if normal_read_depth > 0 else 0
@@ -173,6 +185,8 @@ def output_vcf_from_probability(
     def rank_germline_alt(tumor_alt_info_dict, normal_alt_info_dict, tumor_read_depth, normal_read_depth):
         support_alt_dict = {}
         for tumor_alt, tumor_count in tumor_alt_info_dict.items():
+            if tumor_alt[0] == 'R':
+                continue
             tumor_af = tumor_count / float(tumor_read_depth)
             normal_count = normal_alt_info_dict[tumor_alt] if tumor_alt in normal_alt_info_dict else 0
             normal_af = normal_count / float(normal_read_depth) if normal_read_depth > 0 else 0
@@ -267,9 +281,15 @@ def output_vcf_from_probability(
     tumor_forward_alt_type_list, _, _, _, _ = decode_alt_info(
         alt_info_dict=tumor_forward_alt_info_dict, read_depth=tumor_forward_read_depth)
 
+    AU, CU, GU, TU = decode_acgt_count(tumor_alt_type_list[0], reference_base, tumor_read_depth)
+
+    NAU, NCU, NGU, NTU = decode_acgt_count(normal_alt_type_list[0], reference_base, normal_read_depth)
+
+    FAU, FCU, FGU, FTU = decode_acgt_count(tumor_forward_alt_type_list[0], reference_base, tumor_forward_read_depth)
+
     if is_reference:
-        normal_supported_reads_count = normal_ref_num
-        tumor_supported_reads_count = tumor_ref_num
+        normal_supported_reads_count = count_from_acgt_tuple(reference_base, (NAU, NCU, NGU, NTU))
+        tumor_supported_reads_count = count_from_acgt_tuple(reference_base, (AU, CU, GU, TU))
         alternate_base = "."
 
     normal_allele_frequency = min((normal_supported_reads_count / normal_read_depth) if normal_read_depth != 0 else 0.0,
@@ -295,12 +315,6 @@ def output_vcf_from_probability(
         is_germline=is_germline
     )
 
-    AU, CU, GU, TU = decode_acgt_count(tumor_alt_type_list[0], reference_base, tumor_read_depth)
-
-    NAU, NCU, NGU, NTU = decode_acgt_count(normal_alt_type_list[0], reference_base, normal_read_depth)
-
-    FAU, FCU, FGU, FTU = decode_acgt_count(tumor_forward_alt_type_list[0], reference_base, tumor_forward_read_depth)
-
     RAU = AU - FAU
     RCU = CU - FCU
     RGU = GU - FGU
@@ -312,12 +326,16 @@ def output_vcf_from_probability(
     add_ad_tag = True
     AD = None
     if add_ad_tag:
-        AD = str(tumor_supported_reads_count) if is_reference else str(tumor_ref_num) + ',' + str(tumor_supported_reads_count)
+        tumor_ref_ad = count_from_acgt_tuple(reference_base, (AU, CU, GU, TU)) \
+            if len(reference_base) == 1 and len(alternate_base) == 1 else tumor_ref_num
+        AD = str(tumor_ref_ad) if is_reference else str(tumor_ref_ad) + ',' + str(tumor_supported_reads_count)
 
     add_nad_tag = True
     NAD = None
     if add_nad_tag:
-        NAD = str(normal_supported_reads_count) if is_reference else str(normal_ref_num) + ',' + str(normal_supported_reads_count)
+        normal_ref_ad = count_from_acgt_tuple(reference_base, (NAU, NCU, NGU, NTU)) \
+            if len(reference_base) == 1 and len(alternate_base) == 1 else normal_ref_num
+        NAD = str(normal_ref_ad) if is_reference else str(normal_ref_ad) + ',' + str(normal_supported_reads_count)
 
     vcf_writer.write_row(CHROM=chromosome,
                          POS=position,
