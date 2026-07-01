@@ -83,6 +83,8 @@ Performance comparison between “ClairS v0.4.0 with the SS model”, “ClairS 
 ------
 
 ## Latest Updates
+*v0.5.0 (Jul 1, 2026)* : Released [documentation](https://github.com/HKU-BAL/ClairS-series-model-training/tree/main/clairs) for ClairS SS (synthetic sample) and SSRS (synthetic sample and real sample) training workflow. These workflows enable users to train ClairS models using either synthetic samples alone or synthetic samples together with in-house real tumor samples.
+
 *v0.4.5 (May 30, 2026)* : Fixed incorrect REF allele depth in `AD`/`NAD` for complex variant representation.
 
 *v0.4.4 (Nov 28, 2025)* : **Documentation update**. Added the [document](docs/longphase-s_post-filter.md) to illustrate how to integrate LongPhase-S for post filter. By reconstructing somatic haplotypes and inferring tumor purity, LongPhase-S identifies false somatic variants that are inconsistent with the somatic haplotypes and flags them as “LowQual”.  ONT upgraded its sequencing kit and chemistry from 4 kHz to 5 kHz in early 2024.  While ClairS offers a 4 kHz model (ont_r10_dorado_sup_4khz) for legacy data,  the 4kHz model will not receive future updates.  Consider that some existing datasets were sequenced with 4kHz, while it is not a recommended practice to apply 5kHz model to 4kHz data, in the following table, we still give our 5kHz model's performance on COLO829/BL 4kHz data, as an anchor. 
@@ -170,6 +172,7 @@ ClairS trained both pileup and full-alignment models using GIAB samples, and car
 
 **Caveats <sup>3</sup>**: The PacBio HiFi Sequel II model is experimental. It was trained but not tested with any real data with known truths. HG003 54x and HG004 52x were used, thus tumor depth coverage higher than 50x may suffer from lower recall rate. For testing, please downsample both tumor and normal to ~40x for the best performance of this experimental model.
 
+We released [documentation](https://github.com/HKU-BAL/ClairS-series-model-training/tree/main/clairs) for ClairS SS (synthetic sample) and SSRS (synthetic sample and real sample) training workflow.
 
 ------
 
