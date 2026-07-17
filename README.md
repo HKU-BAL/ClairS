@@ -2,7 +2,7 @@
     <img src="images/clairs_icon.png" width = "200" alt="ClairS">
 </div>
 
-# ClairS - a deep-learning method for long-read somatic small variant calling
+# ClairS: a deep-learning method for long-read tumor–normal pair somatic small variant calling
 
 [![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 
@@ -19,7 +19,7 @@ ClairS means Clair-Somatic, or the masculine plural of "Clair" in french (thus, 
 
 The logo of ClairS was generated using DALL-E 2 with prompt "A DNA sequence with genetic variant that looks like a letter 'S'".
 
-A preprint describing ClairS's algorithms and results is at [bioRxiv](https://www.biorxiv.org/content/10.1101/2023.08.17.553778v1).
+ClairS is published at [Nature Methods](https://www.nature.com/articles/s41592-026-03152-4), and available as a preprint at [bioRxiv](https://www.biorxiv.org/content/10.1101/2023.08.17.553778v1).
 
 For germline variant calling using **DNA-seq** sample, please try [Clair3](https://github.com/HKU-BAL/Clair3). 
 
@@ -78,6 +78,7 @@ Performance comparison between “ClairS v0.4.0 with the SS model”, “ClairS 
 - [Quick Demo](#quick-demo)
 - [Pre-trained Models](#pre-trained-models)
 - [Usage](#usage)
+- [Citation](#citation)
 - [Disclaimer](#disclaimer)
 
 ------
@@ -423,6 +424,15 @@ Then:
 ```bash
 ./run_clairs -T tumor.bam -N normal.bam -R ref.fa -o output -t 8 -p ont_r10_guppy -B input.bed
 ```
+
+------
+
+
+## Citation
+
+If you use ClairS, please cite:
+
+Zheng, Z., Chen, L., Su, J. et al. ClairS: a deep-learning method for long-read tumor–normal pair somatic small variant calling. *Nat Methods* (2026). https://doi.org/10.1038/s41592-026-03152-4
 
 ------
 
