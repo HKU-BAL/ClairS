@@ -53,7 +53,7 @@ def select_hetero_snp_for_phasing(args):
     indel_normal_variant_dict = defaultdict(str)
     indel_tumor_variant_dict = defaultdict(str)
     normal_variant_dict = defaultdict(str)
-    normal_unzip_process = subprocess_popen(shlex.split("gzip -fdc %s" % (normal_vcf_fn)))
+    normal_unzip_process = subprocess_popen(shlex.split("pigz -fdc -p 2 %s" % (normal_vcf_fn)))
     for row in normal_unzip_process.stdout:
         row = row.rstrip()
         if row[0] == '#':
@@ -90,7 +90,7 @@ def select_hetero_snp_for_phasing(args):
     intersect_pos_set = set()
     hetero_snp_not_found_in_tumor = 0
     hetero_snp_not_match_in_tumor = 0
-    tumor_unzip_process = subprocess_popen(shlex.split("gzip -fdc %s" % (tumor_vcf_fn)))
+    tumor_unzip_process = subprocess_popen(shlex.split("pigz -fdc -p 2 %s" % (tumor_vcf_fn)))
     for row in tumor_unzip_process.stdout:
         row = row.rstrip()
         if row[0] == '#':

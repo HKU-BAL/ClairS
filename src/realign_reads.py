@@ -40,7 +40,7 @@ from argparse import ArgumentParser, SUPPRESS
 from collections import defaultdict
 
 import shared.param as param
-from shared.utils import subprocess_popen, reference_sequence_from, IUPAC_base_to_ACGT_base_dict as BASE2ACGT, log_error
+from shared.utils import subprocess_popen, check_subprocess_returncode, reference_sequence_from, IUPAC_base_to_ACGT_base_dict as BASE2ACGT, log_error
 from shared.interval_tree import bed_tree_from
 from shared.intervaltree.intervaltree import IntervalTree
 
@@ -649,7 +649,8 @@ def reads_realignment(args):
             save_file_fp.stdin.close()
             save_file_fp.wait()
     samtools_view_process.stdout.close()
-    samtools_view_process.wait()
+    # Fail fast on non-zero exit (e.g. BAM/CRAM decode error) instead of silent empty output.
+    check_subprocess_returncode(samtools_view_process, "samtools view")
 
     if test_pos:
         save_file_fp = subprocess_popen(shlex.split("samtools index {}".format(

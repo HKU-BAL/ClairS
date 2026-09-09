@@ -48,7 +48,7 @@ def vcf_reader(vcf_fn, contig_name, bed_tree=None):
     homo_variant_set = set()
     variant_set = set()
     homo_variant_info = defaultdict()
-    unzip_process = subprocess_popen(shlex.split("gzip -fdc %s" % (vcf_fn)))
+    unzip_process = subprocess_popen(shlex.split("pigz -fdc -p 2 %s" % (vcf_fn)))
     for row in unzip_process.stdout:
         row = row.rstrip()
         if row[0] == '#':

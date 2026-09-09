@@ -38,7 +38,7 @@ from collections import Counter, defaultdict
 
 import shared.param as param
 from shared.vcf import VcfReader
-from shared.utils import subprocess_popen, file_path_from, region_from, reference_sequence_from, str2bool
+from shared.utils import subprocess_popen, check_subprocess_returncode, file_path_from, region_from, reference_sequence_from, str2bool
 from shared.interval_tree import bed_tree_from
 
 logging.basicConfig(format='%(message)s', level=logging.INFO)
@@ -380,7 +380,8 @@ def extract_candidates(args):
             output_file.write('\n'.join(all_candidates_regions) + '\n')
     print("[INFO] Total {} candidates found in {}-{}/{}".format(len(candidates_list), args.ctg_name, chunk_id, chunk_num))
     samtools_mpileup_process.stdout.close()
-    samtools_mpileup_process.wait()
+    # Fail fast on non-zero exit (e.g. BAM/CRAM decode error) instead of silent empty output.
+    check_subprocess_returncode(samtools_mpileup_process, "samtools mpileup")
 
     if alt_fn:
         alt_fp.close()

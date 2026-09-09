@@ -31,7 +31,6 @@
 # Example command:
 # $ git clone https://github.com/HKU-BAL/ClairS.git
 # $ cd ClairS
-# $ cd deepvariant
 # $ docker build -f ./Dockerfile -t hkubal/clairs:latest .
 # $ docker run -it hkubal/clairs:latest /opt/bin/run_clairs --help
 
@@ -60,7 +59,7 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86
     conda config --add channels defaults && \
     conda config --add channels bioconda && \
     conda config --add channels conda-forge && \
-    conda create -n clairs -c pytorch -c conda-forge -c bioconda clair3 pytorch torchinfo tqdm -y && \
+    conda create -n clairs -c pytorch -c conda-forge -c bioconda clair3 pytorch torchinfo tqdm pigz -y && \
     rm -rf /opt/conda/pkgs/* && \
     rm -rf /root/.cache/pip
 

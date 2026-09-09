@@ -10,7 +10,7 @@ from collections import defaultdict
 
 import shared.param as param
 from shared.vcf import VcfReader, VcfWriter
-from shared.utils import str2bool, str_none, reference_sequence_from, subprocess_popen
+from shared.utils import str2bool, str_none, reference_sequence_from, subprocess_popen, check_subprocess_returncode
 
 HIGH_QUAL = 0.9
 LOW_AF = 0.1
@@ -178,7 +178,8 @@ def haplotype_filter_per_pos(args):
         pos_counter_dict[p] = base_counter
 
     samtools_mpileup_tumor_process.stdout.close()
-    samtools_mpileup_tumor_process.wait()
+    # Fail fast on non-zero exit (e.g. BAM/CRAM decode error) instead of silent empty output.
+    check_subprocess_returncode(samtools_mpileup_tumor_process, "samtools mpileup")
 
     # near to read start end and have high overlap
     if len(all_read_start_end_set.intersection(alt_base_read_name_set)) >= 0.3 * len(alt_base_read_name_set):

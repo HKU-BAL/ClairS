@@ -35,7 +35,7 @@ import shlex
 from argparse import ArgumentParser, SUPPRESS
 from subprocess import PIPE
 
-from src.utils import subprocess_popen
+from src.utils import subprocess_popen, check_subprocess_returncode
 
 random.seed(0)
 cov_suffix = ".cov.mosdepth.summary.txt"
@@ -98,7 +98,8 @@ def split_bam(args):
         subprocess_list[bin_id].stdin.write(prefix + row)
 
     samtools_view_process.stdout.close()
-    samtools_view_process.wait()
+    # Fail fast on non-zero exit (e.g. BAM/CRAM decode error) instead of silent empty output.
+    check_subprocess_returncode(samtools_view_process, "samtools view")
     for save_file_fp in subprocess_list:
         save_file_fp.stdin.close()
         save_file_fp.wait()
@@ -155,7 +156,8 @@ def split_bam_tumor_normal(args):
             subprocess_list[bin_id].stdin.write(prefix + row)
 
         samtools_view_process.stdout.close()
-        samtools_view_process.wait()
+        # Fail fast on non-zero exit (e.g. BAM/CRAM decode error) instead of silent empty output.
+        check_subprocess_returncode(samtools_view_process, "samtools view")
         for save_file_fp in subprocess_list:
             save_file_fp.stdin.close()
             save_file_fp.wait()

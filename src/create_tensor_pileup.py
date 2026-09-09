@@ -39,7 +39,7 @@ from argparse import ArgumentParser, SUPPRESS
 from collections import Counter, defaultdict, OrderedDict
 
 import shared.param as param
-from shared.utils import subprocess_popen, file_path_from, IUPAC_base_to_num_dict as BASE2NUM, region_from, \
+from shared.utils import subprocess_popen, check_subprocess_returncode, file_path_from, IUPAC_base_to_num_dict as BASE2NUM, region_from, \
     reference_sequence_from, str2bool, vcf_candidates_from
 from shared.interval_tree import bed_tree_from, is_region_in
 
@@ -346,7 +346,7 @@ def create_tensor(args):
         truths_variant_dict = unified_vcf_reader.variant_dict
 
     if candidates_bed_regions:
-        candidate_file_path_process = subprocess_popen(shlex.split("gzip -fdc %s" % (candidates_bed_regions)))
+        candidate_file_path_process = subprocess_popen(shlex.split("pigz -fdc -p 2 %s" % (candidates_bed_regions)))
         candidate_file_path_output = candidate_file_path_process.stdout
 
         ctg_start, ctg_end = float('inf'), 0
@@ -723,7 +723,8 @@ def create_tensor(args):
                 a = np.array(a, dtype=float).reshape((-1, no_of_positions, channel_size + 16 if phasing_info_in_bam else channel_size))
 
     samtools_mpileup_process.stdout.close()
-    samtools_mpileup_process.wait()
+    # Fail fast on non-zero exit (e.g. BAM/CRAM decode error) instead of silent empty output.
+    check_subprocess_returncode(samtools_mpileup_process, "samtools mpileup")
 
     if tensor_can_output_path != "PIPE":
         tensor_can_fp.stdin.close()

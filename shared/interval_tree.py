@@ -40,7 +40,7 @@ def bed_tree_from(bed_file_path,
         return tree
 
     bed_start, bed_end = float('inf'), 0
-    unzip_process = subprocess_popen(shlex.split("gzip -fdc %s" % (bed_file_path)))
+    unzip_process = subprocess_popen(shlex.split("pigz -fdc -p 2 %s" % (bed_file_path)))
     for row_id, row in enumerate(unzip_process.stdout):
         if row[0] == '#':
             continue

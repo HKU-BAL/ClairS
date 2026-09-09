@@ -104,6 +104,19 @@ def subprocess_popen(args, stdin=None, stdout=PIPE, stderr=stderr, bufsize=83886
     return Popen(args, stdin=stdin, stdout=stdout, stderr=stderr, bufsize=bufsize, universal_newlines=True)
 
 
+def check_subprocess_returncode(process, tool_name):
+    """
+    Fail fast if a subprocess (e.g. samtools view/mpileup/idxstats) exited with a
+    non-zero return code. Prevents a BAM/CRAM decode failure from silently producing
+    empty output with exit 0 (issue #453): the child prints the error to stderr, and
+    this propagates the non-zero exit code as a hard failure.
+    """
+    process.wait()
+    if process.returncode != 0:
+        exit(log_error("[ERROR] {} failed with exit code {} (BAM/CRAM decode error?).".format(
+            tool_name, process.returncode)))
+
+
 def str_none(v):
     if v is None:
         return None
@@ -178,7 +191,7 @@ def reference_sequence_from(samtools_execute_command, fasta_file_path, regions):
 def vcf_candidates_from(vcf_fn, contig_name=None):
 
     known_variants_set = set()
-    unzip_process = subprocess_popen(shlex.split("gzip -fdc %s" % (vcf_fn)))
+    unzip_process = subprocess_popen(shlex.split("pigz -fdc -p 2 %s" % (vcf_fn)))
 
     start_pos, end_pos = float('inf'), 0
     for row in unzip_process.stdout:
