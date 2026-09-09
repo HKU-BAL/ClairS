@@ -1,6 +1,6 @@
 # parameters
 caller_name = "clairs"
-version = "0.4.5"
+version = "0.5.1"
 
 from itertools import accumulate
 
@@ -23,6 +23,7 @@ clair3_default_option = {
 model_name_platform_dict = {
     'r1041_e82_400bps_sup_v420': 'ont_r10_dorado_sup_5khz',
     'r1041_e82_400bps_sup_v410': 'ont_r10_dorado_sup_4khz',
+    'r1041_e82_400bps_hac_v600': 'ont_r10_dorado_hac_5khz_v6',
     'r1041_e82_400bps_hac_v420': 'ont_r10_dorado_hac_5khz',
     'r1041_e82_400bps_hac_v410': 'ont_r10_dorado_hac_4khz',
     'r104_e81_sup_g5015': 'ont_r10_guppy',
@@ -52,7 +53,7 @@ ont_max_depth = ont_tensor_max_depth + center_padding_depth
 ont_normal_tumor_ratio = 0.7
 normal_pro = ont_normal_tumor_ratio / (1 + ont_normal_tumor_ratio)
 min_bq_dict = {'ont': ont_min_bq, 'ilmn': min_bq, 'hifi': min_bq}
-min_thred_qual = {'ont': 8, 'ont_r10': 8, 'ont_r9': 8, 'ont_r10_dorado_sup_5khz': 4, 'ont_r10_dorado_hac_5khz': 4,'ont_r10_dorado_hac_4khz': 4, 'ont_r10_dorado_sup_4khz': 4, 'ilmn': 2, 'hifi': 2, 'hifi_sequel2': 2, 'hifi_revio': 2}
+min_thred_qual = {'ont': 8, 'ont_r10': 8, 'ont_r9': 8, 'ont_r10_dorado_sup_5khz': 4, 'ont_r10_dorado_hac_5khz': 4, 'ont_r10_dorado_hac_5khz_v6': 4, 'ont_r10_dorado_hac_5khz_v6_ss': 4,'ont_r10_dorado_hac_4khz': 4, 'ont_r10_dorado_sup_4khz': 4, 'ilmn': 2, 'hifi': 2, 'hifi_sequel2': 2, 'hifi_revio': 2}
 best_thred_qual = {'ont': 16, 'ont_r10': 16, 'ont_r9': 16, 'ilmn': 4, 'hifi': 4, 'hifi_sequel2': 4, 'hifi_revio': 4}
 ont_max_normal_depth = int(ont_tensor_max_depth * normal_pro)
 ont_max_tumor_depth = ont_tensor_max_depth - ont_max_normal_depth

@@ -84,11 +84,12 @@ Clair3Option = namedtuple('Clair3Option', [
 ])
 
 supported_platforms = ['ont_r10_dorado_sup_5khz_ssrs', 'ont_r10_dorado_sup_5khz_ss', 'ont_r10_dorado_sup_5khz', 'ont_r10_dorado_sup_4khz', 'ont_r10_dorado_hac_5khz',
+                       'ont_r10_dorado_hac_5khz_v6', 'ont_r10_dorado_hac_5khz_v6_ss',
                        'ont_r10_dorado_hac_4khz', 'ont_r10_guppy', 'ont_r9_guppy', 'ilmn', 'hifi_sequel2', 'hifi_revio', 'hifi_revio_ssrs', 'hifi_revio_ss','ilmn_ssrs', 'ilmn_ss'
                        ]
 
 indel_supported_platforms = ['ont_r10_dorado_sup_5khz_ssrs', 'ont_r10_dorado_sup_5khz_ss', 'ont_r10_guppy', 'ont_r10', 'ont', 'hifi_revio', 'hifi_sequel2', 'ont_r10_dorado_sup_5khz',
-                       'ont_r10_dorado_hac_5khz', 'ont_r10_dorado_sup_4khz', 'ont_r10_dorado_hac_5khz_liquid', 'hifi_revio_ssrs', 'hifi_revio_ss']
+                       'ont_r10_dorado_hac_5khz', 'ont_r10_dorado_hac_5khz_v6', 'ont_r10_dorado_hac_5khz_v6_ss', 'ont_r10_dorado_sup_4khz', 'ont_r10_dorado_hac_5khz_liquid', 'hifi_revio_ssrs', 'hifi_revio_ss']
 
 extend_supported_platforms = supported_platforms + ['ont_r10', 'ont_r9', 'ont', 'ont_r10_dorado_hac_5khz_liquid']
 
@@ -508,7 +509,7 @@ def check_clair3_options(args):
             args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'clairs_models', 'clair3_models', 'r1041_e82_400bps_sup_v410')
         elif args.platform == "ont_r10_dorado_5khz" or args.platform.startswith("ont_r10_dorado_sup_5khz"):
             args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'clairs_models', 'clair3_models', 'r1041_e82_400bps_sup_v420')
-        elif args.platform == "ont_r10_dorado_hac_5khz" or args.platform == "ont_r10_dorado_hac_5khz_liquid":
+        elif args.platform == "ont_r10_dorado_hac_5khz" or args.platform == "ont_r10_dorado_hac_5khz_liquid" or args.platform.startswith("ont_r10_dorado_hac_5khz_v6"):
             args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'clairs_models', 'clair3_models', 'r1041_e82_400bps_hac_v420')
         elif args.platform == "ont_r10_dorado_hac_4khz":
             args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'clairs_models', 'clair3_models', 'r1041_e82_400bps_hac_v410')
@@ -1603,7 +1604,7 @@ def somatic_parser():
         required=True,
         type=str,
         default=None,
-        help="Select the sequencing platform of the input. Possible options: {ont_r10_dorado_sup_4khz, ont_r10_dorado_sup_5khz_ss, ont_r10_dorado_sup_5khz_ssrs, ont_r10_dorado_hac_5khz, ont_r10_dorado_hac_4khz, ont_r10_guppy, ont_r9_guppy, ilmn, hifi_sequel2, hifi_revio}."
+        help="Select the sequencing platform of the input. Possible options: {ont_r10_dorado_sup_4khz, ont_r10_dorado_sup_5khz_ss, ont_r10_dorado_sup_5khz_ssrs, ont_r10_dorado_hac_5khz, ont_r10_dorado_hac_5khz_v6, ont_r10_dorado_hac_5khz_v6_ss, ont_r10_dorado_hac_4khz, ont_r10_guppy, ont_r9_guppy, ilmn, hifi_sequel2, hifi_revio}."
     )
 
     optional_params = parser.add_argument_group('Optional parameters')
