@@ -65,7 +65,7 @@ def vcf_reader(vcf_fn, contig_name, bed_tree=None, add_hetero_pos=False, filter_
     hetero_variant_set = set()
     hetero_variant_info = defaultdict()
 
-    unzip_process = subprocess_popen(shlex.split("gzip -fdc %s" % (vcf_fn)))
+    unzip_process = subprocess_popen(shlex.split("pigz -fdc -p 2 %s" % (vcf_fn)))
     for row in unzip_process.stdout:
         row = row.rstrip()
         if row[0] == '#':
@@ -140,7 +140,7 @@ def get_ref_candidates(args, fn, contig_name=None, bed_tree=None, variant_info=N
         print('[ERROR] No file prefix')
         return ref_cans_dict
     for fn in fn_list:
-        unzip_process = subprocess_popen(shlex.split("gzip -fdc %s" % (fn)))
+        unzip_process = subprocess_popen(shlex.split("pigz -fdc -p 2 %s" % (fn)))
         for row in unzip_process.stdout:
             if row[0] == '#':
                 continue

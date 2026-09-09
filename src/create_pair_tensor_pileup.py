@@ -38,7 +38,7 @@ from argparse import ArgumentParser, SUPPRESS
 from collections import Counter, defaultdict
 
 import shared.param as param
-from shared.utils import subprocess_popen, file_path_from, IUPAC_base_to_num_dict as BASE2NUM, region_from, \
+from shared.utils import subprocess_popen, check_subprocess_returncode, file_path_from, IUPAC_base_to_num_dict as BASE2NUM, region_from, \
     reference_sequence_from, str2bool, vcf_candidates_from
 from shared.interval_tree import bed_tree_from, is_region_in
 from src.create_tensor import get_chunk_id
@@ -314,7 +314,7 @@ def update_hetero_ref(pos, reference_sequence, reference_start, extend_bp, alt_b
 
 def get_normal_set(alt_fn):
     normal_pos_set = set()
-    file_path_process = subprocess_popen(shlex.split("gzip -fdc %s" % (alt_fn)))
+    file_path_process = subprocess_popen(shlex.split("pigz -fdc -p 2 %s" % (alt_fn)))
     file_path_output = file_path_process.stdout
     for row in file_path_output:
         ctg_name, pos = row.rstrip().split(maxsplit=2)
@@ -394,7 +394,7 @@ def create_tensor(args):
 
     if candidates_bed_regions:
 
-        candidate_file_path_process = subprocess_popen(shlex.split("gzip -fdc %s" % (candidates_bed_regions)))
+        candidate_file_path_process = subprocess_popen(shlex.split("pigz -fdc -p 2 %s" % (candidates_bed_regions)))
         candidate_file_path_output = candidate_file_path_process.stdout
 
         ctg_start, ctg_end = float('inf'), 0
@@ -626,9 +626,10 @@ def create_tensor(args):
             tensor_can_fp.stdin.write(tensor)
             tensor_count += 1
     samtools_mpileup_normal_process.stdout.close()
-    samtools_mpileup_normal_process.wait()
+    # Fail fast on non-zero exit (e.g. BAM/CRAM decode error) instead of silent empty output.
+    check_subprocess_returncode(samtools_mpileup_normal_process, "samtools mpileup (normal)")
     samtools_mpileup_tumor_process.stdout.close()
-    samtools_mpileup_tumor_process.wait()
+    check_subprocess_returncode(samtools_mpileup_tumor_process, "samtools mpileup (tumor)")
     if tensor_can_output_path != "PIPE":
         tensor_can_fp.stdin.close()
         tensor_can_fp.wait()

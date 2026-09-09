@@ -39,7 +39,7 @@ from collections import Counter, defaultdict
 
 import shared.param as param
 from shared.vcf import VcfReader, VcfWriter
-from shared.utils import subprocess_popen, file_path_from, region_from, \
+from shared.utils import subprocess_popen, check_subprocess_returncode, file_path_from, region_from, \
     reference_sequence_from, str2bool, str_none
 from shared.interval_tree import bed_tree_from, is_region_in
 
@@ -473,6 +473,10 @@ def extract_pair_candidates(args):
                             indel_candidates_set.remove(pos)
                             high_af_gap_set.add(pos)
 
+    normal_samtools_mpileup_process.stdout.close()
+    # Fail fast on non-zero exit (e.g. BAM/CRAM decode error) instead of silent empty output.
+    check_subprocess_returncode(normal_samtools_mpileup_process, "samtools mpileup (normal)")
+
     snv_candidates_list = sorted([pos for pos in candidates_set if pos in snv_candidates_set])
     if select_indel_candidates:
         indel_candidates_list = sorted([pos for pos in candidates_set if pos in indel_candidates_set])
@@ -573,7 +577,8 @@ def extract_pair_candidates(args):
                 output_file.write(output_info + '\n')
 
     samtools_mpileup_process.stdout.close()
-    samtools_mpileup_process.wait()
+    # Fail fast on non-zero exit (e.g. BAM/CRAM decode error) instead of silent empty output.
+    check_subprocess_returncode(samtools_mpileup_process, "samtools mpileup")
 
     if alt_fn:
         alt_fp.close()

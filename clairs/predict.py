@@ -215,7 +215,8 @@ def get_bins(tensor_file_path, batch_size=10000, pileup=False, platform='ont'):
                      shell=True)
 
     if tensor_file_path != "PIPE":
-        f = subprocess_popen(shlex.split("{} -fdc {}".format('gzip', tensor_file_path)))
+        # gzip -> pigz (issue #455): parallel decompress, limit to 2 threads.
+        f = subprocess_popen(shlex.split("{} -fdc -p 2 {}".format('pigz', tensor_file_path)))
         fo = f.stdout
     else:
         fo = sys.stdin

@@ -81,11 +81,11 @@ def UpdateVar(args):
 
     if args.var_fn != "PIPE":
         var_fpo = open(var_fn, "wb")
-        var_fp = subprocess_popen(shlex.split("gzip -c"), stdin=PIPE, stdout=var_fpo)
+        var_fp = subprocess_popen(shlex.split("pigz -c -p 2"), stdin=PIPE, stdout=var_fpo)
     else:
         var_fp = TruthStdout(sys.stdout)
 
-    input_var_fp = subprocess_popen(shlex.split("gzip -fdc %s" % (input_var_fn)))
+    input_var_fp = subprocess_popen(shlex.split("pigz -fdc -p 2 %s" % (input_var_fn)))
 
     Y = {}
     for row in input_var_fp.stdout:
