@@ -87,11 +87,11 @@ Clair3Option = namedtuple('Clair3Option', [
 ])
 
 supported_platforms = ['ont_r10_dorado_sup_5khz_ssrs', 'ont_r10_dorado_sup_5khz_ss', 'ont_r10_dorado_sup_5khz', 'ont_r10_dorado_sup_4khz', 'ont_r10_dorado_hac_5khz',
-                       'ont_r10_dorado_hac_4khz', 'ont_r10_guppy', 'ont_r9_guppy', 'ilmn', 'hifi_sequel2', 'hifi_revio', 'hifi_revio_ssrs', 'hifi_revio_ss','ilmn_ssrs', 'ilmn_ss'
+                       'ont_r10_dorado_hac_5khz_v6', 'ont_r10_dorado_hac_4khz', 'ont_r10_guppy', 'ont_r9_guppy', 'ilmn', 'hifi_sequel2', 'hifi_revio', 'hifi_revio_ssrs', 'hifi_revio_ss','ilmn_ssrs', 'ilmn_ss'
                        ]
 
 indel_supported_platforms = ['ont_r10_dorado_sup_5khz_ssrs', 'ont_r10_dorado_sup_5khz_ss', 'ont_r10_guppy', 'ont_r10', 'ont', 'hifi_revio', 'hifi_sequel2', 'ont_r10_dorado_sup_5khz',
-                       'ont_r10_dorado_hac_5khz', 'ont_r10_dorado_sup_4khz', 'ont_r10_dorado_hac_5khz_liquid', 'hifi_revio_ssrs', 'hifi_revio_ss']
+                       'ont_r10_dorado_hac_5khz', 'ont_r10_dorado_hac_5khz_v6', 'ont_r10_dorado_sup_4khz', 'ont_r10_dorado_hac_5khz_liquid', 'hifi_revio_ssrs', 'hifi_revio_ss']
 
 extend_supported_platforms = supported_platforms + ['ont_r10', 'ont_r9', 'ont', 'ont_r10_dorado_hac_5khz_liquid']
 
@@ -515,6 +515,9 @@ def check_clair3_options(args):
             args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'r1041_e82_400bps_sup_v500')
         elif args.platform == "ont_r10_dorado_hac_5khz" or args.platform == "ont_r10_dorado_hac_5khz_liquid":
             args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'r1041_e82_400bps_hac_v500')
+        elif args.platform == "ont_r10_dorado_hac_5khz_v6":
+            # v6 (R10.4.1 E8.2 400bps HAC) germline model shipped with clair3 2.x
+            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'r1041_e82_400bps_hac_v600')
         elif args.platform == "ont_r10_dorado_hac_4khz":
             args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'r1041_e82_400bps_hac_v410')
 
