@@ -21,9 +21,9 @@ clair3_default_option = {
 }
 
 model_name_platform_dict = {
-    'r1041_e82_400bps_sup_v420': 'ont_r10_dorado_sup_5khz',
+    'r1041_e82_400bps_sup_v500': 'ont_r10_dorado_sup_5khz',
     'r1041_e82_400bps_sup_v410': 'ont_r10_dorado_sup_4khz',
-    'r1041_e82_400bps_hac_v420': 'ont_r10_dorado_hac_5khz',
+    'r1041_e82_400bps_hac_v500': 'ont_r10_dorado_hac_5khz',
     'r1041_e82_400bps_hac_v410': 'ont_r10_dorado_hac_4khz',
     'r104_e81_sup_g5015': 'ont_r10_guppy',
     'r941_prom_sup_g5014': 'ont_r9_guppy',
