@@ -21,7 +21,11 @@ WORKDIR /opt/bin
 #   parallel / pigz / numpy / h5py / hdf5plugin / numexpr / torchmetrics / tqdm。
 #   此处显式补齐 ClairS 特有依赖（scipy/scikit-learn/torchinfo）+ 编译链 +
 #   库头文件（供 allele_counter 的 htslib 源码编译用）。
-#   TODO: 确认 torchinfo 是否在 conda-forge（否则改 pip 装）。
+#   - torchinfo：已确认在 conda-forge，无需 pip。
+#   - libboost-headers：debruijn_graph 只用 boost 的 header-only 组件
+#     （adjacency_list / depth_first_search / graphviz / algorithm-string），
+#     故用纯头文件包。旧的 `boost-cpp` 会因强制 icu<=75 + zlib 1.2/1.3.1
+#     与 clair3 2.0.3 的依赖链（libcurl>=8.22 -> libpsl -> icu>=78.3）冲突，无法共解。
 # ---------------------------------------------------------------------------
 RUN mamba create -n clairs \
       -c conda-forge \
@@ -37,6 +41,7 @@ RUN mamba create -n clairs \
       binutils \
       automake \
       libtool \
+      libboost-headers \
       curl \
       libcurl \
       zlib \
@@ -97,25 +102,13 @@ RUN mkdir -p /opt/models && \
     rm -f /opt/cnv_data/reference_files.tar.gz
 
 # ---------------------------------------------------------------------------
-# Step 6: 下载 clair3 germline 模型（PyTorch .pt）到 ${CONDA_PREFIX}/bin/models/
-#   clair3 2.0.3 的 conda 包不再捆绑模型，需单独下载。run_clairs 统一从 models/ 取 germline 模型。
-#   TODO: 全量下载模型集较大；可裁剪为 run_clairs 实际用到的 8 个模型以减小镜像。
-# ---------------------------------------------------------------------------
-ARG CLAIR3_MODELS_URL=https://www.bio8.cs.hku.hk/clair3/clair3_models_pytorch/
-
-RUN set -eux; \
-    mkdir -p /tmp/clair3-models ${CONDA_PREFIX}/bin/models; \
-    base_url="${CLAIR3_MODELS_URL%/}"; \
-    wget -r -np -nH --cut-dirs=2 -R "index.html*" -P /tmp/clair3-models "${base_url}/"; \
-    if [ -d /tmp/clair3-models/clair3_models_pytorch ]; then \
-        cp -a /tmp/clair3-models/clair3_models_pytorch/. ${CONDA_PREFIX}/bin/models/; \
-    else \
-        cp -a /tmp/clair3-models/. ${CONDA_PREFIX}/bin/models/; \
-    fi; \
-    rm -rf /tmp/clair3-models
-
-# ---------------------------------------------------------------------------
-# Step 7: 关闭 GNU parallel 引用提示（非交互）+ 便捷 alias
+# Step 6: GNU parallel 引用提示（非交互）+ 便捷 alias
+#
+# 注：germline 模型（bin/models/*.pt）无需单独下载 —— clair3=2.0.3 的 conda 包
+# 已自带 66 个模型文件（21 个模型目录，含 run_clairs 用到的全部 8 个平台）。
+# 实测：`conda-meta/clair3-2.0.3-*.json` 的 files 含 bin/models/**，
+# 且 `check_clair3_options` 对 10 个平台解析出的路径全部存在。
+# 最初此处有一份从 bio8 递归下载模型的步骤，实测返回 404（无效下载），已移除。
 # ---------------------------------------------------------------------------
 RUN mkdir -p ~/.parallel && touch ~/.parallel/will-cite && \
     echo "source activate clairs" > ~/.bashrc
