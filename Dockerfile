@@ -59,7 +59,7 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86
     conda config --add channels defaults && \
     conda config --add channels bioconda && \
     conda config --add channels conda-forge && \
-    conda create -n clairs -c pytorch -c conda-forge -c bioconda clair3 pytorch torchinfo tqdm pigz -y && \
+    conda create -n clairs -c pytorch -c conda-forge -c bioconda clair3 pytorch torchinfo tqdm -y && \
     rm -rf /opt/conda/pkgs/* && \
     rm -rf /root/.cache/pip
 
@@ -72,17 +72,24 @@ RUN apt install curl zlib1g-dev libbz2-dev liblzma-dev libcurl4-openssl-dev -y &
 
 COPY . .
 
-RUN /bin/bash -c "source activate clairs" && cd /opt/bin/src/realign && \
+RUN cd /opt/bin/src/realign && \
     g++ -std=c++14 -O1 -shared -fPIC -o realigner ssw_cpp.cpp ssw.c realigner.cpp && \
     g++ -std=c++11 -shared -fPIC -o debruijn_graph -O3 debruijn_graph.cpp && \
-    cd /opt/bin/src/verdict/allele_counter && chmod +x setup.sh && /bin/bash setup.sh /opt/bin/src/verdict/allele_counter && \
-    wget http://www.bio8.cs.hku.hk/clairs/models/clairs_models.tar.gz	 -P /opt/models && \
+    cd /opt/bin/src/verdict/allele_counter && chmod +x setup.sh && /bin/bash setup.sh /opt/bin/src/verdict/allele_counter
+
+# download + extract somatic calling models
+RUN wget http://www.bio8.cs.hku.hk/clairs/models/clairs_models.tar.gz -P /opt/models && \
     mkdir -p /opt/conda/envs/clairs/bin/clairs_models && \
     tar -zxvf /opt/models/clairs_models.tar.gz -C /opt/conda/envs/clairs/bin/clairs_models && \
-    rm /opt/models/clairs_models.tar.gz && \
-    mkdir -p /opt/conda/envs/clairs/bin/cnv_data && \
+    rm /opt/models/clairs_models.tar.gz
+
+# download + extract CNV reference data
+RUN mkdir -p /opt/conda/envs/clairs/bin/cnv_data && \
     wget http://www.bio8.cs.hku.hk/clairs/data/reference_files.tar.gz -P /opt/cnv_data && \
-    tar -zxvf /opt/cnv_data/reference_files.tar.gz -C /opt/conda/envs/clairs/bin/cnv_data && rm -rf /opt/cnv_data/reference_files.tar.gz && \
-    echo 'will cite' | parallel --citation || true \
+    tar -zxvf /opt/cnv_data/reference_files.tar.gz -C /opt/conda/envs/clairs/bin/cnv_data && \
+    rm -f /opt/cnv_data/reference_files.tar.gz
+
+# silence GNU parallel citation notice non-interactively + shell convenience
+RUN mkdir -p ~/.parallel && touch ~/.parallel/will-cite && \
     echo "source activate clairs" > ~/.bashrc
 

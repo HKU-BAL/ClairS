@@ -501,25 +501,25 @@ def check_clair3_options(args):
 
     if args.clair3_model_path is None:
         if args.platform == 'ont_r10' or args.platform == 'ont' or args.platform == 'ont_r10_guppy':
-            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'clairs_models', 'clair3_models', 'ont_r104_e81_sup_g5015')
+            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'ont')
         elif args.platform == 'ont_r9' or args.platform == 'ont_r9_guppy':
-            # clair3 r9 model in bioconda bin
+            # clair3 r9 germline model
             args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'r941_prom_sup_g5014')
         elif args.platform == 'hifi' or args.platform == 'hifi_sequel2':
-            # clair3 hifi model in bioconda bin
+            # clair3 hifi germline model
             args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'hifi')
         elif args.platform.startswith("hifi_revio"):
-            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'clairs_models', 'clair3_models', 'hifi_revio')
+            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'hifi_revio')
         elif args.platform == "ont_r10_dorado_4khz" or args.platform == "ont_r10_dorado_sup_4khz":
-            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'clairs_models', 'clair3_models', 'r1041_e82_400bps_sup_v410')
+            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'r1041_e82_400bps_sup_v410')
         elif args.platform == "ont_r10_dorado_5khz" or args.platform.startswith("ont_r10_dorado_sup_5khz"):
-            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'clairs_models', 'clair3_models', 'r1041_e82_400bps_sup_v420')
+            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'r1041_e82_400bps_sup_v500')
         elif args.platform.startswith("ont_r10_dorado_hac_5khz_v6"):
-            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'clairs_models', 'clair3_models', 'r1041_e82_400bps_hac_v600')
+            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'r1041_e82_400bps_hac_v600')
         elif args.platform == "ont_r10_dorado_hac_5khz" or args.platform == "ont_r10_dorado_hac_5khz_liquid":
-            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'clairs_models', 'clair3_models', 'r1041_e82_400bps_hac_v420')
+            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'r1041_e82_400bps_hac_v500')
         elif args.platform == "ont_r10_dorado_hac_4khz":
-            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'clairs_models', 'clair3_models', 'r1041_e82_400bps_hac_v410')
+            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'r1041_e82_400bps_hac_v410')
 
     if not os.path.exists(args.clair3_model_path):
         sys.exit(log_error("[ERROR] Cannot find clair3 model path in {}".format(args.clair3_model_path)))

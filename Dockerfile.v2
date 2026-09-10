@@ -1,0 +1,123 @@
+# syntax=docker/dockerfile:1.4
+# ============================================================================
+# ClairS 现代化 Dockerfile（方案 A）
+#
+# 背景：原 Dockerfile 基于 `ubuntu:16.04`（glibc 2.23），已无法承载现代依赖
+# （Miniconda3-latest 要求 glibc>=2.28；clair3 2.0.x 仅 py311，依赖链要求 glibc>=2.28）。
+# 本文件照搬团队已验证的 `docker_build/Clair3_fix453/Dockerfile` 范式
+# （miniforge3 + mamba + 最新 clair3），再补 ClairS 特有依赖与原生组件。
+#
+# 参见 docs/clairs-sync/dockerfile-upgrade.md（决策点 1/2 已敲定）。
+# ============================================================================
+
+FROM condaforge/miniforge3:latest
+
+ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
+WORKDIR /opt/bin
+
+# ---------------------------------------------------------------------------
+# Step 1: 创建 conda 环境
+#   clair3=2.0.3 会传递带入 pytorch-cpu / samtools / whatshap / longphase /
+#   parallel / pigz / numpy / h5py / hdf5plugin / numexpr / torchmetrics / tqdm。
+#   此处显式补齐 ClairS 特有依赖（scipy/scikit-learn/torchinfo）+ 编译链 +
+#   库头文件（供 allele_counter 的 htslib 源码编译用）。
+#   TODO: 确认 torchinfo 是否在 conda-forge（否则改 pip 装）。
+# ---------------------------------------------------------------------------
+RUN mamba create -n clairs \
+      -c conda-forge \
+      -c bioconda \
+      python=3.11 \
+      clair3=2.0.3 \
+      scipy \
+      scikit-learn \
+      torchinfo \
+      gcc \
+      gxx \
+      make \
+      binutils \
+      automake \
+      libtool \
+      curl \
+      libcurl \
+      zlib \
+      bzip2 \
+      xz \
+      perl \
+      -y && \
+    mamba clean --all -y
+
+ENV CONDA_PREFIX=/opt/conda/envs/clairs
+ENV CONDA_DEFAULT_ENV=clairs
+ENV PATH=${CONDA_PREFIX}/bin:/opt/bin:/opt/conda/bin:${PATH}
+
+# ---------------------------------------------------------------------------
+# Step 2: pypy3.11 + mpmath（ClairS 分阶段脚本用 pypy，run_clairs 要求 pypy>=3.6）
+#   照搬参考 Dockerfile 的 pypy3.11-v7.3.20 + mpmath 安装方式。
+# ---------------------------------------------------------------------------
+RUN wget -q https://downloads.python.org/pypy/pypy3.11-v7.3.20-linux64.tar.bz2 && \
+    tar -xjf pypy3.11-v7.3.20-linux64.tar.bz2 && \
+    rm pypy3.11-v7.3.20-linux64.tar.bz2 && \
+    ln -sf /opt/bin/pypy3.11-v7.3.20-linux64/bin/pypy3 ${CONDA_PREFIX}/bin/pypy3 && \
+    ln -sf /opt/bin/pypy3.11-v7.3.20-linux64/bin/pypy3 ${CONDA_PREFIX}/bin/pypy && \
+    pypy3 -m ensurepip && \
+    pypy3 -m pip install --no-cache-dir mpmath==1.2.1
+
+# ---------------------------------------------------------------------------
+# Step 3: 拷贝 ClairS 源码（含 run_clairs / clairs/ / shared/ / src/）
+# ---------------------------------------------------------------------------
+COPY . .
+
+# ---------------------------------------------------------------------------
+# Step 4: 编译 ClairS 原生组件（均为独立二进制，与 python 版本无关）
+#   - realigner / debruijn_graph：C++，供 realign 阶段用
+#   - allele_counter：Sanger alleleCount（AGPL），setup.sh 从源码编译
+#     htslib 1.11 + libdeflate v1.6 + alleleCounter 二进制
+# ---------------------------------------------------------------------------
+RUN cd /opt/bin/src/realign && \
+    g++ -std=c++14 -O1 -shared -fPIC -o realigner ssw_cpp.cpp ssw.c realigner.cpp && \
+    g++ -std=c++11 -shared -fPIC -o debruijn_graph -O3 debruijn_graph.cpp && \
+    cd /opt/bin/src/verdict/allele_counter && \
+    chmod +x setup.sh && \
+    /bin/bash setup.sh /opt/bin/src/verdict/allele_counter
+
+# ---------------------------------------------------------------------------
+# Step 5: 下载并解压 ClairS somatic 模型 + CNV 数据（URL ARG 化，https）
+# ---------------------------------------------------------------------------
+ARG CLAIRS_MODELS_URL=https://www.bio8.cs.hku.hk/clairs/models/clairs_models.tar.gz
+ARG CLAIRS_CNV_URL=https://www.bio8.cs.hku.hk/clairs/data/reference_files.tar.gz
+
+RUN mkdir -p /opt/models && \
+    wget -q "${CLAIRS_MODELS_URL}" -P /opt/models && \
+    mkdir -p ${CONDA_PREFIX}/bin/clairs_models && \
+    tar -zxf /opt/models/clairs_models.tar.gz -C ${CONDA_PREFIX}/bin/clairs_models && \
+    rm /opt/models/clairs_models.tar.gz && \
+    mkdir -p /opt/cnv_data ${CONDA_PREFIX}/bin/cnv_data && \
+    wget -q "${CLAIRS_CNV_URL}" -P /opt/cnv_data && \
+    tar -zxf /opt/cnv_data/reference_files.tar.gz -C ${CONDA_PREFIX}/bin/cnv_data && \
+    rm -f /opt/cnv_data/reference_files.tar.gz
+
+# ---------------------------------------------------------------------------
+# Step 6: 下载 clair3 germline 模型（PyTorch .pt）到 ${CONDA_PREFIX}/bin/models/
+#   clair3 2.0.3 的 conda 包不再捆绑模型，需单独下载。run_clairs 统一从 models/ 取 germline 模型。
+#   TODO: 全量下载模型集较大；可裁剪为 run_clairs 实际用到的 8 个模型以减小镜像。
+# ---------------------------------------------------------------------------
+ARG CLAIR3_MODELS_URL=https://www.bio8.cs.hku.hk/clair3/clair3_models_pytorch/
+
+RUN set -eux; \
+    mkdir -p /tmp/clair3-models ${CONDA_PREFIX}/bin/models; \
+    base_url="${CLAIR3_MODELS_URL%/}"; \
+    wget -r -np -nH --cut-dirs=2 -R "index.html*" -P /tmp/clair3-models "${base_url}/"; \
+    if [ -d /tmp/clair3-models/clair3_models_pytorch ]; then \
+        cp -a /tmp/clair3-models/clair3_models_pytorch/. ${CONDA_PREFIX}/bin/models/; \
+    else \
+        cp -a /tmp/clair3-models/. ${CONDA_PREFIX}/bin/models/; \
+    fi; \
+    rm -rf /tmp/clair3-models
+
+# ---------------------------------------------------------------------------
+# Step 7: 关闭 GNU parallel 引用提示（非交互）+ 便捷 alias
+# ---------------------------------------------------------------------------
+RUN mkdir -p ~/.parallel && touch ~/.parallel/will-cite && \
+    echo "source activate clairs" > ~/.bashrc
+
+CMD ["/bin/bash"]
