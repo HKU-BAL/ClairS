@@ -47,7 +47,7 @@ from time import time
 
 import shared.param as param
 from shared.interval_tree import bed_tree_from
-from shared.utils import file_path_from, folder_path_from, subprocess_popen, str2bool, str_none, \
+from shared.utils import file_path_from, folder_path_from, subprocess_popen, check_subprocess_returncode, str2bool, str_none, \
     legal_range_from, log_error, log_warning, clair3_option_type
 
 
@@ -80,7 +80,10 @@ Clair3Option = namedtuple('Clair3Option', [
     'min_coverage',
     'snp_min_af',
     'indel_min_af',
-    'longphase'
+    'longphase',
+    # Gender-aware germline calling (issue #66), passed through to Clair3.
+    'gender',
+    'par_regions_bed'
 ])
 
 supported_platforms = ['ont_r10_dorado_sup_5khz_ssrs', 'ont_r10_dorado_sup_5khz_ss', 'ont_r10_dorado_sup_5khz', 'ont_r10_dorado_sup_4khz', 'ont_r10_dorado_hac_5khz',
@@ -225,6 +228,8 @@ def check_contig_in_bam(bam_fn, sorted_contig_list, samtools, allow_none=False, 
             continue
         if int(mapped_reads) > 0:
             contig_with_read_support_set.add(contig_name)
+    # Fail fast on non-zero exit (e.g. BAM/CRAM decode error) instead of silent empty output.
+    check_subprocess_returncode(bai_process, "samtools idxstats")
     for contig_name in sorted_contig_list:
         if contig_name not in contig_with_read_support_set:
             logging(log_warning(
@@ -262,7 +267,7 @@ def check_threads(args):
 def split_extend_vcf(genotyping_mode_vcf_fn, output_fn):
     expand_region_size = param.no_of_positions
     output_ctg_dict = defaultdict(list)
-    unzip_process = subprocess_popen(shlex.split("gzip -fdc %s" % (genotyping_mode_vcf_fn)))
+    unzip_process = subprocess_popen(shlex.split("pigz -fdc -p 2 %s" % (genotyping_mode_vcf_fn)))
 
     for row_id, row in enumerate(unzip_process.stdout):
         if row[0] == '#':
@@ -299,7 +304,7 @@ def split_extend_vcf(genotyping_mode_vcf_fn, output_fn):
 def split_extend_bed(bed_fn, output_fn, contig_set=None):
     expand_region_size = param.no_of_positions
     output_ctg_dict = defaultdict(list)
-    unzip_process = subprocess_popen(shlex.split("gzip -fdc %s" % (bed_fn)))
+    unzip_process = subprocess_popen(shlex.split("pigz -fdc -p 2 %s" % (bed_fn)))
     for row_id, row in enumerate(unzip_process.stdout):
         if row[0] == '#':
             continue
@@ -496,25 +501,25 @@ def check_clair3_options(args):
 
     if args.clair3_model_path is None:
         if args.platform == 'ont_r10' or args.platform == 'ont' or args.platform == 'ont_r10_guppy':
-            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'clairs_models', 'clair3_models', 'ont_r104_e81_sup_g5015')
+            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'ont')
         elif args.platform == 'ont_r9' or args.platform == 'ont_r9_guppy':
-            # clair3 r9 model in bioconda bin
+            # clair3 r9 germline model
             args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'r941_prom_sup_g5014')
         elif args.platform == 'hifi' or args.platform == 'hifi_sequel2':
-            # clair3 hifi model in bioconda bin
+            # clair3 hifi germline model
             args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'hifi')
         elif args.platform.startswith("hifi_revio"):
-            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'clairs_models', 'clair3_models', 'hifi_revio')
+            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'hifi_revio')
         elif args.platform == "ont_r10_dorado_4khz" or args.platform == "ont_r10_dorado_sup_4khz":
-            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'clairs_models', 'clair3_models', 'r1041_e82_400bps_sup_v410')
+            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'r1041_e82_400bps_sup_v410')
         elif args.platform == "ont_r10_dorado_5khz" or args.platform.startswith("ont_r10_dorado_sup_5khz"):
-            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'clairs_models', 'clair3_models', 'r1041_e82_400bps_sup_v420')
+            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'r1041_e82_400bps_sup_v500')
         elif args.platform.startswith("ont_r10_dorado_hac_5khz_v6"):
-            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'clairs_models', 'clair3_models', 'r1041_e82_400bps_hac_v600')
+            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'r1041_e82_400bps_hac_v600')
         elif args.platform == "ont_r10_dorado_hac_5khz" or args.platform == "ont_r10_dorado_hac_5khz_liquid":
-            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'clairs_models', 'clair3_models', 'r1041_e82_400bps_hac_v420')
+            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'r1041_e82_400bps_hac_v500')
         elif args.platform == "ont_r10_dorado_hac_4khz":
-            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'clairs_models', 'clair3_models', 'r1041_e82_400bps_hac_v410')
+            args.clair3_model_path = os.path.join(conda_prefix, 'bin', 'models', 'r1041_e82_400bps_hac_v410')
 
     if not os.path.exists(args.clair3_model_path):
         sys.exit(log_error("[ERROR] Cannot find clair3 model path in {}".format(args.clair3_model_path)))
@@ -549,7 +554,10 @@ def check_clair3_options(args):
         min_coverage=str(args.clair3_min_coverage),
         snp_min_af=str(args.clair3_snp_min_af),
         indel_min_af=str(args.clair3_indel_min_af),
-        longphase=args.longphase)
+        longphase=args.longphase,
+        # Gender-aware germline calling (issue #66).
+        gender=args.gender,
+        par_regions_bed=args.par_regions_bed)
 
     return args
 
@@ -906,6 +914,8 @@ def print_command_line(args):
         cmdline += '--clair3_snp_min_af {} '.format(args.clair3_snp_min_af) if args.clair3_snp_min_af is not None else ""
         cmdline += '--clair3_indel_min_af {} '.format(args.clair3_indel_min_af) if args.clair3_indel_min_af is not None else ""
         cmdline += '--enable_clair3_germline_output ' if args.enable_clair3_germline_output else ""
+        cmdline += '--gender {} '.format(args.gender) if args.gender != "unknown" else ""
+        cmdline += '--par_regions_bed {} '.format(args.par_regions_bed) if args.par_regions_bed is not None else ""
         cmdline += '--use_heterozygous_snp_in_normal_sample_and_normal_bam_for_intermediate_phasing {} '.format(args.use_heterozygous_snp_in_normal_sample_and_normal_bam_for_intermediate_phasing) if args.use_heterozygous_snp_in_normal_sample_and_normal_bam_for_intermediate_phasing is not None else ""
         cmdline += '--use_heterozygous_snp_in_tumor_sample_and_tumor_bam_for_intermediate_phasing {} '.format(args.use_heterozygous_snp_in_tumor_sample_and_tumor_bam_for_intermediate_phasing) if args.use_heterozygous_snp_in_tumor_sample_and_tumor_bam_for_intermediate_phasing is not None else ""
         cmdline += '--use_heterozygous_snp_in_normal_sample_and_tumor_bam_for_intermediate_phasing {} '.format(args.use_heterozygous_snp_in_normal_sample_and_tumor_bam_for_intermediate_phasing) if args.use_heterozygous_snp_in_normal_sample_and_tumor_bam_for_intermediate_phasing is not None else ""
@@ -962,6 +972,10 @@ def somatic_calling(args):
             clair3_normal_command += ' --min_coverage=' + args.clair3_option.min_coverage
             clair3_normal_command += ' --snp_min_af=' + args.clair3_option.snp_min_af
             clair3_normal_command += ' --indel_min_af=' + args.clair3_option.indel_min_af
+            if args.clair3_option.gender != "unknown":
+                clair3_normal_command += ' --gender=' + args.clair3_option.gender
+            if args.clair3_option.par_regions_bed is not None:
+                clair3_normal_command += ' --par_regions_bed=' + args.clair3_option.par_regions_bed
             if args.clair3_option.longphase_for_phasing is True:
                 clair3_normal_command += ' --longphase_for_phasing '
             clair3_normal_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/1_CLAIR3_NORMAL.log'
@@ -982,6 +996,10 @@ def somatic_calling(args):
         clair3_tumor_command += ' --min_coverage=' + args.clair3_option.min_coverage
         clair3_tumor_command += ' --snp_min_af=' + args.clair3_option.snp_min_af
         clair3_tumor_command += ' --indel_min_af=' + args.clair3_option.indel_min_af
+        if args.clair3_option.gender != "unknown":
+            clair3_tumor_command += ' --gender=' + args.clair3_option.gender
+        if args.clair3_option.par_regions_bed is not None:
+            clair3_tumor_command += ' --par_regions_bed=' + args.clair3_option.par_regions_bed
         if args.clair3_option.longphase_for_phasing is True:
             clair3_tumor_command += ' --longphase_for_phasing '
         clair3_tumor_command += ' ) 2>&1 | tee ' + args.output_dir + '/logs/clair3_log/2_CLAIR3_TUMOR.log'
@@ -1896,6 +1914,22 @@ def somatic_parser():
         type=str2bool,
         default=None,
         help="Use whatshap for phasing."
+    )
+
+    # Gender-aware germline calling (issue #66), passed through to Clair3.
+    clair3_params.add_argument(
+        "--gender",
+        type=str,
+        default="unknown",
+        choices=["unknown", "male", "female"],
+        help="Sample gender for Clair3 germline calling. 'male' applies haploid mode to chrX/chrY, 'female' removes chrY. Default: unknown."
+    )
+
+    clair3_params.add_argument(
+        "--par_regions_bed",
+        type=str_none,
+        default=None,
+        help="BED file of pseudo-autosomal regions (PAR) for Clair3 germline calling. Only meaningful with --gender male."
     )
 
     variant_phasing_group = optional_params.add_mutually_exclusive_group(required=False)

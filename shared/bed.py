@@ -53,7 +53,7 @@ class VcfReader(object):
             return
 
         header_last_column = []
-        vcf_fp = subprocess_popen(shlex.split("gzip -fdc %s" % (self.vcf_fn)))
+        vcf_fp = subprocess_popen(shlex.split("pigz -fdc -p 2 %s" % (self.vcf_fn)))
         for row in vcf_fp.stdout:
             columns = row.strip().split()
             if columns[0][0] == "#":
